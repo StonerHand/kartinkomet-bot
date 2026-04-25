@@ -287,7 +287,7 @@ def format_stats(image_pool: ImagePool) -> str:
         f"Пикч в пуле: {stats.total_images}\n"
         f"Выдано картинок: {stats.total_shows}\n"
         f"Лайков: {stats.total_likes}\n"
-        f"Огней: {stats.total_fires}\n"
+        f"Какашек: {stats.total_fires}\n"
         f"Средних пальцев: {stats.total_dislikes}"
     )
 
