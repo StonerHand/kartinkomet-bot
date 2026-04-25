@@ -1,3 +1,5 @@
+import random
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -8,6 +10,38 @@ from bot.image_pool import ImagePool
 from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
 
 UPLOAD_COMMAND = "upload_pidor"
+UPLOAD_FINISH_PHRASES = [
+    "Залив закрыт",
+    "Пикчепровод перекрыт",
+    "Приём мемного топлива завершён",
+    "Контейнер с пикчами опечатан",
+    "Загрузка ушла в закат",
+    "Пикчи приняты, сервер задумался",
+    "Мемный трюм закрыт",
+    "Папка с хаосом пополнена",
+    "Картинкомёт перезаряжен",
+    "Пакет пикч приземлился",
+    "Операция «закинуть приколы» завершена",
+    "Рандом получил новую пищу",
+    "Пикчи легли в пул как родные",
+    "Залив окончен, расходимся красиво",
+    "Мемный склад обновлён",
+    "Пикчи загружены в пушку",
+    "Картинки ушли в общий котёл",
+    "Пул пополнен, тревога отменяется",
+    "Священный архив пикч обновлён",
+    "Загрузка завершена без лишней драмы",
+    "Пикчи припаркованы",
+    "Контент залетел на базу",
+    "Картинкомёт довольно урчит",
+    "Пакет принят, мемы под охраной",
+    "Залив закрыт, пикчи в домике",
+    "Пикчевой десант высажен",
+    "Мемная смена окончена",
+    "Пул сказал спасибо",
+    "Пикчи успешно спрятаны в рукаве",
+    "Кнопка загрузки остывает",
+]
 
 
 class AddPicture(StatesGroup):
@@ -267,7 +301,7 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     duplicates = int(data.get("duplicates", 0))
     await state.clear()
 
-    text = f"Залив закрыт. Добавлено пикч: {added}"
+    text = f"{random.choice(UPLOAD_FINISH_PHRASES)}. Добавлено пикч: {added}"
     if failed:
         text += f". Не зашло: {failed}"
     if duplicates:
