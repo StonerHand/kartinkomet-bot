@@ -26,7 +26,7 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 
 Бот выбирает картинку случайно, но сначала отсекает то, что недавно показывалось именно в текущем чате. После этого он убирает недавно показанные картинки по общему пулу и отдаёт приоритет тем, которые показывались реже. Если пул большой, повторы становятся заметно реже. Если в пуле мало картинок, повторы всё равно возможны.
 
-К каждой картинке добавляется случайная подпись из `150` вариантов.
+К каждой картинке добавляется случайная подпись из `333` вариантов. Ежедневный `/mood` влияет на подачу: бот добавляет к подписи префикс в стиле настроения дня.
 
 ### Реакции
 
@@ -166,7 +166,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 
 The bot uses random selection, first avoiding images recently shown in the current chat. Then it avoids globally recent images and prioritizes images with fewer previous views. With a larger pool, repeats become much less frequent. With a small pool, repeats can still happen.
 
-Each image gets a random caption from a set of `150` captions.
+Each image gets a random caption from a set of `333` captions. The daily `/mood` affects delivery by adding a mood-flavored prefix to the caption.
 
 ### Reactions
 
