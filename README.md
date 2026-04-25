@@ -24,7 +24,7 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 
 ### Рандом
 
-Бот выбирает картинку случайно, но сначала отсекает недавно показанные изображения и отдаёт приоритет тем, которые показывались реже. Если пул большой, повторы становятся заметно реже. Если в пуле мало картинок, повторы всё равно возможны.
+Бот выбирает картинку случайно, но сначала отсекает то, что недавно показывалось именно в текущем чате. После этого он убирает недавно показанные картинки по общему пулу и отдаёт приоритет тем, которые показывались реже. Если пул большой, повторы становятся заметно реже. Если в пуле мало картинок, повторы всё равно возможны.
 
 К каждой картинке добавляется случайная подпись из `150` вариантов.
 
@@ -114,22 +114,30 @@ TARGET_CHANNEL_ID=
 
 ### Хранение
 
-Пул хранится в JSON. Пример записи:
+Пул хранится в JSON. Формат автоматически мигрирует со старого списка `file_id` на объект с версией, картинками и памятью чатов.
 
 ```json
 {
-  "id": "a1b2c3",
-  "file_id": "AgACAgIAAxkBA...",
-  "file_unique_id": "AQAD...",
-  "added_by": 123456789,
-  "added_at": "2026-04-25T13:00:00+00:00",
-  "shown_count": 3,
-  "last_shown_at": "2026-04-25T13:10:00+00:00",
-  "likes": 1,
-  "fires": 2,
-  "dislikes": 0,
-  "reactions_by_user": {
-    "123456789": "like"
+  "version": 2,
+  "images": [
+    {
+      "id": "a1b2c3",
+      "file_id": "AgACAgIAAxkBA...",
+      "file_unique_id": "AQAD...",
+      "added_by": 123456789,
+      "added_at": "2026-04-25T13:00:00+00:00",
+      "shown_count": 3,
+      "last_shown_at": "2026-04-25T13:10:00+00:00",
+      "likes": 1,
+      "fires": 2,
+      "dislikes": 0,
+      "reactions_by_user": {
+        "123456789": "like"
+      }
+    }
+  ],
+  "chat_history": {
+    "-1001234567890": ["a1b2c3"]
   }
 }
 ```
@@ -156,7 +164,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 
 ### Random Selection
 
-The bot uses random selection, avoids recently shown images when possible, and prioritizes images with fewer previous views. With a larger pool, repeats become much less frequent. With a small pool, repeats can still happen.
+The bot uses random selection, first avoiding images recently shown in the current chat. Then it avoids globally recent images and prioritizes images with fewer previous views. With a larger pool, repeats become much less frequent. With a small pool, repeats can still happen.
 
 Each image gets a random caption from a set of `150` captions.
 
@@ -242,4 +250,34 @@ When `RAILWAY_VOLUME_MOUNT_PATH` is available, the bot automatically stores the 
 
 ```text
 /data/image_pool.json
+```
+
+### Storage
+
+The pool is stored in JSON. The format is migrated automatically from the old `file_id` list to a versioned object with images and per-chat random memory.
+
+```json
+{
+  "version": 2,
+  "images": [
+    {
+      "id": "a1b2c3",
+      "file_id": "AgACAgIAAxkBA...",
+      "file_unique_id": "AQAD...",
+      "added_by": 123456789,
+      "added_at": "2026-04-25T13:00:00+00:00",
+      "shown_count": 3,
+      "last_shown_at": "2026-04-25T13:10:00+00:00",
+      "likes": 1,
+      "fires": 2,
+      "dislikes": 0,
+      "reactions_by_user": {
+        "123456789": "like"
+      }
+    }
+  ],
+  "chat_history": {
+    "-1001234567890": ["a1b2c3"]
+  }
+}
 ```

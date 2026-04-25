@@ -536,7 +536,11 @@ async def send_picture(
     answer_message: Message | None = None,
     avoid_recent: bool = True,
 ) -> None:
-    image = image_pool.random_image(avoid_recent=avoid_recent)
+    destination_chat_id = target_channel_id or chat_id
+    image = image_pool.random_image(
+        avoid_recent=avoid_recent,
+        chat_id=destination_chat_id,
+    )
     if image is None:
         if answer_message:
             await answer_message.answer(random.choice(EMPTY_POOL_PHRASES))
@@ -544,7 +548,6 @@ async def send_picture(
             await bot.send_message(chat_id=chat_id, text=random.choice(EMPTY_POOL_PHRASES))
         return
 
-    destination_chat_id = target_channel_id or chat_id
     await bot.send_photo(
         chat_id=destination_chat_id,
         photo=image.file_id,

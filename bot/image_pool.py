@@ -12,6 +12,8 @@ REACTION_FIELDS = {
     "fire": "fires",
     "dislike": "dislikes",
 }
+STORAGE_VERSION = 2
+MAX_CHAT_HISTORY = 500
 
 
 @dataclass(frozen=True)
@@ -48,18 +50,22 @@ class ImagePool:
     def __init__(self, storage_path: str) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._records = self._load()
+        self._records, self._chat_history = self._load()
 
     def count(self) -> int:
         return len(self._records)
 
-    def random_image(self, avoid_recent: bool = True) -> ImageRecord | None:
+    def random_image(
+        self,
+        avoid_recent: bool = True,
+        chat_id: int | str | None = None,
+    ) -> ImageRecord | None:
         if not self._records:
             return None
 
-        records = self._selectable_records(avoid_recent=avoid_recent)
+        records = self._selectable_records(avoid_recent=avoid_recent, chat_id=chat_id)
         record = random.choice(records)
-        self._mark_shown(record)
+        self._mark_shown(record, chat_id=chat_id)
         return self._to_image_record(record)
 
     def add_from_message(self, message: Message) -> AddResult:
@@ -115,6 +121,10 @@ class ImagePool:
         if len(self._records) == original_count:
             return False
 
+        for chat_key, history in list(self._chat_history.items()):
+            history[:] = [shown_id for shown_id in history if shown_id != image_id]
+            if not history:
+                del self._chat_history[chat_key]
         self._write()
         return True
 
@@ -136,14 +146,24 @@ class ImagePool:
             record["dislikes"] = 0
             record["reactions_by_user"] = {}
 
+        self._chat_history.clear()
         self._write()
 
     def count_by_user(self, user_id: int) -> int:
         return sum(1 for record in self._records if record["added_by"] == user_id)
 
-    def _selectable_records(self, avoid_recent: bool) -> list[dict]:
+    def _selectable_records(
+        self,
+        avoid_recent: bool,
+        chat_id: int | str | None,
+    ) -> list[dict]:
         if not avoid_recent or len(self._records) == 1:
             return self._records
+
+        records = self._records
+        chat_records = self._chat_fresh_records(chat_id)
+        if chat_records:
+            records = chat_records
 
         shown_records = [record for record in self._records if record.get("last_shown_at")]
         recent_limit = min(
@@ -160,18 +180,49 @@ class ImagePool:
                 reverse=True,
             )[:recent_limit]
         }
-        fresh_records = [record for record in self._records if record["id"] not in recent_ids]
-        records = fresh_records or self._records
+        fresh_records = [record for record in records if record["id"] not in recent_ids]
+        records = fresh_records or records
         lowest_shown_count = min(record["shown_count"] for record in records)
         least_shown_records = [
             record for record in records if record["shown_count"] == lowest_shown_count
         ]
         return least_shown_records or records
 
-    def _mark_shown(self, record: dict) -> None:
+    def _chat_fresh_records(self, chat_id: int | str | None) -> list[dict]:
+        if chat_id is None:
+            return []
+
+        history = self._chat_history.get(str(chat_id), [])
+        if not history:
+            return self._records
+
+        history_ids = set(history)
+        fresh_records = [record for record in self._records if record["id"] not in history_ids]
+        if fresh_records:
+            return fresh_records
+
+        self._chat_history[str(chat_id)] = history[-1:]
+        last_id = set(self._chat_history[str(chat_id)])
+        return [record for record in self._records if record["id"] not in last_id] or self._records
+
+    def _mark_shown(self, record: dict, chat_id: int | str | None) -> None:
         record["shown_count"] += 1
         record["last_shown_at"] = datetime.now(UTC).isoformat()
+        self._remember_chat_show(record["id"], chat_id)
         self._write()
+
+    def _remember_chat_show(self, image_id: str, chat_id: int | str | None) -> None:
+        if chat_id is None:
+            return
+
+        chat_key = str(chat_id)
+        history = self._chat_history.setdefault(chat_key, [])
+        history[:] = [shown_id for shown_id in history if shown_id != image_id]
+        history.append(image_id)
+
+        max_history = min(MAX_CHAT_HISTORY, max(1, len(self._records) - 1))
+        if len(history) > max_history:
+            del history[:-max_history]
 
     def _find(self, image_id: str) -> dict | None:
         return next((record for record in self._records if record["id"] == image_id), None)
@@ -196,22 +247,41 @@ class ImagePool:
 
         return None
 
-    def _load(self) -> list[dict]:
+    def _load(self) -> tuple[list[dict], dict[str, list[str]]]:
         if not self.storage_path.exists():
-            self._atomic_write([])
-            return []
+            self._atomic_write([], {})
+            return [], {}
 
         with self.storage_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
-        if not isinstance(data, list):
-            raise RuntimeError(f"{self.storage_path} must contain a JSON list.")
+        needs_write = False
+        if isinstance(data, list):
+            raw_records = data
+            raw_chat_history = {}
+            needs_write = True
+        elif isinstance(data, dict):
+            raw_records = data.get("images")
+            raw_chat_history = data.get("chat_history", {})
+            needs_write = data.get("version") != STORAGE_VERSION
+        else:
+            raise RuntimeError(f"{self.storage_path} must contain a JSON list or object.")
 
-        records = [self._normalize_record(item) for item in data]
-        if records != data:
-            self._atomic_write(records)
+        if not isinstance(raw_records, list):
+            raise RuntimeError(f"{self.storage_path} must contain an images list.")
 
-        return records
+        records = [self._normalize_record(item) for item in raw_records]
+        if records != raw_records:
+            needs_write = True
+
+        chat_history = self._normalize_chat_history(raw_chat_history, records)
+        if chat_history != raw_chat_history:
+            needs_write = True
+
+        if needs_write:
+            self._atomic_write(records, chat_history)
+
+        return records, chat_history
 
     def _normalize_record(self, item: object) -> dict:
         if isinstance(item, str):
@@ -248,12 +318,47 @@ class ImagePool:
         }
 
     def _write(self) -> None:
-        self._atomic_write(self._records)
+        self._atomic_write(self._records, self._chat_history)
 
-    def _atomic_write(self, records: list[dict]) -> None:
+    def _normalize_chat_history(
+        self,
+        item: object,
+        records: list[dict],
+    ) -> dict[str, list[str]]:
+        if not isinstance(item, dict):
+            return {}
+
+        record_ids = {record["id"] for record in records}
+        max_history = min(MAX_CHAT_HISTORY, max(1, len(record_ids) - 1)) if record_ids else 0
+        chat_history: dict[str, list[str]] = {}
+        for chat_id, history in item.items():
+            if not isinstance(history, list):
+                continue
+
+            seen_ids: set[str] = set()
+            valid_history = []
+            for image_id in history:
+                image_key = str(image_id)
+                if image_key in record_ids and image_key not in seen_ids:
+                    valid_history.append(image_key)
+                    seen_ids.add(image_key)
+
+            if max_history:
+                valid_history = valid_history[-max_history:]
+            if valid_history:
+                chat_history[str(chat_id)] = valid_history
+
+        return chat_history
+
+    def _atomic_write(self, records: list[dict], chat_history: dict[str, list[str]]) -> None:
         temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
+        payload = {
+            "version": STORAGE_VERSION,
+            "images": records,
+            "chat_history": chat_history,
+        }
         with temp_path.open("w", encoding="utf-8") as file:
-            json.dump(records, file, ensure_ascii=False, indent=2)
+            json.dump(payload, file, ensure_ascii=False, indent=2)
             file.write("\n")
 
         temp_path.replace(self.storage_path)
