@@ -2,12 +2,10 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
-    keyboard = [
-        [InlineKeyboardButton(text="🎲 Рандом", callback_data="pic")],
-    ]
+    keyboard = [[InlineKeyboardButton(text="🎲 Рандом", callback_data="pic")]]
 
     if is_admin:
-        keyboard.append([InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload")])
+        keyboard[0].append(InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload"))
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

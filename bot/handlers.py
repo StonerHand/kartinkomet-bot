@@ -277,7 +277,11 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
 
 
 async def show_menu(message: Message, is_admin: bool) -> None:
-    await message.answer("Пульт от ядерки 🚨", reply_markup=main_menu(is_admin=is_admin))
+    await message.answer(
+        "<b>Пульт от ядерки 🚨</b>",
+        parse_mode="HTML",
+        reply_markup=main_menu(is_admin=is_admin),
+    )
 
 
 def format_stats(image_pool: ImagePool) -> str:
