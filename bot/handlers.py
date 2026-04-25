@@ -357,7 +357,7 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.update_data(added=0, failed=0, duplicates=0)
     await message.answer(
         f"{random.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
-        "Когда хватит, нажмите кнопку или отправьте /done",
+        "Когда хватит, отправьте /done или нажми \"✅ Закончить\"",
         reply_markup=upload_menu(),
     )
 
