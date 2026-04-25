@@ -1,4 +1,5 @@
 import random
+from datetime import date
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
@@ -138,6 +139,36 @@ EMPTY_POOL_PHRASES = [
     "Случайность не случилась",
     "Пустой пул. Загрузите хоть что-нибудь",
 ]
+BOT_MOODS = [
+    "злой архивариус",
+    "сонный оператор мемного реактора",
+    "вахтёр визуального хаоса",
+    "молчаливый коллекционер странного",
+    "радостный мусоросортировщик",
+    "уставший хранитель пикч",
+    "дерзкий раздатчик рандома",
+    "подозрительно бодрый бот",
+    "мемный диспетчер",
+    "цифровой кладовщик",
+    "режим: всё видел, ничего не понял",
+    "реактор на минималках",
+    "бот после третьего кофе",
+    "дежурный по странным картинкам",
+    "официально не осуждает, но запоминает",
+]
+ACHIEVEMENTS = [
+    (1, "🏅 Достижение: первый вброс"),
+    (5, "🏅 Достижение: поставщик визуального шума"),
+    (10, "🏅 Достижение: мемный логист"),
+    (25, "🏅 Достижение: оператор пикчепровода"),
+    (50, "🏅 Достижение: контентный промышленник"),
+    (100, "🏅 Достижение: легенда общего пула"),
+]
+JURY_THRESHOLDS = {
+    3: "Суд присяжных напрягся",
+    5: "Общество осудило эту пикчу",
+    10: "Пикча получила народный вотум недоверия",
+}
 
 
 class AddPicture(StatesGroup):
@@ -154,6 +185,7 @@ def build_router(
     async def start(message: Message) -> None:
         await message.answer(
             "Я @kartinkomet_bot. Отправляю случайные изображения из общего пула\n\n"
+            f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n\n"
             "Жмите кнопку <b>\"🎲 Рандом\"</b> или используйте /pic",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
@@ -167,6 +199,7 @@ def build_router(
             "🎲 /pic — рандомная пикча\n"
             "📦 /count — сколько пикч в реакторе\n"
             "📊 /stats — статы по реакциям\n"
+            "🧠 /mood — настроение бота на сегодня\n"
             "🚨 /menu — открыть пульт от ядерки\n"
             "🪪 /id — показать ваш Telegram user ID\n"
             "✅ /done — закончить загрузку\n"
@@ -199,6 +232,10 @@ def build_router(
     async def stats_command(message: Message) -> None:
         await message.answer(format_stats(image_pool))
 
+    @router.message(Command("mood"))
+    async def mood_command(message: Message) -> None:
+        await message.answer(f"Сегодня бот в режиме: {daily_mood()}")
+
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
         if message.from_user is None:
@@ -230,6 +267,9 @@ def build_router(
         if result.added:
             await state.update_data(added=added + 1, failed=failed, duplicates=duplicates)
             await message.answer("Пикча добавлена", reply_markup=upload_menu())
+            achievement = achievement_for(message, image_pool)
+            if achievement:
+                await message.answer(achievement)
             return
 
         if result.duplicate:
@@ -310,6 +350,9 @@ def build_router(
                     dislikes=image.dislikes,
                 )
             )
+            jury_message = jury_verdict(image.dislikes)
+            if jury_message:
+                await callback.message.answer(jury_message)
 
         await callback.answer("Засчитано")
 
@@ -418,3 +461,25 @@ def format_stats(image_pool: ImagePool) -> str:
         f"Какашек: {stats.total_fires}\n"
         f"Средних пальцев: {stats.total_dislikes}"
     )
+
+
+def daily_mood() -> str:
+    today = date.today().toordinal()
+    return BOT_MOODS[today % len(BOT_MOODS)]
+
+
+def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
+    if message.from_user is None:
+        return None
+
+    uploaded_count = image_pool.count_by_user(message.from_user.id)
+    uploader = f"@{message.from_user.username}" if message.from_user.username else (message.from_user.first_name or "кто-то")
+    for threshold, achievement in ACHIEVEMENTS:
+        if uploaded_count == threshold:
+            return f"{achievement}\n{uploader} загрузил пикч: {uploaded_count}"
+
+    return None
+
+
+def jury_verdict(dislikes: int) -> str | None:
+    return JURY_THRESHOLDS.get(dislikes)

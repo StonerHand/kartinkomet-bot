@@ -124,6 +124,9 @@ class ImagePool:
             total_dislikes=sum(record["dislikes"] for record in records),
         )
 
+    def count_by_user(self, user_id: int) -> int:
+        return sum(1 for record in self._read() if record["added_by"] == user_id)
+
     def _to_image_record(self, record: dict) -> ImageRecord:
         return ImageRecord(
             id=record["id"],
