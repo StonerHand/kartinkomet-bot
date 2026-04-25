@@ -11,6 +11,7 @@ from bot.image_pool import ImagePool
 from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
 
 UPLOAD_COMMAND = "upload_pidor"
+active_uploads: dict[int, dict[str, int | bool]] = {}
 UPLOAD_FINISH_PHRASES = [
     "Загрузка закрыта",
     "Пикчепровод перекрыт",
@@ -390,8 +391,13 @@ def build_router(
 
     @router.message(AddPicture.uploading)
     @router.channel_post(AddPicture.uploading)
+    @router.message(F.photo | F.document)
+    @router.channel_post(F.photo | F.document)
     async def save_picture(message: Message, state: FSMContext) -> None:
-        data = await state.get_data()
+        if not is_upload_active(message):
+            return
+
+        data = upload_data(message)
         added = int(data.get("added", 0))
         failed = int(data.get("failed", 0))
         duplicates = int(data.get("duplicates", 0))
@@ -399,7 +405,7 @@ def build_router(
 
         result = image_pool.add_from_message(message)
         if result.added:
-            await state.update_data(added=added + 1, failed=failed, duplicates=duplicates, ack_sent=True)
+            data.update({"added": added + 1, "failed": failed, "duplicates": duplicates, "ack_sent": True})
             if not ack_sent:
                 await message.answer("Пикчи принимаю. Когда хватит, жми кнопку", reply_markup=upload_menu())
             achievement = achievement_for(message, image_pool)
@@ -408,11 +414,11 @@ def build_router(
             return
 
         if result.duplicate:
-            await state.update_data(added=added, failed=failed, duplicates=duplicates + 1)
+            data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
             await message.answer("Дубликат пропущен")
             return
 
-        await state.update_data(added=added, failed=failed + 1, duplicates=duplicates)
+        data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
         await message.answer("Файл не зашёл. Отправьте изображение")
 
     @router.callback_query(F.data == "pic")
@@ -539,6 +545,7 @@ async def send_picture(
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
+    active_uploads[message.chat.id] = {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False}
     await state.update_data(added=0, failed=0, duplicates=0, ack_sent=False)
     await message.answer(
         f"{random.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
@@ -550,7 +557,7 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
 
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
-    if current_state != AddPicture.uploading.state:
+    if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer("Загрузка сейчас не открыта")
         return
 
@@ -559,22 +566,24 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
-    if current_state != AddPicture.uploading.state:
+    if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer("Отменять нечего. Загрузка сейчас не открыта")
         return
 
-    data = await state.get_data()
+    data = upload_data(message)
     added = int(data.get("added", 0))
     await state.clear()
+    active_uploads.pop(message.chat.id, None)
     await message.answer(f"Загрузка отменена. Уже добавлено пикч: {added}")
 
 
 async def finish_upload(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
+    data = upload_data(message)
     added = int(data.get("added", 0))
     failed = int(data.get("failed", 0))
     duplicates = int(data.get("duplicates", 0))
     await state.clear()
+    active_uploads.pop(message.chat.id, None)
 
     text = f"{random.choice(UPLOAD_FINISH_PHRASES)}. Добавлено пикч: {added}"
     if failed:
@@ -583,6 +592,17 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
         text += f". Дубликатов пропущено: {duplicates}"
 
     await message.answer(text)
+
+
+def is_upload_active(message: Message) -> bool:
+    return message.chat.id in active_uploads
+
+
+def upload_data(message: Message) -> dict[str, int | bool]:
+    return active_uploads.setdefault(
+        message.chat.id,
+        {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False},
+    )
 
 
 async def show_menu(message: Message) -> None:
