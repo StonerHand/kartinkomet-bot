@@ -42,19 +42,20 @@ class ImagePool:
     def count(self) -> int:
         return len(self._read())
 
-    def random_image(self, avoid_recent: bool = False) -> ImageRecord | None:
+    def random_image(self, avoid_recent: bool = True) -> ImageRecord | None:
         records = self._read()
         if not records:
             return None
 
         if avoid_recent and len(records) > 1:
+            recent_limit = min(max(1, len(records) // 2), 25, len(records) - 1)
             recent_ids = {
                 record["id"]
                 for record in sorted(
                     records,
                     key=lambda record: record.get("last_shown_at") or "",
                     reverse=True,
-                )[: min(10, len(records) - 1)]
+                )[:recent_limit]
             }
             fresh_records = [record for record in records if record["id"] not in recent_ids]
             if fresh_records:
@@ -81,12 +82,18 @@ class ImagePool:
                 "file_unique_id": file_unique_id,
                 "added_by": message.from_user.id if message.from_user else None,
                 "added_at": datetime.now(UTC).isoformat(),
+                "shown_count": 0,
+                "last_shown_at": None,
+                "likes": 0,
+                "fires": 0,
+                "dislikes": 0,
+                "reactions_by_user": {},
             }
         )
         self._write(records)
         return AddResult(added=True)
 
-    def react(self, image_id: str, reaction: str) -> ImageRecord | None:
+    def react(self, image_id: str, reaction: str, user_id: int) -> ImageRecord | None:
         reaction_fields = {
             "like": "likes",
             "fire": "fires",
@@ -99,11 +106,31 @@ class ImagePool:
         records = self._read()
         for record in records:
             if record["id"] == image_id:
+                reactions_by_user = record["reactions_by_user"]
+                user_key = str(user_id)
+                previous_reaction = reactions_by_user.get(user_key)
+                if previous_reaction == reaction:
+                    return self._to_image_record(record)
+
+                if previous_reaction in reaction_fields:
+                    previous_field = reaction_fields[previous_reaction]
+                    record[previous_field] = max(0, record[previous_field] - 1)
+
+                reactions_by_user[user_key] = reaction
                 record[field] += 1
                 self._write(records)
                 return self._to_image_record(record)
 
         return None
+
+    def delete(self, image_id: str) -> bool:
+        records = self._read()
+        filtered_records = [record for record in records if record["id"] != image_id]
+        if len(filtered_records) == len(records):
+            return False
+
+        self._write(filtered_records)
+        return True
 
     def mark_shown(self, image_id: str) -> None:
         records = self._read()
@@ -123,6 +150,18 @@ class ImagePool:
             total_fires=sum(record["fires"] for record in records),
             total_dislikes=sum(record["dislikes"] for record in records),
         )
+
+    def reset_stats(self) -> None:
+        records = self._read()
+        for record in records:
+            record["shown_count"] = 0
+            record["last_shown_at"] = None
+            record["likes"] = 0
+            record["fires"] = 0
+            record["dislikes"] = 0
+            record["reactions_by_user"] = {}
+
+        self._write(records)
 
     def count_by_user(self, user_id: int) -> int:
         return sum(1 for record in self._read() if record["added_by"] == user_id)
@@ -173,6 +212,7 @@ class ImagePool:
                 "likes": 0,
                 "fires": 0,
                 "dislikes": 0,
+                "reactions_by_user": {},
             }
 
         if not isinstance(item, dict) or "file_id" not in item:
@@ -190,6 +230,7 @@ class ImagePool:
             "likes": int(item.get("likes") or 0),
             "fires": int(item.get("fires") or 0),
             "dislikes": int(item.get("dislikes") or 0),
+            "reactions_by_user": dict(item.get("reactions_by_user") or {}),
         }
 
     def _write(self, records: list[dict]) -> None:

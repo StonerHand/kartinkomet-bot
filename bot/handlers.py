@@ -106,6 +106,126 @@ PICTURE_CAPTIONS = [
     "Без контекста, зато честно",
     "Сервер достал из кармана",
     "Мемная единица доставлена",
+    "Пикча прошла без досмотра",
+    "Визуальный объект неопознан",
+    "Рандом открыл портал",
+    "Это уже не лечится",
+    "Содержимое вызывает вопросы",
+    "Смотреть можно, понимать необязательно",
+    "Кадр из параллельной реальности",
+    "Пул выдал странное",
+    "Бот нашёл это под диваном",
+    "Немного хаоса в ленту",
+    "Проверка связи с безумием",
+    "Пикча с запахом приключений",
+    "Такое мог выбрать только рандом",
+    "Визуальная пощёчина",
+    "Доказательство, что интернет устал",
+    "Случайность без тормозов",
+    "Пикча попросила выйти",
+    "Научно не объяснено",
+    "Архив открылся сам",
+    "Контент с мутной биографией",
+    "Пикча пришла без приглашения",
+    "Случайный экспонат общего котла",
+    "Это не сон, это пул",
+    "Бот не комментирует, но осуждает",
+    "Рандом хлопнул дверью",
+    "На экране что-то происходит",
+    "Слишком поздно отворачиваться",
+    "Пикча уже здесь",
+    "Реактор выплюнул результат",
+    "Визуальный шум уровня мастер",
+    "Склад странностей пополнился вами",
+    "Картинка из зоны турбулентности",
+    "С этим живём дальше",
+    "Пул сказал: держи крепче",
+    "Очередной аргумент против порядка",
+    "Визуальная улика",
+    "Это было неизбежно",
+    "Пикча для смелых",
+    "Без гарантии психической стабильности",
+    "Рандом не ошибается, он издевается",
+    "Контент вышел из-под контроля",
+    "Файл с настроением понедельника",
+    "Пикча, которую не просили",
+    "Зато не скучно",
+    "Случайность с тяжёлым взглядом",
+    "Пул сделал выбор за вас",
+    "Нормально же общались",
+    "Бот достал из тёмного угла",
+    "Культурный слой интернета",
+    "Шедевр сомнительного периода",
+    "Пикча из отдела находок",
+    "Рандомный артефакт получен",
+    "Смотреть под ответственность зрителя",
+    "Содержимое может вызвать мемы",
+    "Пикча без тормозов и документов",
+    "Пул сегодня в ударе",
+    "Визуальная авария без пострадавших",
+    "Это уже история",
+    "Кандидат в музей странного",
+    "Бот принёс добычу",
+    "Файл решил стать событием",
+    "Рандом включил драму",
+    "Немного цифрового абсурда",
+    "Пикча с сомнительной репутацией",
+    "Случайность на максималках",
+    "Уровень контента: да",
+    "Бот сделал вид, что так и надо",
+    "Это не картинка, это заявление",
+    "Пул подкинул сюрприз",
+    "Визуальный материал без лицензии на адекватность",
+    "Картинка, которая смотрит в ответ",
+    "Рандом устроил показ",
+    "Сервер выдохнул и отправил это",
+    "Пикча из категории «ну ладно»",
+    "Проверка вкуса провалена успешно",
+    "Контент прибыл на своих ногах",
+    "Это точно было загружено человеком",
+    "Пул не несёт ответственности",
+    "Картинка с характером и проблемами",
+    "Рандомная находка из подвала",
+    "Визуальная граната без чеки",
+    "Бот выдал нечто",
+    "Мемная археология в действии",
+    "Пикча посмотрела на правила и ушла",
+    "Случайность сегодня дерзкая",
+    "Контент, который невозможно развидеть",
+    "Пул выбрал насилие",
+    "Картинка для сильных духом",
+    "Бот достал козырь из рукава",
+    "Интернет оставил это нам",
+    "Визуальный фейерверк сомнений",
+    "Пикча уровня «что происходит»",
+    "Рандом включил режим дурки",
+    "Это попало в архив не случайно",
+    "Картинка пришла решать вопросы",
+    "Бот передаёт привет из бездны",
+    "Пул раскрыл тайну",
+    "Содержимое требует аплодисментов или полиции",
+    "Визуальный объект повышенной странности",
+    "Пикча, которой не нужен контекст",
+    "Рандом отсыпал щедро",
+    "Это не фильтр, это судьба",
+    "Контент вышел на связь",
+    "Пул снова делает вид, что всё нормально",
+    "Бот нашёл прекрасное в ужасном",
+    "Картинка с внутренним конфликтом",
+    "Визуальное доказательство хаоса",
+    "Пикча прошла кастинг",
+    "Рандом достал тяжёлую артиллерию",
+    "Сервер выбрал путь мемов",
+    "Это можно показывать только друзьям",
+    "Картинка пришла портить продуктивность",
+    "Пул не подвёл, но напугал",
+    "Бот отправил то, что было",
+    "Визуальный беспорядок доставлен",
+    "Пикча уровня «мама, я в интернете»",
+    "Рандом попросил не благодарить",
+    "Контент с повышенным содержанием вопросов",
+    "Пул выкатил классику безумия",
+    "Это нельзя назвать случайностью",
 ]
 EMPTY_POOL_PHRASES = [
     "Пул пуст. Сначала загрузите пикчи",
@@ -166,9 +286,9 @@ ACHIEVEMENTS = [
 ]
 JURY_THRESHOLDS = {
     3: "Суд присяжных напрягся",
-    5: "Общество осудило эту пикчу",
     10: "Пикча получила народный вотум недоверия",
 }
+AUTO_DELETE_DISLIKES = 5
 
 
 class AddPicture(StatesGroup):
@@ -199,6 +319,7 @@ def build_router(
             "🎲 /pic — рандомная пикча\n"
             "📦 /count — сколько пикч в реакторе\n"
             "📊 /stats — статы по реакциям\n"
+            "♻️ /reset_stats — сбросить реакции и показы\n"
             "🧠 /mood — настроение бота на сегодня\n"
             "🚨 /menu — открыть пульт от ядерки\n"
             "🪪 /id — показать ваш Telegram user ID\n"
@@ -215,6 +336,7 @@ def build_router(
         await show_menu(message)
 
     @router.message(Command("pic"))
+    @router.channel_post(Command("pic"))
     async def send_random_picture(message: Message, bot: Bot) -> None:
         await send_picture(
             bot=bot,
@@ -225,14 +347,23 @@ def build_router(
         )
 
     @router.message(Command("count"))
+    @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
         await message.answer(f"В пуле пикч: {image_pool.count()}")
 
     @router.message(Command("stats"))
+    @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
         await message.answer(format_stats(image_pool))
 
+    @router.message(Command("reset_stats"))
+    @router.channel_post(Command("reset_stats"))
+    async def reset_stats_command(message: Message) -> None:
+        image_pool.reset_stats()
+        await message.answer("Статистика сброшена. Реакции, показы и история рандома обнулены")
+
     @router.message(Command("mood"))
+    @router.channel_post(Command("mood"))
     async def mood_command(message: Message) -> None:
         await message.answer(f"Сегодня бот в режиме: {daily_mood()}")
 
@@ -245,28 +376,34 @@ def build_router(
         await message.answer(f"Ваш user ID: {message.from_user.id}")
 
     @router.message(Command(UPLOAD_COMMAND))
+    @router.channel_post(Command(UPLOAD_COMMAND))
     async def start_upload(message: Message, state: FSMContext) -> None:
         await activate_upload(message, state)
 
     @router.message(Command("done"))
+    @router.channel_post(Command("done"))
     async def done_upload(message: Message, state: FSMContext) -> None:
         await finish_upload_or_warn(message, state)
 
     @router.message(Command("cancel"))
+    @router.channel_post(Command("cancel"))
     async def cancel_upload_command(message: Message, state: FSMContext) -> None:
         await cancel_upload(message, state)
 
     @router.message(AddPicture.uploading)
+    @router.channel_post(AddPicture.uploading)
     async def save_picture(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         added = int(data.get("added", 0))
         failed = int(data.get("failed", 0))
         duplicates = int(data.get("duplicates", 0))
+        ack_sent = bool(data.get("ack_sent", False))
 
         result = image_pool.add_from_message(message)
         if result.added:
-            await state.update_data(added=added + 1, failed=failed, duplicates=duplicates)
-            await message.answer("Пикча добавлена", reply_markup=upload_menu())
+            await state.update_data(added=added + 1, failed=failed, duplicates=duplicates, ack_sent=True)
+            if not ack_sent:
+                await message.answer("Пикчи принимаю. Когда хватит, жми кнопку", reply_markup=upload_menu())
             achievement = achievement_for(message, image_pool)
             if achievement:
                 await message.answer(achievement)
@@ -336,12 +473,19 @@ def build_router(
             return
 
         _, reaction, image_id = callback.data.split(":", 2)
-        image = image_pool.react(image_id, reaction)
+        image = image_pool.react(image_id, reaction, callback.from_user.id)
         if image is None:
             await callback.answer("Не нашёл эту пикчу", show_alert=True)
             return
 
         if callback.message:
+            if reaction == "dislike" and image.dislikes >= AUTO_DELETE_DISLIKES:
+                image_pool.delete(image.id)
+                await callback.message.edit_reply_markup(reply_markup=None)
+                await callback.message.answer("Пять средних пальцев. Пикча удалена из пула")
+                await callback.answer("Народный суд сработал")
+                return
+
             await callback.message.edit_reply_markup(
                 reply_markup=picture_actions_with_counts(
                     image_id=image.id,
@@ -373,7 +517,7 @@ async def send_picture(
     image_pool: ImagePool,
     target_channel_id: str | None = None,
     answer_message: Message | None = None,
-    avoid_recent: bool = False,
+    avoid_recent: bool = True,
 ) -> None:
     image = image_pool.random_image(avoid_recent=avoid_recent)
     if image is None:
@@ -397,7 +541,7 @@ async def send_picture(
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
-    await state.update_data(added=0, failed=0, duplicates=0)
+    await state.update_data(added=0, failed=0, duplicates=0, ack_sent=False)
     await message.answer(
         f"{random.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
         "Когда хватит, отправьте /done или нажми <b>\"✅ Закончить\"</b>",

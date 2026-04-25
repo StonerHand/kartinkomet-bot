@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.strategy import FSMStrategy
 
 from bot.config import load_config
 from bot.handlers import build_router
@@ -16,7 +17,7 @@ async def main() -> None:
 
     config = load_config()
     bot = Bot(token=config.bot_token)
-    dispatcher = Dispatcher()
+    dispatcher = Dispatcher(fsm_strategy=FSMStrategy.CHAT)
     dispatcher.include_router(
         build_router(
             image_pool=ImagePool(config.image_pool_path),
