@@ -1,105 +1,34 @@
 # kartinkomet
 
-Telegram-бот для группы или канала. По команде отправляет случайное изображение из общего пула. Бот не хранит изображения физически: сохраняет только Telegram `file_id`, а сами изображения остаются на стороне Telegram.
+Telegram bot for random images, group chaos, reactions, uploads, and meme-flavored captions.
 
-## Быстрый запуск
+## RU
 
-1. Создайте виртуальное окружение:
+### Что это
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
+`@kartinkomet_bot` отправляет случайные картинки из общего пула по команде `/pic` или кнопке `🎲 Рандом`.
 
-2. Установите зависимости:
+Бот не хранит сами изображения на сервере. Он сохраняет только Telegram `file_id`, а физические файлы остаются на стороне Telegram.
 
-```bash
-pip install -r requirements.txt
-```
+### Что умеет
 
-3. Создайте файл `.env` по примеру:
+- `🎲 Рандом` и `/pic` — отправить случайную пикчу.
+- `🎲 Ещё` — запросить следующую пикчу прямо из-под картинки.
+- `⬆️ Залить пикчи` и `/upload_pidor` — открыть режим загрузки.
+- `✅ Закончить` и `/done` — закрыть загрузку и показать итог.
+- `❌ Отмена` и `/cancel` — отменить активную загрузку.
+- `/count` — количество пикч в пуле.
+- `/stats` — статистика показов и реакций.
+- `/mood` — настроение бота на сегодня.
+- `/reset_stats` — скрытая утилитная команда для сброса реакций, показов и памяти рандома.
 
-```bash
-cp .env.example .env
-```
+### Рандом
 
-4. Вставьте токен бота от BotFather в `.env`:
+Бот выбирает картинку случайно, но сначала отсекает недавно показанные изображения и отдаёт приоритет тем, которые показывались реже. Если пул большой, повторы становятся заметно реже. Если в пуле мало картинок, повторы всё равно возможны.
 
-```env
-BOT_TOKEN=123456:your-token
-```
+К каждой картинке добавляется случайная подпись из `150` вариантов.
 
-Опционально можно указать JSON-файл для хранения `file_id`:
-
-```env
-IMAGE_POOL_PATH=data/image_pool.json
-```
-
-Для публикации в канал укажите `TARGET_CHANNEL_ID`:
-
-```env
-TARGET_CHANNEL_ID=@your_channel
-```
-
-Бот должен быть добавлен в канал как администратор с правом отправки сообщений и медиа.
-
-5. Запустите бота:
-
-```bash
-python -m bot
-```
-
-## Команды
-
-- `/start` - краткое описание возможностей
-- `/pic` - отправляет случайное изображение из пула
-- `/count` - показывает количество изображений в пуле
-- `/stats` - показывает статистику выдач и реакций
-- `/reset_stats` - сбрасывает реакции, показы и историю рандома
-- `/mood` - показывает настроение бота на сегодня
-- `/menu` - показывает кнопочное меню
-- `/id` - показывает ваш Telegram user ID
-- `/upload_pidor` - секретная команда для включения режима загрузки
-- `/done` - завершает режим загрузки и показывает статистику
-- `/cancel` - отменяет режим загрузки
-- `/help` - показывает список команд
-
-## Добавление изображений
-
-1. Пользователь отправляет `/upload_pidor` или нажимает кнопку `⬆️ Залить пикчи` в пульте.
-2. Бот включает режим загрузки.
-3. Пользователь отправляет одно изображение, несколько изображений подряд или альбом Telegram.
-4. Бот сохраняет `file_id` каждого изображения в общий пул.
-5. Пользователь отправляет `/done` или нажимает кнопку `✅ Закончить`.
-6. Бот показывает количество добавленных и не добавленных файлов.
-
-Если загрузку открыли случайно, нажмите `❌ Отмена` или отправьте `/cancel`.
-
-Дубликаты не добавляются повторно. Бот проверяет их по Telegram `file_unique_id`.
-
-Пересланные картинки тоже можно загружать: включите режим загрузки и перешлите боту изображения из другого чата.
-
-Если в режиме загрузки отправить не изображение, бот ответит:
-
-```text
-Файл не зашёл. Отправьте изображение
-```
-
-## Рандом и реакции
-
-В пульте есть кнопка `🎲 Рандом` для обычного случайного выбора. Под каждой выданной картинкой есть кнопка `🎲 Ещё`, чтобы сразу запросить следующую.
-
-Бот добавляет к картинкам случайные мемные подписи. Если пул пустой, сообщение об ошибке тоже выбирается случайно.
-
-Также есть:
-
-- достижения за количество загруженных пикч;
-- ежедневное настроение бота;
-- суд присяжных, если пикча набирает много `🖕`;
-- автоудаление картинки из пула после 5 уникальных `🖕`;
-- один пользователь может поставить только одну реакцию на картинку.
-
-Сейчас в пуле подписей к картинкам 150 вариантов.
+### Реакции
 
 Под каждой картинкой есть реакции:
 
@@ -107,54 +36,206 @@ python -m bot
 - `💩`
 - `🖕`
 
-Реакции сохраняются в пуле и учитываются в `/stats`.
+Один пользователь может поставить только одну реакцию на конкретную картинку. Если он нажимает другую реакцию, старая заменяется.
 
-## Хранение
+Если картинка набирает `5` уникальных `🖕`, бот удаляет её из пула.
 
-Пул хранится в [data/image_pool.json](/Users/artem/Documents/Codex/2026-04-25/new-chat/data/image_pool.json). В файле лежит список записей с Telegram `file_id` и служебными полями:
+### Загрузка картинок
 
-```json
-[
-  {
-    "id": "a1b2c3",
-    "file_id": "AgACAgIAAxkBA...",
-    "file_unique_id": "AQAD...",
-    "added_by": 123456789,
-    "added_at": "2026-04-25T13:00:00+00:00",
-    "shown_count": 3,
-    "last_shown_at": "2026-04-25T13:10:00+00:00",
-    "likes": 1,
-    "fires": 2,
-    "dislikes": 0
-  }
-]
+1. Нажмите `⬆️ Залить пикчи` или отправьте `/upload_pidor`.
+2. Отправьте одну картинку, пачку картинок, альбом Telegram или пересланные изображения.
+3. Когда закончите, нажмите `✅ Закончить` или отправьте `/done`.
+
+Бот не спамит ответом на каждую картинку. После первой принятой картинки он один раз пишет, что принимает пакет.
+
+Дубликаты не добавляются. Проверка идёт по Telegram `file_unique_id`.
+
+### Группы и каналы
+
+Для работы в группах с обычными картинками нужно отключить Privacy Mode:
+
+1. Откройте `@BotFather`.
+2. Выполните `/setprivacy`.
+3. Выберите `@kartinkomet_bot`.
+4. Выберите `Disable`.
+
+Для каналов бот должен быть добавлен администратором с правом отправлять сообщения и медиа. Если команды и загрузка в самом канале ведут себя нестабильно, самый надёжный сценарий: загружать картинки в личке с ботом или в отдельной группе, а публиковать в канал через `TARGET_CHANNEL_ID`.
+
+### Локальный запуск
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-После перезапуска бота пул не очищается.
+Заполните `.env`:
 
-## Работа с каналом
+```env
+BOT_TOKEN=123456:your-token
+IMAGE_POOL_PATH=data/image_pool.json
+TARGET_CHANNEL_ID=
+```
 
-Для канала есть два сценария:
+Запуск:
 
-- без `TARGET_CHANNEL_ID`: команда `/pic` отправляет картинку в тот чат, где была вызвана;
-- с `TARGET_CHANNEL_ID`: команда `/pic` отправляет картинку в указанный канал, а пользователю приходит подтверждение.
+```bash
+python -m bot
+```
 
-`TARGET_CHANNEL_ID` можно указать как username канала (`@channel_username`) или числовой id вида `-1001234567890`.
+### Railway
 
-## Деплой на Railway
+В проекте уже есть:
 
-В проекте уже есть файлы для Railway:
+- `Procfile` — команда запуска `python -m bot`
+- `.python-version` — Python `3.12`
 
-- `Procfile` - команда запуска `python -m bot`
-- `.python-version` - Python 3.12
-
-Переменные окружения в Railway:
+Переменные Railway:
 
 ```env
 BOT_TOKEN=токен_бота
 TARGET_CHANNEL_ID=
 ```
 
-Для сохранения пула после перезапусков и редеплоев подключите Railway Volume. Бот автоматически использует `RAILWAY_VOLUME_MOUNT_PATH/image_pool.json`, если volume подключен.
+Для постоянного хранения пула подключите Railway Volume с mount path:
 
-Если volume не подключать, бот тоже запустится, но пул изображений может очищаться после редеплоя.
+```text
+/data
+```
+
+Если `RAILWAY_VOLUME_MOUNT_PATH` есть, бот автоматически хранит пул в:
+
+```text
+/data/image_pool.json
+```
+
+### Хранение
+
+Пул хранится в JSON. Пример записи:
+
+```json
+{
+  "id": "a1b2c3",
+  "file_id": "AgACAgIAAxkBA...",
+  "file_unique_id": "AQAD...",
+  "added_by": 123456789,
+  "added_at": "2026-04-25T13:00:00+00:00",
+  "shown_count": 3,
+  "last_shown_at": "2026-04-25T13:10:00+00:00",
+  "likes": 1,
+  "fires": 2,
+  "dislikes": 0,
+  "reactions_by_user": {
+    "123456789": "like"
+  }
+}
+```
+
+## EN
+
+### What It Is
+
+`@kartinkomet_bot` sends random images from a shared pool using `/pic` or the `🎲 Рандом` button.
+
+The bot does not store image files on the server. It stores only Telegram `file_id` values, while the actual files stay on Telegram's side.
+
+### Features
+
+- `🎲 Рандом` and `/pic` — send a random image.
+- `🎲 Ещё` — request another image directly under the current one.
+- `⬆️ Залить пикчи` and `/upload_pidor` — start upload mode.
+- `✅ Закончить` and `/done` — finish upload mode and show a summary.
+- `❌ Отмена` and `/cancel` — cancel the active upload session.
+- `/count` — show how many images are in the pool.
+- `/stats` — show views and reaction stats.
+- `/mood` — show the bot's daily mood.
+- `/reset_stats` — hidden utility command to reset reactions, views, and recent-random memory.
+
+### Random Selection
+
+The bot uses random selection, avoids recently shown images when possible, and prioritizes images with fewer previous views. With a larger pool, repeats become much less frequent. With a small pool, repeats can still happen.
+
+Each image gets a random caption from a set of `150` captions.
+
+### Reactions
+
+Each image has:
+
+- `👍`
+- `💩`
+- `🖕`
+
+One user can cast only one reaction per image. If they press another reaction, the old one is replaced.
+
+If an image gets `5` unique `🖕` reactions, the bot removes it from the pool.
+
+### Uploading Images
+
+1. Press `⬆️ Залить пикчи` or send `/upload_pidor`.
+2. Send one image, multiple images, a Telegram album, or forwarded images.
+3. Press `✅ Закончить` or send `/done`.
+
+The bot does not spam a confirmation for every image. It confirms once after the first accepted image in a batch.
+
+Duplicates are ignored using Telegram `file_unique_id`.
+
+### Groups And Channels
+
+For group uploads, disable BotFather Privacy Mode:
+
+1. Open `@BotFather`.
+2. Run `/setprivacy`.
+3. Select `@kartinkomet_bot`.
+4. Select `Disable`.
+
+For channels, the bot must be an admin with permission to post messages and media. If direct channel uploads are unreliable, use the stable flow: upload images in a private chat with the bot or in a separate group, then publish to a channel with `TARGET_CHANNEL_ID`.
+
+### Local Run
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Fill `.env`:
+
+```env
+BOT_TOKEN=123456:your-token
+IMAGE_POOL_PATH=data/image_pool.json
+TARGET_CHANNEL_ID=
+```
+
+Run:
+
+```bash
+python -m bot
+```
+
+### Railway
+
+Included deployment files:
+
+- `Procfile` — starts `python -m bot`
+- `.python-version` — uses Python `3.12`
+
+Railway variables:
+
+```env
+BOT_TOKEN=your_bot_token
+TARGET_CHANNEL_ID=
+```
+
+For persistent storage, attach a Railway Volume with mount path:
+
+```text
+/data
+```
+
+When `RAILWAY_VOLUME_MOUNT_PATH` is available, the bot automatically stores the pool at:
+
+```text
+/data/image_pool.json
+```

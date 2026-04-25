@@ -7,6 +7,12 @@ from uuid import uuid4
 
 from aiogram.types import Message
 
+REACTION_FIELDS = {
+    "like": "likes",
+    "fire": "fires",
+    "dislike": "dislikes",
+}
+
 
 @dataclass(frozen=True)
 class AddResult:
@@ -24,6 +30,12 @@ class ImageRecord:
 
 
 @dataclass(frozen=True)
+class ReactionUpdate:
+    image: ImageRecord
+    changed: bool
+
+
+@dataclass(frozen=True)
 class PoolStats:
     total_images: int
     total_shows: int
@@ -36,33 +48,18 @@ class ImagePool:
     def __init__(self, storage_path: str) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.storage_path.exists():
-            self._write([])
+        self._records = self._load()
 
     def count(self) -> int:
-        return len(self._read())
+        return len(self._records)
 
     def random_image(self, avoid_recent: bool = True) -> ImageRecord | None:
-        records = self._read()
-        if not records:
+        if not self._records:
             return None
 
-        if avoid_recent and len(records) > 1:
-            recent_limit = min(max(1, len(records) // 2), 25, len(records) - 1)
-            recent_ids = {
-                record["id"]
-                for record in sorted(
-                    records,
-                    key=lambda record: record.get("last_shown_at") or "",
-                    reverse=True,
-                )[:recent_limit]
-            }
-            fresh_records = [record for record in records if record["id"] not in recent_ids]
-            if fresh_records:
-                records = fresh_records
-
+        records = self._selectable_records(avoid_recent=avoid_recent)
         record = random.choice(records)
-        self.mark_shown(record["id"])
+        self._mark_shown(record)
         return self._to_image_record(record)
 
     def add_from_message(self, message: Message) -> AddResult:
@@ -71,89 +68,67 @@ class ImagePool:
             return AddResult(added=False)
 
         file_id, file_unique_id = image_data
-        records = self._read()
-        if any(record["file_unique_id"] == file_unique_id for record in records):
+        if any(record["file_unique_id"] == file_unique_id for record in self._records):
             return AddResult(added=False, duplicate=True)
 
-        records.append(
-            {
-                "id": uuid4().hex,
-                "file_id": file_id,
-                "file_unique_id": file_unique_id,
-                "added_by": message.from_user.id if message.from_user else None,
-                "added_at": datetime.now(UTC).isoformat(),
-                "shown_count": 0,
-                "last_shown_at": None,
-                "likes": 0,
-                "fires": 0,
-                "dislikes": 0,
-                "reactions_by_user": {},
-            }
+        self._records.append(
+            self._normalize_record(
+                {
+                    "id": uuid4().hex,
+                    "file_id": file_id,
+                    "file_unique_id": file_unique_id,
+                    "added_by": message.from_user.id if message.from_user else None,
+                    "added_at": datetime.now(UTC).isoformat(),
+                }
+            )
         )
-        self._write(records)
+        self._write()
         return AddResult(added=True)
 
-    def react(self, image_id: str, reaction: str, user_id: int) -> ImageRecord | None:
-        reaction_fields = {
-            "like": "likes",
-            "fire": "fires",
-            "dislike": "dislikes",
-        }
-        field = reaction_fields.get(reaction)
+    def react(self, image_id: str, reaction: str, user_id: int) -> ReactionUpdate | None:
+        field = REACTION_FIELDS.get(reaction)
         if field is None:
             return None
 
-        records = self._read()
-        for record in records:
-            if record["id"] == image_id:
-                reactions_by_user = record["reactions_by_user"]
-                user_key = str(user_id)
-                previous_reaction = reactions_by_user.get(user_key)
-                if previous_reaction == reaction:
-                    return self._to_image_record(record)
+        record = self._find(image_id)
+        if record is None:
+            return None
 
-                if previous_reaction in reaction_fields:
-                    previous_field = reaction_fields[previous_reaction]
-                    record[previous_field] = max(0, record[previous_field] - 1)
+        reactions_by_user = record["reactions_by_user"]
+        user_key = str(user_id)
+        previous_reaction = reactions_by_user.get(user_key)
+        if previous_reaction == reaction:
+            return ReactionUpdate(image=self._to_image_record(record), changed=False)
 
-                reactions_by_user[user_key] = reaction
-                record[field] += 1
-                self._write(records)
-                return self._to_image_record(record)
+        if previous_reaction in REACTION_FIELDS:
+            previous_field = REACTION_FIELDS[previous_reaction]
+            record[previous_field] = max(0, record[previous_field] - 1)
 
-        return None
+        reactions_by_user[user_key] = reaction
+        record[field] += 1
+        self._write()
+        return ReactionUpdate(image=self._to_image_record(record), changed=True)
 
     def delete(self, image_id: str) -> bool:
-        records = self._read()
-        filtered_records = [record for record in records if record["id"] != image_id]
-        if len(filtered_records) == len(records):
+        original_count = len(self._records)
+        self._records = [record for record in self._records if record["id"] != image_id]
+        if len(self._records) == original_count:
             return False
 
-        self._write(filtered_records)
+        self._write()
         return True
 
-    def mark_shown(self, image_id: str) -> None:
-        records = self._read()
-        for record in records:
-            if record["id"] == image_id:
-                record["shown_count"] += 1
-                record["last_shown_at"] = datetime.now(UTC).isoformat()
-                self._write(records)
-                return
-
     def stats(self) -> PoolStats:
-        records = self._read()
         return PoolStats(
-            total_images=len(records),
-            total_shows=sum(record["shown_count"] for record in records),
-            total_likes=sum(record["likes"] for record in records),
-            total_fires=sum(record["fires"] for record in records),
-            total_dislikes=sum(record["dislikes"] for record in records),
+            total_images=len(self._records),
+            total_shows=sum(record["shown_count"] for record in self._records),
+            total_likes=sum(record["likes"] for record in self._records),
+            total_fires=sum(record["fires"] for record in self._records),
+            total_dislikes=sum(record["dislikes"] for record in self._records),
         )
 
     def reset_stats(self) -> None:
-        records = self._read()
-        for record in records:
+        for record in self._records:
             record["shown_count"] = 0
             record["last_shown_at"] = None
             record["likes"] = 0
@@ -161,10 +136,45 @@ class ImagePool:
             record["dislikes"] = 0
             record["reactions_by_user"] = {}
 
-        self._write(records)
+        self._write()
 
     def count_by_user(self, user_id: int) -> int:
-        return sum(1 for record in self._read() if record["added_by"] == user_id)
+        return sum(1 for record in self._records if record["added_by"] == user_id)
+
+    def _selectable_records(self, avoid_recent: bool) -> list[dict]:
+        if not avoid_recent or len(self._records) == 1:
+            return self._records
+
+        shown_records = [record for record in self._records if record.get("last_shown_at")]
+        recent_limit = min(
+            max(1, len(self._records) // 2),
+            25,
+            len(self._records) - 1,
+            len(shown_records),
+        )
+        recent_ids = {
+            record["id"]
+            for record in sorted(
+                shown_records,
+                key=lambda record: record.get("last_shown_at") or "",
+                reverse=True,
+            )[:recent_limit]
+        }
+        fresh_records = [record for record in self._records if record["id"] not in recent_ids]
+        records = fresh_records or self._records
+        lowest_shown_count = min(record["shown_count"] for record in records)
+        least_shown_records = [
+            record for record in records if record["shown_count"] == lowest_shown_count
+        ]
+        return least_shown_records or records
+
+    def _mark_shown(self, record: dict) -> None:
+        record["shown_count"] += 1
+        record["last_shown_at"] = datetime.now(UTC).isoformat()
+        self._write()
+
+    def _find(self, image_id: str) -> dict | None:
+        return next((record for record in self._records if record["id"] == image_id), None)
 
     def _to_image_record(self, record: dict) -> ImageRecord:
         return ImageRecord(
@@ -186,7 +196,11 @@ class ImagePool:
 
         return None
 
-    def _read(self) -> list[dict]:
+    def _load(self) -> list[dict]:
+        if not self.storage_path.exists():
+            self._atomic_write([])
+            return []
+
         with self.storage_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
@@ -195,7 +209,7 @@ class ImagePool:
 
         records = [self._normalize_record(item) for item in data]
         if records != data:
-            self._write(records)
+            self._atomic_write(records)
 
         return records
 
@@ -233,7 +247,13 @@ class ImagePool:
             "reactions_by_user": dict(item.get("reactions_by_user") or {}),
         }
 
-    def _write(self, records: list[dict]) -> None:
-        with self.storage_path.open("w", encoding="utf-8") as file:
+    def _write(self) -> None:
+        self._atomic_write(self._records)
+
+    def _atomic_write(self, records: list[dict]) -> None:
+        temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
+        with temp_path.open("w", encoding="utf-8") as file:
             json.dump(records, file, ensure_ascii=False, indent=2)
             file.write("\n")
+
+        temp_path.replace(self.storage_path)

@@ -389,8 +389,6 @@ def build_router(
     async def cancel_upload_command(message: Message, state: FSMContext) -> None:
         await cancel_upload(message, state)
 
-    @router.message(AddPicture.uploading)
-    @router.channel_post(AddPicture.uploading)
     @router.message(F.photo | F.document)
     @router.channel_post(F.photo | F.document)
     async def save_picture(message: Message, state: FSMContext) -> None:
@@ -441,7 +439,9 @@ def build_router(
 
     @router.callback_query(F.data == "stats")
     async def stats_callback(callback: CallbackQuery) -> None:
-        await callback.answer(format_stats(image_pool), show_alert=True)
+        if callback.message:
+            await callback.message.answer(format_stats(image_pool), parse_mode="HTML")
+        await callback.answer()
 
     @router.callback_query(F.data == "upload")
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -477,13 +477,18 @@ def build_router(
             return
 
         _, reaction, image_id = callback.data.split(":", 2)
-        image = image_pool.react(image_id, reaction, callback.from_user.id)
-        if image is None:
+        reaction_update = image_pool.react(image_id, reaction, callback.from_user.id)
+        if reaction_update is None:
             await callback.answer("Не нашёл эту пикчу", show_alert=True)
             return
 
+        image = reaction_update.image
         if callback.message:
-            if reaction == "dislike" and image.dislikes >= AUTO_DELETE_DISLIKES:
+            if (
+                reaction_update.changed
+                and reaction == "dislike"
+                and image.dislikes >= AUTO_DELETE_DISLIKES
+            ):
                 image_pool.delete(image.id)
                 await callback.message.edit_reply_markup(reply_markup=None)
                 await callback.message.answer("Пять средних пальцев. Пикча удалена из пула")
@@ -499,17 +504,25 @@ def build_router(
                 )
             )
             jury_message = jury_verdict(image.dislikes)
-            if jury_message:
+            if reaction_update.changed and reaction == "dislike" and jury_message:
                 await callback.message.answer(jury_message)
 
-        await callback.answer("Засчитано")
+        await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
         await help_command(message)
 
     @router.message()
+    @router.channel_post()
     async def fallback(message: Message) -> None:
+        if is_upload_active(message):
+            data = upload_data(message)
+            failed = int(data.get("failed", 0))
+            data["failed"] = failed + 1
+            await message.answer("Файл не зашёл. Отправьте изображение")
+            return
+
         await message.answer("Жми /pic или открой /menu")
 
     return router
