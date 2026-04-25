@@ -109,8 +109,7 @@ def build_router(
             "/id - показать ваш Telegram user ID\n"
             "/done - закончить загрузку"
         )
-        if is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
-            text += f"\n/{UPLOAD_COMMAND} - включить режим загрузки"
+        text += f"\n/{UPLOAD_COMMAND} - включить режим загрузки"
 
         await message.answer(text)
 
@@ -148,10 +147,6 @@ def build_router(
 
     @router.message(Command(UPLOAD_COMMAND))
     async def start_upload(message: Message, state: FSMContext) -> None:
-        if not is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
-            await message.answer("Залив доступен только администратору")
-            return
-
         await activate_upload(message, state)
 
     @router.message(Command("done"))
@@ -160,11 +155,6 @@ def build_router(
 
     @router.message(AddPicture.uploading)
     async def save_picture(message: Message, state: FSMContext) -> None:
-        if not is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
-            await state.clear()
-            await message.answer("Залив доступен только администратору")
-            return
-
         data = await state.get_data()
         added = int(data.get("added", 0))
         failed = int(data.get("failed", 0))
@@ -211,10 +201,6 @@ def build_router(
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
         if callback.message is None:
             await callback.answer()
-            return
-
-        if not is_user_admin(callback.from_user.id, admin_ids):
-            await callback.answer("Только для админа", show_alert=True)
             return
 
         await activate_upload(callback.message, state)
