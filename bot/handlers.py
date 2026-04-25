@@ -354,7 +354,7 @@ def build_router(
     @router.message(Command("stats"))
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
-        await message.answer(format_stats(image_pool))
+        await message.answer(format_stats(image_pool), parse_mode="HTML")
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -598,12 +598,12 @@ async def show_menu(message: Message) -> None:
 def format_stats(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
-        "Статы kartinkomet:\n"
-        f"Пикч в пуле: {stats.total_images}\n"
-        f"Выдано картинок: {stats.total_shows}\n"
-        f"Лайков: {stats.total_likes}\n"
-        f"Какашек: {stats.total_fires}\n"
-        f"Средних пальцев: {stats.total_dislikes}"
+        "<b>Сводка по реактору kartinkomet:</b>\n\n"
+        f"📦 Пикч в пуле: <b>{stats.total_images}</b>\n"
+        f"🎲 Выстрелов рандома: <b>{stats.total_shows}</b>\n"
+        f"👍 Одобрений: <b>{stats.total_likes}</b>\n"
+        f"💩 Какашек прилетело: <b>{stats.total_fires}</b>\n"
+        f"🖕 Средних пальцев: <b>{stats.total_dislikes}</b>"
     )
 
 
