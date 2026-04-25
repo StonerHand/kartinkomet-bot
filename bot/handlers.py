@@ -365,7 +365,7 @@ def format_stats(image_pool: ImagePool) -> str:
 
 def is_user_admin(user_id: int | None, admin_ids: set[int]) -> bool:
     if not admin_ids:
-        return True
+        return False
 
     return user_id in admin_ids
 
