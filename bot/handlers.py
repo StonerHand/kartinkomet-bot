@@ -25,8 +25,8 @@ def build_router(
     @router.message(CommandStart())
     async def start(message: Message) -> None:
         await message.answer(
-            "Картинкомёт 3000 заряжен 🚀\n\n"
-            "Жми кнопку ниже или вызывай /pic",
+            "Я бот kartinkomet. Отправляю случайные изображения из общего пула.\n\n"
+            "Жмите кнопку или используйте /pic",
             reply_markup=ReplyKeyboardRemove(),
         )
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
@@ -304,13 +304,13 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
 
 
 async def show_menu(message: Message, is_admin: bool) -> None:
-    await message.answer("Пульт Картинкомёта 🎛", reply_markup=main_menu(is_admin=is_admin))
+    await message.answer("Пульт kartinkomet 🎛", reply_markup=main_menu(is_admin=is_admin))
 
 
 def format_stats(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
-        "Статы Картинкомёта:\n"
+        "Статы kartinkomet:\n"
         f"Пикч в пуле: {stats.total_images}\n"
         f"Выдано картинок: {stats.total_shows}\n"
         f"Лайков: {stats.total_likes}\n"
