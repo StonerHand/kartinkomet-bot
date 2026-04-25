@@ -26,7 +26,7 @@ def build_router(
     async def start(message: Message) -> None:
         await message.answer(
             "Я бот kartinkomet. Отправляю случайные изображения из общего пула\n\n"
-            "Жмите кнопку 🎲 Рандом или используйте /pic",
+            "Жмите кнопку \"🎲 Рандом\" или используйте /pic",
             reply_markup=ReplyKeyboardRemove(),
         )
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
