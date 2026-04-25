@@ -5,7 +5,11 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="Картинка", callback_data="pic"),
+            InlineKeyboardButton(text="Без повторов", callback_data="pic:fresh"),
+        ],
+        [
             InlineKeyboardButton(text="Количество", callback_data="count"),
+            InlineKeyboardButton(text="Статистика", callback_data="stats"),
         ],
     ]
 
@@ -21,11 +25,38 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
 
 
 def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | None:
-    if not is_admin:
-        return None
+    keyboard = [
+        [
+            InlineKeyboardButton(text="👍", callback_data=f"react:like:{image_id}"),
+            InlineKeyboardButton(text="🔥", callback_data=f"react:fire:{image_id}"),
+            InlineKeyboardButton(text="👎", callback_data=f"react:dislike:{image_id}"),
+        ]
+    ]
+
+    if is_admin:
+        keyboard.append([InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")])
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def picture_actions_with_counts(
+    image_id: str,
+    is_admin: bool,
+    likes: int,
+    fires: int,
+    dislikes: int,
+) -> InlineKeyboardMarkup:
+    keyboard = [
+        [
+            InlineKeyboardButton(text=f"👍 {likes}", callback_data=f"react:like:{image_id}"),
+            InlineKeyboardButton(text=f"🔥 {fires}", callback_data=f"react:fire:{image_id}"),
+            InlineKeyboardButton(text=f"👎 {dislikes}", callback_data=f"react:dislike:{image_id}"),
+        ]
+    ]
+
+    if is_admin:
+        keyboard.append([InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")])
 
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")],
-        ]
+        inline_keyboard=keyboard
     )

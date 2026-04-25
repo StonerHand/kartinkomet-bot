@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from bot.image_pool import ImagePool
-from bot.keyboards import main_menu, picture_actions
+from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts
 
 UPLOAD_COMMAND = "upload_pidor"
 
@@ -36,7 +36,9 @@ def build_router(
         text = (
             "Доступные команды:\n"
             "/pic - отправить случайное изображение\n"
+            "/fresh - случайная картинка без недавних повторов\n"
             "/count - показать количество изображений в пуле\n"
+            "/stats - статистика бота\n"
             "/menu - открыть меню\n"
             "/id - показать ваш Telegram user ID\n"
             "/done - завершить режим загрузки"
@@ -62,9 +64,25 @@ def build_router(
             answer_message=message,
         )
 
+    @router.message(Command("fresh"))
+    async def send_fresh_picture(message: Message, bot: Bot) -> None:
+        await send_picture(
+            bot=bot,
+            chat_id=message.chat.id,
+            image_pool=image_pool,
+            is_admin=is_user_admin(message.from_user.id if message.from_user else None, admin_ids),
+            target_channel_id=target_channel_id,
+            answer_message=message,
+            avoid_recent=True,
+        )
+
     @router.message(Command("count"))
     async def count_pictures(message: Message) -> None:
         await message.answer(f"Изображений в пуле: {image_pool.count()}")
+
+    @router.message(Command("stats"))
+    async def stats_command(message: Message) -> None:
+        await message.answer(format_stats(image_pool))
 
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
@@ -126,9 +144,29 @@ def build_router(
         )
         await callback.answer()
 
+    @router.callback_query(F.data == "pic:fresh")
+    async def fresh_pic_callback(callback: CallbackQuery, bot: Bot) -> None:
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        await send_picture(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            image_pool=image_pool,
+            is_admin=is_user_admin(callback.from_user.id, admin_ids),
+            target_channel_id=target_channel_id,
+            avoid_recent=True,
+        )
+        await callback.answer()
+
     @router.callback_query(F.data == "count")
     async def count_callback(callback: CallbackQuery) -> None:
         await callback.answer(f"Изображений в пуле: {image_pool.count()}", show_alert=True)
+
+    @router.callback_query(F.data == "stats")
+    async def stats_callback(callback: CallbackQuery) -> None:
+        await callback.answer(format_stats(image_pool), show_alert=True)
 
     @router.callback_query(F.data == "upload")
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -167,6 +205,31 @@ def build_router(
 
         await callback.answer("Картинка уже удалена", show_alert=True)
 
+    @router.callback_query(F.data.startswith("react:"))
+    async def react_callback(callback: CallbackQuery) -> None:
+        if callback.data is None:
+            await callback.answer()
+            return
+
+        _, reaction, image_id = callback.data.split(":", 2)
+        image = image_pool.react(image_id, reaction)
+        if image is None:
+            await callback.answer("Не нашёл картинку", show_alert=True)
+            return
+
+        if callback.message:
+            await callback.message.edit_reply_markup(
+                reply_markup=picture_actions_with_counts(
+                    image_id=image.id,
+                    is_admin=has_delete_button(callback.message) or is_user_admin(callback.from_user.id, admin_ids),
+                    likes=image.likes,
+                    fires=image.fires,
+                    dislikes=image.dislikes,
+                )
+            )
+
+        await callback.answer("Учтено")
+
     @router.message(F.text == "Меню")
     async def menu_button(message: Message) -> None:
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
@@ -189,8 +252,9 @@ async def send_picture(
     is_admin: bool,
     target_channel_id: str | None = None,
     answer_message: Message | None = None,
+    avoid_recent: bool = False,
 ) -> None:
-    image = image_pool.random_image()
+    image = image_pool.random_image(avoid_recent=avoid_recent)
     if image is None:
         if answer_message:
             await answer_message.answer("Пул изображений пуст. Сначала добавьте изображения")
@@ -247,8 +311,32 @@ async def show_menu(message: Message, is_admin: bool) -> None:
     await message.answer("Меню", reply_markup=main_menu(is_admin=is_admin))
 
 
+def format_stats(image_pool: ImagePool) -> str:
+    stats = image_pool.stats()
+    return (
+        "Статистика:\n"
+        f"Пикч в пуле: {stats.total_images}\n"
+        f"Выдано картинок: {stats.total_shows}\n"
+        f"Лайков: {stats.total_likes}\n"
+        f"Огней: {stats.total_fires}\n"
+        f"Дизлайков: {stats.total_dislikes}"
+    )
+
+
 def is_user_admin(user_id: int | None, admin_ids: set[int]) -> bool:
     if not admin_ids:
         return True
 
     return user_id in admin_ids
+
+
+def has_delete_button(message: Message) -> bool:
+    if message.reply_markup is None:
+        return False
+
+    for row in message.reply_markup.inline_keyboard:
+        for button in row:
+            if button.callback_data and button.callback_data.startswith("delete:"):
+                return True
+
+    return False

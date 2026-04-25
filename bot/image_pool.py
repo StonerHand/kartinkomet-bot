@@ -18,6 +18,18 @@ class AddResult:
 class ImageRecord:
     id: str
     file_id: str
+    likes: int = 0
+    fires: int = 0
+    dislikes: int = 0
+
+
+@dataclass(frozen=True)
+class PoolStats:
+    total_images: int
+    total_shows: int
+    total_likes: int
+    total_fires: int
+    total_dislikes: int
 
 
 class ImagePool:
@@ -30,13 +42,27 @@ class ImagePool:
     def count(self) -> int:
         return len(self._read())
 
-    def random_image(self) -> ImageRecord | None:
+    def random_image(self, avoid_recent: bool = False) -> ImageRecord | None:
         records = self._read()
         if not records:
             return None
 
+        if avoid_recent and len(records) > 1:
+            recent_ids = {
+                record["id"]
+                for record in sorted(
+                    records,
+                    key=lambda record: record.get("last_shown_at") or "",
+                    reverse=True,
+                )[: min(10, len(records) - 1)]
+            }
+            fresh_records = [record for record in records if record["id"] not in recent_ids]
+            if fresh_records:
+                records = fresh_records
+
         record = random.choice(records)
-        return ImageRecord(id=record["id"], file_id=record["file_id"])
+        self.mark_shown(record["id"])
+        return self._to_image_record(record)
 
     def add_from_message(self, message: Message) -> AddResult:
         image_data = self._extract_image_data(message)
@@ -68,6 +94,53 @@ class ImagePool:
 
         self._write(filtered_records)
         return True
+
+    def react(self, image_id: str, reaction: str) -> ImageRecord | None:
+        reaction_fields = {
+            "like": "likes",
+            "fire": "fires",
+            "dislike": "dislikes",
+        }
+        field = reaction_fields.get(reaction)
+        if field is None:
+            return None
+
+        records = self._read()
+        for record in records:
+            if record["id"] == image_id:
+                record[field] += 1
+                self._write(records)
+                return self._to_image_record(record)
+
+        return None
+
+    def mark_shown(self, image_id: str) -> None:
+        records = self._read()
+        for record in records:
+            if record["id"] == image_id:
+                record["shown_count"] += 1
+                record["last_shown_at"] = datetime.now(UTC).isoformat()
+                self._write(records)
+                return
+
+    def stats(self) -> PoolStats:
+        records = self._read()
+        return PoolStats(
+            total_images=len(records),
+            total_shows=sum(record["shown_count"] for record in records),
+            total_likes=sum(record["likes"] for record in records),
+            total_fires=sum(record["fires"] for record in records),
+            total_dislikes=sum(record["dislikes"] for record in records),
+        )
+
+    def _to_image_record(self, record: dict) -> ImageRecord:
+        return ImageRecord(
+            id=record["id"],
+            file_id=record["file_id"],
+            likes=record["likes"],
+            fires=record["fires"],
+            dislikes=record["dislikes"],
+        )
 
     def _extract_image_data(self, message: Message) -> tuple[str, str] | None:
         if message.photo:
@@ -101,6 +174,11 @@ class ImagePool:
                 "file_unique_id": item,
                 "added_by": None,
                 "added_at": None,
+                "shown_count": 0,
+                "last_shown_at": None,
+                "likes": 0,
+                "fires": 0,
+                "dislikes": 0,
             }
 
         if not isinstance(item, dict) or "file_id" not in item:
@@ -113,6 +191,11 @@ class ImagePool:
             "file_unique_id": str(item.get("file_unique_id") or file_id),
             "added_by": item.get("added_by"),
             "added_at": item.get("added_at"),
+            "shown_count": int(item.get("shown_count") or 0),
+            "last_shown_at": item.get("last_shown_at"),
+            "likes": int(item.get("likes") or 0),
+            "fires": int(item.get("fires") or 0),
+            "dislikes": int(item.get("dislikes") or 0),
         }
 
     def _write(self, records: list[dict]) -> None:
