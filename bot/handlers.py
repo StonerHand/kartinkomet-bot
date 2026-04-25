@@ -5,7 +5,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, ForceReply, Message, ReplyKeyboardRemove
 
 from bot.image_pool import ImagePool
 from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
@@ -560,12 +560,23 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
     active_uploads[message.chat.id] = {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False}
     await state.update_data(added=0, failed=0, duplicates=0, ack_sent=False)
-    await message.answer(
+    upload_text = (
         f"{random.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
-        "Когда хватит, отправьте /done или нажми <b>\"✅ Закончить\"</b>",
+        "Когда хватит, отправьте /done или нажми <b>\"✅ Закончить\"</b>"
+    )
+    await message.answer(
+        upload_text,
         parse_mode="HTML",
         reply_markup=upload_menu(),
     )
+    if message.chat.type in {"group", "supergroup"}:
+        await message.answer(
+            "В группе прикрепляйте пикчи ответом на это сообщение, чтобы Telegram точно отдал их боту",
+            reply_markup=ForceReply(
+                selective=True,
+                input_field_placeholder="Прикрепите пикчи сюда",
+            ),
+        )
 
 
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:

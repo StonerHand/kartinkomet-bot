@@ -59,6 +59,8 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 3. Выберите `@kartinkomet_bot`.
 4. Выберите `Disable`.
 
+Если Privacy Mode включён, Telegram может не отдавать боту обычные фото из группы. В этом случае после открытия загрузки прикрепляйте картинки ответом на сообщение бота.
+
 Для каналов бот должен быть добавлен администратором с правом отправлять сообщения и медиа. Если команды и загрузка в самом канале ведут себя нестабильно, самый надёжный сценарий: загружать картинки в личке с ботом или в отдельной группе, а публиковать в канал через `TARGET_CHANNEL_ID`.
 
 ### Локальный запуск
@@ -188,6 +190,8 @@ For group uploads, disable BotFather Privacy Mode:
 2. Run `/setprivacy`.
 3. Select `@kartinkomet_bot`.
 4. Select `Disable`.
+
+If Privacy Mode is enabled, Telegram may hide regular group photos from the bot. In that case, start upload mode and attach images as a reply to the bot's message.
 
 For channels, the bot must be an admin with permission to post messages and media. If direct channel uploads are unreliable, use the stable flow: upload images in a private chat with the bot or in a separate group, then publish to a channel with `TARGET_CHANNEL_ID`.
 
