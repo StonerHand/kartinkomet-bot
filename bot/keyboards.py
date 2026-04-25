@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
-def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
+def main_menu() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
@@ -20,7 +20,7 @@ def upload_menu() -> InlineKeyboardMarkup:
     )
 
 
-def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | None:
+def picture_actions(image_id: str) -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="👍", callback_data=f"react:like:{image_id}"),
@@ -29,15 +29,11 @@ def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | Non
         ]
     ]
 
-    if is_admin:
-        keyboard.append([InlineKeyboardButton(text="🗑 Удалить", callback_data=f"delete:{image_id}")])
-
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def picture_actions_with_counts(
     image_id: str,
-    is_admin: bool,
     likes: int,
     fires: int,
     dislikes: int,
@@ -49,9 +45,6 @@ def picture_actions_with_counts(
             InlineKeyboardButton(text=f"🖕 {dislikes}", callback_data=f"react:dislike:{image_id}"),
         ]
     ]
-
-    if is_admin:
-        keyboard.append([InlineKeyboardButton(text="🗑 Удалить", callback_data=f"delete:{image_id}")])
 
     return InlineKeyboardMarkup(
         inline_keyboard=keyboard

@@ -83,10 +83,8 @@ class AddPicture(StatesGroup):
 def build_router(
     image_pool: ImagePool,
     target_channel_id: str | None = None,
-    admin_ids: set[int] | None = None,
 ) -> Router:
     router = Router()
-    admin_ids = admin_ids or set()
 
     @router.message(CommandStart())
     async def start(message: Message) -> None:
@@ -96,7 +94,7 @@ def build_router(
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
+        await show_menu(message)
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
@@ -116,7 +114,7 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         await message.answer("Убираю лишние кнопки", reply_markup=ReplyKeyboardRemove())
-        await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
+        await show_menu(message)
 
     @router.message(Command("pic"))
     async def send_random_picture(message: Message, bot: Bot) -> None:
@@ -124,7 +122,6 @@ def build_router(
             bot=bot,
             chat_id=message.chat.id,
             image_pool=image_pool,
-            is_admin=is_user_admin(message.from_user.id if message.from_user else None, admin_ids),
             target_channel_id=target_channel_id,
             answer_message=message,
         )
@@ -184,7 +181,6 @@ def build_router(
             bot=bot,
             chat_id=callback.message.chat.id,
             image_pool=image_pool,
-            is_admin=is_user_admin(callback.from_user.id, admin_ids),
             target_channel_id=target_channel_id,
         )
         await callback.answer()
@@ -215,21 +211,6 @@ def build_router(
         await finish_upload_or_warn(callback.message, state)
         await callback.answer()
 
-    @router.callback_query(F.data.startswith("delete:"))
-    async def delete_callback(callback: CallbackQuery) -> None:
-        if not is_user_admin(callback.from_user.id, admin_ids):
-            await callback.answer("Только для админа", show_alert=True)
-            return
-
-        image_id = callback.data.split(":", 1)[1] if callback.data else ""
-        if image_pool.delete(image_id):
-            await callback.answer("Выкинули из пула", show_alert=True)
-            if callback.message:
-                await callback.message.edit_reply_markup(reply_markup=None)
-            return
-
-        await callback.answer("Этой пикчи уже нет в пуле", show_alert=True)
-
     @router.callback_query(F.data.startswith("react:"))
     async def react_callback(callback: CallbackQuery) -> None:
         if callback.data is None:
@@ -246,7 +227,6 @@ def build_router(
             await callback.message.edit_reply_markup(
                 reply_markup=picture_actions_with_counts(
                     image_id=image.id,
-                    is_admin=has_delete_button(callback.message) or is_user_admin(callback.from_user.id, admin_ids),
                     likes=image.likes,
                     fires=image.fires,
                     dislikes=image.dislikes,
@@ -270,7 +250,6 @@ async def send_picture(
     bot: Bot,
     chat_id: int,
     image_pool: ImagePool,
-    is_admin: bool,
     target_channel_id: str | None = None,
     answer_message: Message | None = None,
     avoid_recent: bool = False,
@@ -287,7 +266,7 @@ async def send_picture(
     await bot.send_photo(
         chat_id=destination_chat_id,
         photo=image.file_id,
-        reply_markup=picture_actions(image.id, is_admin and target_channel_id is None),
+        reply_markup=picture_actions(image.id),
     )
 
     if target_channel_id and answer_message and str(answer_message.chat.id) != str(target_channel_id):
@@ -329,11 +308,11 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     await message.answer(text)
 
 
-async def show_menu(message: Message, is_admin: bool) -> None:
+async def show_menu(message: Message) -> None:
     await message.answer(
         "<b>Пульт от ядерки 🚨</b>",
         parse_mode="HTML",
-        reply_markup=main_menu(is_admin=is_admin),
+        reply_markup=main_menu(),
     )
 
 
@@ -347,22 +326,3 @@ def format_stats(image_pool: ImagePool) -> str:
         f"Какашек: {stats.total_fires}\n"
         f"Средних пальцев: {stats.total_dislikes}"
     )
-
-
-def is_user_admin(user_id: int | None, admin_ids: set[int]) -> bool:
-    if not admin_ids:
-        return False
-
-    return user_id in admin_ids
-
-
-def has_delete_button(message: Message) -> bool:
-    if message.reply_markup is None:
-        return False
-
-    for row in message.reply_markup.inline_keyboard:
-        for button in row:
-            if button.callback_data and button.callback_data.startswith("delete:"):
-                return True
-
-    return False

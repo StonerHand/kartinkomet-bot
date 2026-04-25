@@ -86,15 +86,6 @@ class ImagePool:
         self._write(records)
         return AddResult(added=True)
 
-    def delete(self, image_id: str) -> bool:
-        records = self._read()
-        filtered_records = [record for record in records if record["id"] != image_id]
-        if len(filtered_records) == len(records):
-            return False
-
-        self._write(filtered_records)
-        return True
-
     def react(self, image_id: str, reaction: str) -> ImageRecord | None:
         reaction_fields = {
             "like": "likes",
