@@ -25,7 +25,7 @@ def build_router(
     @router.message(CommandStart())
     async def start(message: Message) -> None:
         await message.answer(
-            "Я бот kartinkomet. Отправляю случайные изображения из общего пула.\n\n"
+            "Я бот kartinkomet. Отправляю случайные изображения из общего пула\n\n"
             "Жмите кнопку или используйте /pic",
             reply_markup=ReplyKeyboardRemove(),
         )
