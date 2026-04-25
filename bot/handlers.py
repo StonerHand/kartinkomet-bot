@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from bot.image_pool import ImagePool
-from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts
+from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
 
 UPLOAD_COMMAND = "upload_pidor"
 
@@ -36,7 +36,6 @@ def build_router(
         text = (
             "Командный пульт:\n"
             "/pic - рандомная пикча\n"
-            "/fresh - пикча без недавних повторов\n"
             "/count - размер пула\n"
             "/stats - статистика\n"
             "/menu - открыть пульт\n"
@@ -62,18 +61,6 @@ def build_router(
             is_admin=is_user_admin(message.from_user.id if message.from_user else None, admin_ids),
             target_channel_id=target_channel_id,
             answer_message=message,
-        )
-
-    @router.message(Command("fresh"))
-    async def send_fresh_picture(message: Message, bot: Bot) -> None:
-        await send_picture(
-            bot=bot,
-            chat_id=message.chat.id,
-            image_pool=image_pool,
-            is_admin=is_user_admin(message.from_user.id if message.from_user else None, admin_ids),
-            target_channel_id=target_channel_id,
-            answer_message=message,
-            avoid_recent=True,
         )
 
     @router.message(Command("count"))
@@ -119,6 +106,7 @@ def build_router(
         result = image_pool.add_from_message(message)
         if result.added:
             await state.update_data(added=added + 1, failed=failed, duplicates=duplicates)
+            await message.answer("Пикча добавлена", reply_markup=upload_menu())
             return
 
         if result.duplicate:
@@ -141,22 +129,6 @@ def build_router(
             image_pool=image_pool,
             is_admin=is_user_admin(callback.from_user.id, admin_ids),
             target_channel_id=target_channel_id,
-        )
-        await callback.answer()
-
-    @router.callback_query(F.data == "pic:fresh")
-    async def fresh_pic_callback(callback: CallbackQuery, bot: Bot) -> None:
-        if callback.message is None:
-            await callback.answer()
-            return
-
-        await send_picture(
-            bot=bot,
-            chat_id=callback.message.chat.id,
-            image_pool=image_pool,
-            is_admin=is_user_admin(callback.from_user.id, admin_ids),
-            target_channel_id=target_channel_id,
-            avoid_recent=True,
         )
         await callback.answer()
 
@@ -274,7 +246,8 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.update_data(added=0, failed=0, duplicates=0)
     await message.answer(
         "Залив открыт. Кидайте одну пикчу, пачку или пересланные изображения. "
-        "Когда хватит, отправьте /done"
+        "Когда хватит, нажмите кнопку или отправьте /done",
+        reply_markup=upload_menu(),
     )
 
 

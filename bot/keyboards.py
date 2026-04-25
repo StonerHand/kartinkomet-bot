@@ -3,25 +3,21 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     keyboard = [
-        [
-            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
-            InlineKeyboardButton(text="🧊 Без повтора", callback_data="pic:fresh"),
-        ],
-        [
-            InlineKeyboardButton(text="📦 Пул", callback_data="count"),
-            InlineKeyboardButton(text="📊 Статы", callback_data="stats"),
-        ],
+        [InlineKeyboardButton(text="🎲 Рандом", callback_data="pic")],
     ]
 
     if is_admin:
-        keyboard.append(
-            [
-                InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload"),
-                InlineKeyboardButton(text="✅ Закончить", callback_data="done"),
-            ]
-        )
+        keyboard.append([InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload")])
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def upload_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Закончить", callback_data="done")],
+        ]
+    )
 
 
 def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | None:
