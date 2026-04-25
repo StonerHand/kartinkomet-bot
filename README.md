@@ -1,6 +1,6 @@
 # kartinkomet
 
-Telegram bot for random images, group chaos, reactions, uploads, and meme-flavored captions.
+Telegram bot for random images, group chaos, reactions, uploads, per-chat random memory, and meme-flavored captions.
 
 ## RU
 
@@ -10,23 +10,39 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 
 Бот не хранит сами изображения на сервере. Он сохраняет только Telegram `file_id`, а физические файлы остаются на стороне Telegram.
 
-### Что умеет
+### Возможности
 
-- `🎲 Рандом` и `/pic` — отправить случайную пикчу.
-- `🎲 Ещё` — запросить следующую пикчу прямо из-под картинки.
-- `⬆️ Залить пикчи` и `/upload_pidor` — открыть режим загрузки.
-- `✅ Закончить` и `/done` — закрыть загрузку и показать итог.
-- `❌ Отмена` и `/cancel` — отменить активную загрузку.
-- `/count` — количество пикч в пуле.
-- `/stats` — статистика показов и реакций.
-- `/mood` — настроение бота на сегодня.
-- `/reset_stats` — скрытая утилитная команда для сброса реакций, показов и памяти рандома.
+| Команда или кнопка | Что делает |
+| --- | --- |
+| `🎲 Рандом`, `/pic` | Отправляет случайную пикчу |
+| `🎲 Ещё` | Запрашивает следующую пикчу прямо под текущей |
+| `⬆️ Залить пикчи`, `/upload_pidor` | Включает режим загрузки |
+| `✅ Закончить`, `/done` | Завершает загрузку и показывает итог |
+| `❌ Отмена`, `/cancel` | Отменяет активную загрузку |
+| `/count` | Показывает количество пикч в пуле |
+| `/stats` | Показывает показы и реакции |
+| `/mood` | Показывает режим бота на сегодня |
+| `/menu` | Открывает пульт от ядерки |
+| `/reset_stats` | Скрытая утилитная команда для сброса реакций, показов и памяти рандома |
 
 ### Рандом
 
-Бот выбирает картинку случайно, но сначала отсекает то, что недавно показывалось именно в текущем чате. После этого он убирает недавно показанные картинки по общему пулу и отдаёт приоритет тем, которые показывались реже. Если пул большой, повторы становятся заметно реже. Если в пуле мало картинок, повторы всё равно возможны.
+Бот выбирает картинку случайно, но не тупо. Он сначала отсекает картинки, которые недавно показывались именно в текущем чате, потом убирает недавно показанные по общему пулу и отдаёт приоритет тем, которые показывались реже.
 
-К каждой картинке добавляется случайная подпись из `333` вариантов. Ежедневный `/mood` влияет на подачу: бот добавляет к подписи префикс в стиле настроения дня.
+Если в пуле много картинок, повторы становятся сильно реже. Если картинок мало, повторы всё равно возможны, но бот старается не повторять последнюю картинку сразу.
+
+### Подписи и настроение
+
+- `333` caption-фразы для картинок
+- `150` стартовых фраз для режима загрузки
+- `30` фраз завершения загрузки
+- ежедневный `/mood` влияет на подпись через mood-префикс
+
+Пример caption:
+
+```text
+После третьего кофе: Пикча как маленькая катастрофа
+```
 
 ### Реакции
 
@@ -36,23 +52,27 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 - `💩`
 - `🖕`
 
-Один пользователь может поставить только одну реакцию на конкретную картинку. Если он нажимает другую реакцию, старая заменяется.
+Один пользователь может поставить только одну реакцию на конкретную картинку. Если он нажимает другую реакцию, старая реакция снимается, новая засчитывается. Голоса разных пользователей не затирают друг друга.
 
-Если картинка набирает `5` уникальных `🖕`, бот удаляет её из пула.
+Народный суд:
+
+- `3 🖕` — бот предупреждает, что пикча близко к вылету
+- `4 🖕` — бот пишет, что пикча на грани
+- `5 🖕` — картинка удаляется из пула
 
 ### Загрузка картинок
 
 1. Нажмите `⬆️ Залить пикчи` или отправьте `/upload_pidor`.
-2. Отправьте одну картинку, пачку картинок, альбом Telegram или пересланные изображения.
+2. Отправьте одну картинку, несколько картинок подряд, альбом Telegram или пересланные изображения.
 3. Когда закончите, нажмите `✅ Закончить` или отправьте `/done`.
 
-Бот не спамит ответом на каждую картинку. После первой принятой картинки он один раз пишет, что принимает пакет.
+Бот не спамит ответом на каждую пикчу. После первой принятой картинки он один раз пишет, что принимает пакет.
 
 Дубликаты не добавляются. Проверка идёт по Telegram `file_unique_id`.
 
 ### Группы и каналы
 
-Для работы в группах с обычными картинками нужно отключить Privacy Mode:
+Для работы в группах с обычными картинками лучше отключить Privacy Mode:
 
 1. Откройте `@BotFather`.
 2. Выполните `/setprivacy`.
@@ -61,7 +81,60 @@ Telegram bot for random images, group chaos, reactions, uploads, and meme-flavor
 
 Если Privacy Mode включён, Telegram может не отдавать боту обычные фото из группы. В этом случае после открытия загрузки прикрепляйте картинки ответом на сообщение бота.
 
-Для каналов бот должен быть добавлен администратором с правом отправлять сообщения и медиа. Если команды и загрузка в самом канале ведут себя нестабильно, самый надёжный сценарий: загружать картинки в личке с ботом или в отдельной группе, а публиковать в канал через `TARGET_CHANNEL_ID`.
+Для каналов бот должен быть администратором с правом отправлять сообщения и медиа. Самый надёжный сценарий для канала: загружать картинки в личке с ботом или отдельной группе, а публиковать в канал через `TARGET_CHANNEL_ID`.
+
+### Хранение
+
+Пул хранится в JSON. Формат автоматически мигрирует со старого списка `file_id` на объект с версией, картинками и памятью чатов.
+
+Пример:
+
+```json
+{
+  "version": 2,
+  "images": [
+    {
+      "id": "a1b2c3",
+      "file_id": "AgACAgIAAxkBA...",
+      "file_unique_id": "AQAD...",
+      "added_by": 123456789,
+      "added_at": "2026-04-25T13:00:00+00:00",
+      "shown_count": 3,
+      "last_shown_at": "2026-04-25T13:10:00+00:00",
+      "likes": 1,
+      "fires": 2,
+      "dislikes": 0,
+      "reactions_by_user": {
+        "123456789": "like"
+      }
+    }
+  ],
+  "chat_history": {
+    "-1001234567890": ["a1b2c3"]
+  }
+}
+```
+
+### Оптимизация
+
+- пул читается в память один раз при запуске
+- поиск картинки по `id` работает через индекс
+- проверка дублей по `file_unique_id` работает через индекс
+- счётчик загрузок пользователя берётся из индекса
+- запись JSON идёт атомарно через временный файл
+- глобальный анти-повтор использует быстрый выбор последних показов без полной сортировки всего пула
+- большие наборы текстов вынесены в `bot/texts.py`, чтобы обработчики оставались читаемыми
+
+### Структура проекта
+
+```text
+bot/__main__.py    # запуск aiogram polling
+bot/config.py      # переменные окружения и пути
+bot/handlers.py    # команды, callback-кнопки и сценарии бота
+bot/image_pool.py  # JSON-хранилище, рандом, реакции и индексы
+bot/keyboards.py   # inline-клавиатуры
+bot/texts.py       # фразы, caption-пулы, mood и правила народного суда
+```
 
 ### Локальный запуск
 
@@ -90,7 +163,7 @@ python -m bot
 
 В проекте уже есть:
 
-- `Procfile` — команда запуска `python -m bot`
+- `Procfile` — запускает `python -m bot`
 - `.python-version` — Python `3.12`
 
 Переменные Railway:
@@ -100,46 +173,16 @@ BOT_TOKEN=токен_бота
 TARGET_CHANNEL_ID=
 ```
 
-Для постоянного хранения пула подключите Railway Volume с mount path:
+Для постоянного хранения подключите Railway Volume с mount path:
 
 ```text
 /data
 ```
 
-Если `RAILWAY_VOLUME_MOUNT_PATH` есть, бот автоматически хранит пул в:
+Если `RAILWAY_VOLUME_MOUNT_PATH` есть, бот автоматически хранит пул тут:
 
 ```text
 /data/image_pool.json
-```
-
-### Хранение
-
-Пул хранится в JSON. Формат автоматически мигрирует со старого списка `file_id` на объект с версией, картинками и памятью чатов.
-
-```json
-{
-  "version": 2,
-  "images": [
-    {
-      "id": "a1b2c3",
-      "file_id": "AgACAgIAAxkBA...",
-      "file_unique_id": "AQAD...",
-      "added_by": 123456789,
-      "added_at": "2026-04-25T13:00:00+00:00",
-      "shown_count": 3,
-      "last_shown_at": "2026-04-25T13:10:00+00:00",
-      "likes": 1,
-      "fires": 2,
-      "dislikes": 0,
-      "reactions_by_user": {
-        "123456789": "like"
-      }
-    }
-  ],
-  "chat_history": {
-    "-1001234567890": ["a1b2c3"]
-  }
-}
 ```
 
 ## EN
@@ -148,25 +191,43 @@ TARGET_CHANNEL_ID=
 
 `@kartinkomet_bot` sends random images from a shared pool using `/pic` or the `🎲 Рандом` button.
 
-The bot does not store image files on the server. It stores only Telegram `file_id` values, while the actual files stay on Telegram's side.
+The bot does not store image files on the server. It stores only Telegram `file_id` values, while the real files remain on Telegram's side.
 
 ### Features
 
-- `🎲 Рандом` and `/pic` — send a random image.
-- `🎲 Ещё` — request another image directly under the current one.
-- `⬆️ Залить пикчи` and `/upload_pidor` — start upload mode.
-- `✅ Закончить` and `/done` — finish upload mode and show a summary.
-- `❌ Отмена` and `/cancel` — cancel the active upload session.
-- `/count` — show how many images are in the pool.
-- `/stats` — show views and reaction stats.
-- `/mood` — show the bot's daily mood.
-- `/reset_stats` — hidden utility command to reset reactions, views, and recent-random memory.
+| Command or Button | Action |
+| --- | --- |
+| `🎲 Рандом`, `/pic` | Sends a random image |
+| `🎲 Ещё` | Requests another image below the current one |
+| `⬆️ Залить пикчи`, `/upload_pidor` | Starts upload mode |
+| `✅ Закончить`, `/done` | Finishes upload mode and shows a summary |
+| `❌ Отмена`, `/cancel` | Cancels the active upload session |
+| `/count` | Shows how many images are in the pool |
+| `/stats` | Shows views and reaction stats |
+| `/mood` | Shows the bot's daily mode |
+| `/menu` | Opens the main control panel |
+| `/reset_stats` | Hidden utility command to reset reactions, views, and random memory |
 
 ### Random Selection
 
-The bot uses random selection, first avoiding images recently shown in the current chat. Then it avoids globally recent images and prioritizes images with fewer previous views. With a larger pool, repeats become much less frequent. With a small pool, repeats can still happen.
+Random selection is chat-aware. The bot first avoids images recently shown in the current chat, then avoids globally recent images, then prioritizes images with fewer previous views.
 
-Each image gets a random caption from a set of `333` captions. The daily `/mood` affects delivery by adding a mood-flavored prefix to the caption.
+With a large pool, repeats become much less frequent. With a small pool, repeats can still happen, but the bot tries not to repeat the last image immediately.
+
+### Captions And Mood
+
+- `333` image caption phrases
+- `150` upload-start phrases
+- `30` upload-finish phrases
+- daily `/mood` affects captions through a mood-flavored prefix
+
+Example caption:
+
+```text
+After the third coffee: Pic as a tiny disaster
+```
+
+The real bot text is intentionally Russian-first because the bot UI is Russian.
 
 ### Reactions
 
@@ -176,9 +237,13 @@ Each image has:
 - `💩`
 - `🖕`
 
-One user can cast only one reaction per image. If they press another reaction, the old one is replaced.
+One user can cast only one reaction per image. If they choose another reaction, the previous one is removed and the new one is counted. Votes from different users do not overwrite each other.
 
-If an image gets `5` unique `🖕` reactions, the bot removes it from the pool.
+Jury rule:
+
+- `3 🖕` — the bot warns that the image is close to removal
+- `4 🖕` — the bot warns that the image is on the edge
+- `5 🖕` — the image is removed from the pool
 
 ### Uploading Images
 
@@ -192,7 +257,7 @@ Duplicates are ignored using Telegram `file_unique_id`.
 
 ### Groups And Channels
 
-For group uploads, disable BotFather Privacy Mode:
+For group uploads, it is best to disable BotFather Privacy Mode:
 
 1. Open `@BotFather`.
 2. Run `/setprivacy`.
@@ -201,7 +266,34 @@ For group uploads, disable BotFather Privacy Mode:
 
 If Privacy Mode is enabled, Telegram may hide regular group photos from the bot. In that case, start upload mode and attach images as a reply to the bot's message.
 
-For channels, the bot must be an admin with permission to post messages and media. If direct channel uploads are unreliable, use the stable flow: upload images in a private chat with the bot or in a separate group, then publish to a channel with `TARGET_CHANNEL_ID`.
+For channels, the bot must be an admin with permission to post messages and media. The most reliable channel flow is to upload images in a private chat with the bot or in a separate group, then publish to the channel with `TARGET_CHANNEL_ID`.
+
+### Storage
+
+The pool is stored in JSON. The format is automatically migrated from the old `file_id` list to a versioned object with images and per-chat random memory.
+
+See the RU storage section above for an example payload.
+
+### Optimization
+
+- the pool is loaded into memory once at startup
+- image lookup by `id` uses an in-memory index
+- duplicate checks by `file_unique_id` use an in-memory index
+- uploaded-count lookup uses an in-memory user index
+- JSON writes are atomic through a temporary file
+- global anti-repeat uses fast latest-item selection without sorting the full pool
+- large text pools live in `bot/texts.py`, keeping handlers readable
+
+### Project Structure
+
+```text
+bot/__main__.py    # aiogram polling entrypoint
+bot/config.py      # environment variables and storage paths
+bot/handlers.py    # commands, callback buttons, and bot flows
+bot/image_pool.py  # JSON storage, random selection, reactions, and indexes
+bot/keyboards.py   # inline keyboards
+bot/texts.py       # phrases, caption pools, mood, and jury rules
+```
 
 ### Local Run
 
@@ -250,34 +342,4 @@ When `RAILWAY_VOLUME_MOUNT_PATH` is available, the bot automatically stores the 
 
 ```text
 /data/image_pool.json
-```
-
-### Storage
-
-The pool is stored in JSON. The format is migrated automatically from the old `file_id` list to a versioned object with images and per-chat random memory.
-
-```json
-{
-  "version": 2,
-  "images": [
-    {
-      "id": "a1b2c3",
-      "file_id": "AgACAgIAAxkBA...",
-      "file_unique_id": "AQAD...",
-      "added_by": 123456789,
-      "added_at": "2026-04-25T13:00:00+00:00",
-      "shown_count": 3,
-      "last_shown_at": "2026-04-25T13:10:00+00:00",
-      "likes": 1,
-      "fires": 2,
-      "dislikes": 0,
-      "reactions_by_user": {
-        "123456789": "like"
-      }
-    }
-  ],
-  "chat_history": {
-    "-1001234567890": ["a1b2c3"]
-  }
-}
 ```

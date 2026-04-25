@@ -2,6 +2,7 @@ import json
 import random
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from heapq import nlargest
 from pathlib import Path
 from uuid import uuid4
 
@@ -51,6 +52,7 @@ class ImagePool:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self._records, self._chat_history = self._load()
+        self._rebuild_indexes()
 
     def count(self) -> int:
         return len(self._records)
@@ -74,20 +76,20 @@ class ImagePool:
             return AddResult(added=False)
 
         file_id, file_unique_id = image_data
-        if any(record["file_unique_id"] == file_unique_id for record in self._records):
+        if file_unique_id in self._unique_ids:
             return AddResult(added=False, duplicate=True)
 
-        self._records.append(
-            self._normalize_record(
-                {
-                    "id": uuid4().hex,
-                    "file_id": file_id,
-                    "file_unique_id": file_unique_id,
-                    "added_by": message.from_user.id if message.from_user else None,
-                    "added_at": datetime.now(UTC).isoformat(),
-                }
-            )
+        record = self._normalize_record(
+            {
+                "id": uuid4().hex,
+                "file_id": file_id,
+                "file_unique_id": file_unique_id,
+                "added_by": message.from_user.id if message.from_user else None,
+                "added_at": datetime.now(UTC).isoformat(),
+            }
         )
+        self._records.append(record)
+        self._index_record(record)
         self._write()
         return AddResult(added=True)
 
@@ -116,11 +118,22 @@ class ImagePool:
         return ReactionUpdate(image=self._to_image_record(record), changed=True)
 
     def delete(self, image_id: str) -> bool:
-        original_count = len(self._records)
-        self._records = [record for record in self._records if record["id"] != image_id]
-        if len(self._records) == original_count:
+        record = self._find(image_id)
+        if record is None:
             return False
 
+        self._records.remove(record)
+        self._record_by_id.pop(record["id"], None)
+        self._unique_ids.discard(record["file_unique_id"])
+        if isinstance(record["added_by"], int):
+            remaining_uploads = max(
+                0,
+                self._uploads_by_user.get(record["added_by"], 0) - 1,
+            )
+            if remaining_uploads:
+                self._uploads_by_user[record["added_by"]] = remaining_uploads
+            else:
+                self._uploads_by_user.pop(record["added_by"], None)
         for chat_key, history in list(self._chat_history.items()):
             history[:] = [shown_id for shown_id in history if shown_id != image_id]
             if not history:
@@ -150,7 +163,7 @@ class ImagePool:
         self._write()
 
     def count_by_user(self, user_id: int) -> int:
-        return sum(1 for record in self._records if record["added_by"] == user_id)
+        return self._uploads_by_user.get(user_id, 0)
 
     def _selectable_records(
         self,
@@ -174,11 +187,11 @@ class ImagePool:
         )
         recent_ids = {
             record["id"]
-            for record in sorted(
+            for record in nlargest(
+                recent_limit,
                 shown_records,
                 key=lambda record: record.get("last_shown_at") or "",
-                reverse=True,
-            )[:recent_limit]
+            )
         }
         fresh_records = [record for record in records if record["id"] not in recent_ids]
         records = fresh_records or records
@@ -225,7 +238,7 @@ class ImagePool:
             del history[:-max_history]
 
     def _find(self, image_id: str) -> dict | None:
-        return next((record for record in self._records if record["id"] == image_id), None)
+        return self._record_by_id.get(image_id)
 
     def _to_image_record(self, record: dict) -> ImageRecord:
         return ImageRecord(
@@ -303,11 +316,15 @@ class ImagePool:
             raise RuntimeError(f"{self.storage_path} contains an invalid image record.")
 
         file_id = str(item["file_id"])
+        added_by = item.get("added_by")
+        if isinstance(added_by, str) and added_by.isdigit():
+            added_by = int(added_by)
+
         return {
             "id": str(item.get("id") or uuid4().hex),
             "file_id": file_id,
             "file_unique_id": str(item.get("file_unique_id") or file_id),
-            "added_by": item.get("added_by"),
+            "added_by": added_by,
             "added_at": item.get("added_at"),
             "shown_count": int(item.get("shown_count") or 0),
             "last_shown_at": item.get("last_shown_at"),
@@ -319,6 +336,21 @@ class ImagePool:
 
     def _write(self) -> None:
         self._atomic_write(self._records, self._chat_history)
+
+    def _rebuild_indexes(self) -> None:
+        self._record_by_id: dict[str, dict] = {}
+        self._unique_ids: set[str] = set()
+        self._uploads_by_user: dict[int, int] = {}
+        for record in self._records:
+            self._index_record(record)
+
+    def _index_record(self, record: dict) -> None:
+        self._record_by_id[record["id"]] = record
+        self._unique_ids.add(record["file_unique_id"])
+        if isinstance(record["added_by"], int):
+            self._uploads_by_user[record["added_by"]] = (
+                self._uploads_by_user.get(record["added_by"], 0) + 1
+            )
 
     def _normalize_chat_history(
         self,

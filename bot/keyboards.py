@@ -51,6 +51,4 @@ def picture_actions_with_counts(
         [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]
 
-    return InlineKeyboardMarkup(
-        inline_keyboard=keyboard
-    )
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
