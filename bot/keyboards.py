@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
@@ -28,15 +28,4 @@ def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | Non
         inline_keyboard=[
             [InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")],
         ]
-    )
-
-
-def reply_menu() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="/pic"), KeyboardButton(text="/count")],
-            [KeyboardButton(text="Меню")],
-        ],
-        resize_keyboard=True,
-        input_field_placeholder="Напишите команду",
     )

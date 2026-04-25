@@ -2,10 +2,10 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from bot.image_pool import ImagePool
-from bot.keyboards import main_menu, picture_actions, reply_menu
+from bot.keyboards import main_menu, picture_actions
 
 UPLOAD_COMMAND = "upload_pidor"
 
@@ -27,7 +27,7 @@ def build_router(
         await message.answer(
             "Я Картинкомет 3000. Отправляю случайные изображения из общего пула.\n\n"
             "Жмите кнопку или используйте /pic",
-            reply_markup=reply_menu(),
+            reply_markup=ReplyKeyboardRemove(),
         )
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
 
@@ -48,6 +48,7 @@ def build_router(
 
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
+        await message.answer("Открываю меню", reply_markup=ReplyKeyboardRemove())
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
 
     @router.message(Command("pic"))
