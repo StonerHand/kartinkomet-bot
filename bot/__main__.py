@@ -21,6 +21,7 @@ async def main() -> None:
         build_router(
             image_pool=ImagePool(config.image_pool_path),
             target_channel_id=config.target_channel_id,
+            admin_ids=config.admin_ids,
         )
     )
 
