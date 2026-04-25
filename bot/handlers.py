@@ -91,7 +91,7 @@ def build_router(
     @router.message(CommandStart())
     async def start(message: Message) -> None:
         await message.answer(
-            "Я бот kartinkomet. Отправляю случайные изображения из общего пула\n\n"
+            "Я @kartinkomet_bot. Отправляю случайные изображения из общего пула\n\n"
             "Жмите кнопку <b>\"🎲 Рандом\"</b> или используйте /pic",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
