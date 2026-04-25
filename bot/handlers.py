@@ -567,7 +567,7 @@ def build_router(
         await message.answer(
             "Я @kartinkomet_bot. Отправляю случайные изображения из общего пула\n\n"
             f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n\n"
-            "Жмите кнопку <b>\"🎲 Рандом\"</b> или используйте /pic",
+            "Жмите кнопку <code>🎲 Рандом</code> или используйте <code>/pic</code>",
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -577,14 +577,14 @@ def build_router(
     async def help_command(message: Message) -> None:
         text = (
             "<b>Пульт управления хаосом:</b>\n\n"
-            "🎲 /pic — выстрелить рандомной пикчей\n"
-            "📦 /count — проверить, сколько пикч в реакторе\n"
-            "📊 /stats — посмотреть лайки, какашки и средние пальцы\n"
-            "🧠 /mood — узнать, в каком режиме бот сегодня\n"
-            "🚨 /menu — открыть пульт от ядерки\n"
-            "⬆️ /upload_pidor — открыть загрузку пикч\n"
-            "✅ /done — закрыть загрузку\n"
-            "❌ /cancel — отменить загрузку"
+            "🎲 <code>/pic</code> — выстрелить рандомной пикчей\n"
+            "📦 <code>/count</code> — проверить, сколько пикч в реакторе\n"
+            "📊 <code>/stats</code> — посмотреть лайки, какашки и средние пальцы\n"
+            "🧠 <code>/mood</code> — узнать, в каком режиме бот сегодня\n"
+            "🚨 <code>/menu</code> — открыть пульт от ядерки\n"
+            "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
+            "✅ <code>/done</code> — закрыть загрузку\n"
+            "❌ <code>/cancel</code> — отменить загрузку"
         )
 
         await message.answer(text, parse_mode="HTML")
@@ -787,7 +787,10 @@ def build_router(
             await message.answer("Файл не зашёл. Отправьте изображение")
             return
 
-        await message.answer("Жми /pic или открой /menu")
+        await message.answer(
+            "Жми <code>/pic</code> или открой <code>/menu</code>",
+            parse_mode="HTML",
+        )
 
     return router
 
