@@ -4,20 +4,20 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text="Картинка", callback_data="pic"),
-            InlineKeyboardButton(text="Без повторов", callback_data="pic:fresh"),
+            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            InlineKeyboardButton(text="🧊 Без повтора", callback_data="pic:fresh"),
         ],
         [
-            InlineKeyboardButton(text="Количество", callback_data="count"),
-            InlineKeyboardButton(text="Статистика", callback_data="stats"),
+            InlineKeyboardButton(text="📦 Пул", callback_data="count"),
+            InlineKeyboardButton(text="📊 Статы", callback_data="stats"),
         ],
     ]
 
     if is_admin:
         keyboard.append(
             [
-                InlineKeyboardButton(text="Загрузить", callback_data="upload"),
-                InlineKeyboardButton(text="Завершить", callback_data="done"),
+                InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload"),
+                InlineKeyboardButton(text="✅ Закончить", callback_data="done"),
             ]
         )
 
@@ -34,7 +34,7 @@ def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | Non
     ]
 
     if is_admin:
-        keyboard.append([InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")])
+        keyboard.append([InlineKeyboardButton(text="🗑 Удалить", callback_data=f"delete:{image_id}")])
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -55,7 +55,7 @@ def picture_actions_with_counts(
     ]
 
     if is_admin:
-        keyboard.append([InlineKeyboardButton(text="Удалить из пула", callback_data=f"delete:{image_id}")])
+        keyboard.append([InlineKeyboardButton(text="🗑 Удалить", callback_data=f"delete:{image_id}")])
 
     return InlineKeyboardMarkup(
         inline_keyboard=keyboard

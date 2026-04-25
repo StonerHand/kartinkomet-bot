@@ -25,8 +25,8 @@ def build_router(
     @router.message(CommandStart())
     async def start(message: Message) -> None:
         await message.answer(
-            "Я Картинкомет 3000. Отправляю случайные изображения из общего пула.\n\n"
-            "Жмите кнопку или используйте /pic",
+            "Картинкомёт 3000 заряжен 🚀\n\n"
+            "Жми кнопку ниже или вызывай /pic",
             reply_markup=ReplyKeyboardRemove(),
         )
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
@@ -34,14 +34,14 @@ def build_router(
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
         text = (
-            "Доступные команды:\n"
-            "/pic - отправить случайное изображение\n"
-            "/fresh - случайная картинка без недавних повторов\n"
-            "/count - показать количество изображений в пуле\n"
-            "/stats - статистика бота\n"
-            "/menu - открыть меню\n"
+            "Командный пульт:\n"
+            "/pic - рандомная пикча\n"
+            "/fresh - пикча без недавних повторов\n"
+            "/count - размер пула\n"
+            "/stats - статистика\n"
+            "/menu - открыть пульт\n"
             "/id - показать ваш Telegram user ID\n"
-            "/done - завершить режим загрузки"
+            "/done - закончить загрузку"
         )
         if is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
             text += f"\n/{UPLOAD_COMMAND} - включить режим загрузки"
@@ -50,7 +50,7 @@ def build_router(
 
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
-        await message.answer("Открываю меню", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Убираю лишние кнопки", reply_markup=ReplyKeyboardRemove())
         await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
 
     @router.message(Command("pic"))
@@ -78,7 +78,7 @@ def build_router(
 
     @router.message(Command("count"))
     async def count_pictures(message: Message) -> None:
-        await message.answer(f"Изображений в пуле: {image_pool.count()}")
+        await message.answer(f"В пуле пикч: {image_pool.count()}")
 
     @router.message(Command("stats"))
     async def stats_command(message: Message) -> None:
@@ -87,7 +87,7 @@ def build_router(
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
         if message.from_user is None:
-            await message.answer("Не удалось определить user ID")
+            await message.answer("Не смог определить user ID")
             return
 
         await message.answer(f"Ваш user ID: {message.from_user.id}")
@@ -95,7 +95,7 @@ def build_router(
     @router.message(Command(UPLOAD_COMMAND))
     async def start_upload(message: Message, state: FSMContext) -> None:
         if not is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
-            await message.answer("Загрузка доступна только администратору")
+            await message.answer("Залив доступен только администратору")
             return
 
         await activate_upload(message, state)
@@ -108,7 +108,7 @@ def build_router(
     async def save_picture(message: Message, state: FSMContext) -> None:
         if not is_user_admin(message.from_user.id if message.from_user else None, admin_ids):
             await state.clear()
-            await message.answer("Загрузка доступна только администратору")
+            await message.answer("Залив доступен только администратору")
             return
 
         data = await state.get_data()
@@ -123,11 +123,11 @@ def build_router(
 
         if result.duplicate:
             await state.update_data(added=added, failed=failed, duplicates=duplicates + 1)
-            await message.answer("Дубликат не добавлен")
+            await message.answer("Дубликат пропущен")
             return
 
         await state.update_data(added=added, failed=failed + 1, duplicates=duplicates)
-        await message.answer("Файл не добавлен. Отправьте изображение")
+        await message.answer("Файл не зашёл. Отправьте изображение")
 
     @router.callback_query(F.data == "pic")
     async def pic_callback(callback: CallbackQuery, bot: Bot) -> None:
@@ -162,7 +162,7 @@ def build_router(
 
     @router.callback_query(F.data == "count")
     async def count_callback(callback: CallbackQuery) -> None:
-        await callback.answer(f"Изображений в пуле: {image_pool.count()}", show_alert=True)
+        await callback.answer(f"В пуле пикч: {image_pool.count()}", show_alert=True)
 
     @router.callback_query(F.data == "stats")
     async def stats_callback(callback: CallbackQuery) -> None:
@@ -175,7 +175,7 @@ def build_router(
             return
 
         if not is_user_admin(callback.from_user.id, admin_ids):
-            await callback.answer("Только для администратора", show_alert=True)
+            await callback.answer("Только для админа", show_alert=True)
             return
 
         await activate_upload(callback.message, state)
@@ -193,17 +193,17 @@ def build_router(
     @router.callback_query(F.data.startswith("delete:"))
     async def delete_callback(callback: CallbackQuery) -> None:
         if not is_user_admin(callback.from_user.id, admin_ids):
-            await callback.answer("Только для администратора", show_alert=True)
+            await callback.answer("Только для админа", show_alert=True)
             return
 
         image_id = callback.data.split(":", 1)[1] if callback.data else ""
         if image_pool.delete(image_id):
-            await callback.answer("Удалено из пула", show_alert=True)
+            await callback.answer("Выкинули из пула", show_alert=True)
             if callback.message:
                 await callback.message.edit_reply_markup(reply_markup=None)
             return
 
-        await callback.answer("Картинка уже удалена", show_alert=True)
+        await callback.answer("Этой пикчи уже нет в пуле", show_alert=True)
 
     @router.callback_query(F.data.startswith("react:"))
     async def react_callback(callback: CallbackQuery) -> None:
@@ -214,7 +214,7 @@ def build_router(
         _, reaction, image_id = callback.data.split(":", 2)
         image = image_pool.react(image_id, reaction)
         if image is None:
-            await callback.answer("Не нашёл картинку", show_alert=True)
+            await callback.answer("Не нашёл эту пикчу", show_alert=True)
             return
 
         if callback.message:
@@ -228,11 +228,7 @@ def build_router(
                 )
             )
 
-        await callback.answer("Учтено")
-
-    @router.message(F.text == "Меню")
-    async def menu_button(message: Message) -> None:
-        await show_menu(message, is_user_admin(message.from_user.id if message.from_user else None, admin_ids))
+        await callback.answer("Засчитано")
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
@@ -240,7 +236,7 @@ def build_router(
 
     @router.message()
     async def fallback(message: Message) -> None:
-        await message.answer("Используйте /pic или откройте /menu")
+        await message.answer("Жми /pic или открой /menu")
 
     return router
 
@@ -257,9 +253,9 @@ async def send_picture(
     image = image_pool.random_image(avoid_recent=avoid_recent)
     if image is None:
         if answer_message:
-            await answer_message.answer("Пул изображений пуст. Сначала добавьте изображения")
+            await answer_message.answer("Пул пуст. Сначала залейте пикчи")
         else:
-            await bot.send_message(chat_id=chat_id, text="Пул изображений пуст. Сначала добавьте изображения")
+            await bot.send_message(chat_id=chat_id, text="Пул пуст. Сначала залейте пикчи")
         return
 
     destination_chat_id = target_channel_id or chat_id
@@ -270,22 +266,22 @@ async def send_picture(
     )
 
     if target_channel_id and answer_message and str(answer_message.chat.id) != str(target_channel_id):
-        await answer_message.answer("Изображение отправлено в канал")
+        await answer_message.answer("Пикча улетела в канал")
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
     await state.update_data(added=0, failed=0, duplicates=0)
     await message.answer(
-        "Режим загрузки изображений активирован. Отправьте одно или несколько изображений. "
-        "После завершения отправьте /done"
+        "Залив открыт. Кидайте одну пикчу, пачку или пересланные изображения. "
+        "Когда хватит, отправьте /done"
     )
 
 
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state:
-        await message.answer("Режим загрузки не активирован")
+        await message.answer("Залив сейчас не открыт")
         return
 
     await finish_upload(message, state)
@@ -298,9 +294,9 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     duplicates = int(data.get("duplicates", 0))
     await state.clear()
 
-    text = f"Загрузка завершена. Добавлено изображений: {added}"
+    text = f"Залив закрыт. Добавлено пикч: {added}"
     if failed:
-        text += f". Не удалось добавить: {failed}"
+        text += f". Не зашло: {failed}"
     if duplicates:
         text += f". Дубликатов пропущено: {duplicates}"
 
@@ -308,13 +304,13 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
 
 
 async def show_menu(message: Message, is_admin: bool) -> None:
-    await message.answer("Меню", reply_markup=main_menu(is_admin=is_admin))
+    await message.answer("Пульт Картинкомёта 🎛", reply_markup=main_menu(is_admin=is_admin))
 
 
 def format_stats(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
-        "Статистика:\n"
+        "Статы Картинкомёта:\n"
         f"Пикч в пуле: {stats.total_images}\n"
         f"Выдано картинок: {stats.total_shows}\n"
         f"Лайков: {stats.total_likes}\n"
