@@ -74,6 +74,70 @@ UPLOAD_START_PHRASES = [
     "Пул открыл рот",
     "Ну понеслась",
 ]
+PICTURE_CAPTIONS = [
+    "Сейчас будет искусство",
+    "Держи визуальный удар",
+    "Рандом выкатывает базу",
+    "Экспонат из дурки",
+    "Архивный материал",
+    "Это нельзя развидеть",
+    "Пикча прибыла без предупреждения",
+    "Контент сомнительной свежести",
+    "Вот это поворот",
+    "Рандом сказал «держи»",
+    "Картинкомёт выстрелил",
+    "Ничего не объясняю",
+    "Материал для внутреннего расследования",
+    "Пикча с характером",
+    "Случайность уровня бог",
+    "Это было в пуле, я не виноват",
+    "Глазами смотреть осторожно",
+    "Вот тебе кусок хаоса",
+    "Пикча вышла из тени",
+    "Рандом снова творит странное",
+    "Визуальный прикол доставлен",
+    "Склад выдал вот это",
+    "Проверка на моральную устойчивость",
+    "Картинка нашла своего зрителя",
+    "Лови артефакт",
+    "Это не баг, это контент",
+    "Пул решил так",
+    "Без контекста, зато честно",
+    "Сервер достал из кармана",
+    "Мемная единица доставлена",
+]
+EMPTY_POOL_PHRASES = [
+    "Пул пуст. Сначала залейте пикчи",
+    "Тут пусто. Даже рандом ушёл курить",
+    "Пикч нет. Картинкомёт щёлкает вхолостую",
+    "Пул пустой, как обещания после созвона",
+    "Нечего выдавать. Несите картинки",
+    "Рандом голодный. Залейте пикчи",
+    "Архив пуст. Мемы не подвезли",
+    "Пикчевой склад пустует",
+    "Контента ноль. Срочно кормить",
+    "Пул сухой. Нужны пикчи",
+    "Картинкомёт без патронов",
+    "Пустота смотрит в ответ",
+    "JSON грустит без file_id",
+    "Ни одной пикчи. Позор, но поправимый",
+    "Рандом готов, но выбирать нечего",
+    "Пикчи закончились ещё до начала",
+    "Склад открылся, а там воздух",
+    "Мемная полка пуста",
+    "Сначала залейте контент, потом требуйте чудес",
+    "Пул пуст, зато честно",
+    "Кнопка нажалась, пикчи не нашлись",
+    "Тут пока вакуум и лёгкое осуждение",
+    "Картинкомёт просит боеприпасы",
+    "Нужны картинки. Рандом не маг",
+    "Пока выдавать нечего",
+    "Пул на нуле. Залив спасёт ситуацию",
+    "Пикч нет, но вы держитесь",
+    "Ноль картинок. Абсолютный дзен",
+    "Случайность не случилась",
+    "Пустой пул. Закиньте хоть что-нибудь",
+]
 
 
 class AddPicture(StatesGroup):
@@ -99,17 +163,18 @@ def build_router(
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
         text = (
-            "Командный пульт:\n"
-            "/pic - рандомная пикча\n"
-            "/count - размер пула\n"
-            "/stats - статистика\n"
-            "/menu - открыть пульт\n"
-            "/id - показать ваш Telegram user ID\n"
-            "/done - закончить загрузку"
+            "<b>Командный пульт:</b>\n"
+            "🎲 /pic — рандомная пикча\n"
+            "📦 /count — сколько пикч в реакторе\n"
+            "📊 /stats — статы по реакциям\n"
+            "🚨 /menu — открыть пульт от ядерки\n"
+            "🪪 /id — показать ваш Telegram user ID\n"
+            "✅ /done — закончить загрузку\n"
+            "❌ /cancel — отменить загрузку"
         )
         text += f"\n/{UPLOAD_COMMAND} - включить режим загрузки"
 
-        await message.answer(text)
+        await message.answer(text, parse_mode="HTML")
 
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
@@ -149,6 +214,10 @@ def build_router(
     @router.message(Command("done"))
     async def done_upload(message: Message, state: FSMContext) -> None:
         await finish_upload_or_warn(message, state)
+
+    @router.message(Command("cancel"))
+    async def cancel_upload_command(message: Message, state: FSMContext) -> None:
+        await cancel_upload(message, state)
 
     @router.message(AddPicture.uploading)
     async def save_picture(message: Message, state: FSMContext) -> None:
@@ -211,6 +280,15 @@ def build_router(
         await finish_upload_or_warn(callback.message, state)
         await callback.answer()
 
+    @router.callback_query(F.data == "cancel_upload")
+    async def cancel_upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        await cancel_upload(callback.message, state)
+        await callback.answer()
+
     @router.callback_query(F.data.startswith("react:"))
     async def react_callback(callback: CallbackQuery) -> None:
         if callback.data is None:
@@ -257,15 +335,16 @@ async def send_picture(
     image = image_pool.random_image(avoid_recent=avoid_recent)
     if image is None:
         if answer_message:
-            await answer_message.answer("Пул пуст. Сначала залейте пикчи")
+            await answer_message.answer(random.choice(EMPTY_POOL_PHRASES))
         else:
-            await bot.send_message(chat_id=chat_id, text="Пул пуст. Сначала залейте пикчи")
+            await bot.send_message(chat_id=chat_id, text=random.choice(EMPTY_POOL_PHRASES))
         return
 
     destination_chat_id = target_channel_id or chat_id
     await bot.send_photo(
         chat_id=destination_chat_id,
         photo=image.file_id,
+        caption=random.choice(PICTURE_CAPTIONS),
         reply_markup=picture_actions(image.id),
     )
 
@@ -290,6 +369,18 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
         return
 
     await finish_upload(message, state)
+
+
+async def cancel_upload(message: Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
+    if current_state != AddPicture.uploading.state:
+        await message.answer("Отменять нечего. Залив сейчас не открыт")
+        return
+
+    data = await state.get_data()
+    added = int(data.get("added", 0))
+    await state.clear()
+    await message.answer(f"Залив отменён. Уже добавлено пикч: {added}")
 
 
 async def finish_upload(message: Message, state: FSMContext) -> None:

@@ -15,7 +15,10 @@ def main_menu() -> InlineKeyboardMarkup:
 def upload_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Закончить", callback_data="done")],
+            [
+                InlineKeyboardButton(text="✅ Закончить", callback_data="done"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_upload"),
+            ],
         ]
     )
 
@@ -26,7 +29,8 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👍", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text="💩", callback_data=f"react:fire:{image_id}"),
             InlineKeyboardButton(text="🖕", callback_data=f"react:dislike:{image_id}"),
-        ]
+        ],
+        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -43,7 +47,8 @@ def picture_actions_with_counts(
             InlineKeyboardButton(text=f"👍 {likes}", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text=f"💩 {fires}", callback_data=f"react:fire:{image_id}"),
             InlineKeyboardButton(text=f"🖕 {dislikes}", callback_data=f"react:dislike:{image_id}"),
-        ]
+        ],
+        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]
 
     return InlineKeyboardMarkup(
