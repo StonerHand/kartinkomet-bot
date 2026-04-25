@@ -29,7 +29,7 @@ def picture_actions(image_id: str, is_admin: bool) -> InlineKeyboardMarkup | Non
         [
             InlineKeyboardButton(text="👍", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text="🔥", callback_data=f"react:fire:{image_id}"),
-            InlineKeyboardButton(text="👎", callback_data=f"react:dislike:{image_id}"),
+            InlineKeyboardButton(text="🖕", callback_data=f"react:dislike:{image_id}"),
         ]
     ]
 
@@ -50,7 +50,7 @@ def picture_actions_with_counts(
         [
             InlineKeyboardButton(text=f"👍 {likes}", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text=f"🔥 {fires}", callback_data=f"react:fire:{image_id}"),
-            InlineKeyboardButton(text=f"👎 {dislikes}", callback_data=f"react:dislike:{image_id}"),
+            InlineKeyboardButton(text=f"🖕 {dislikes}", callback_data=f"react:dislike:{image_id}"),
         ]
     ]
 
