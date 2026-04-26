@@ -20,7 +20,7 @@ from bot.texts import (
     UPLOAD_START_PHRASES,
 )
 
-UPLOAD_COMMAND = "upload_pidor"
+UPLOAD_COMMANDS = ("upload", "upload_pidor")
 active_uploads: dict[int, dict[str, int | bool]] = {}
 
 
@@ -54,7 +54,7 @@ def build_router(
             "📊 <code>/stats</code> — посмотреть лайки, какашки и средние пальцы\n"
             "🧠 <code>/mood</code> — узнать, в каком режиме бот сегодня\n"
             "🚨 <code>/menu</code> — открыть пульт от ядерки\n"
-            "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
+            "⬆️ <code>/upload</code> — открыть загрузку пикч\n"
             "✅ <code>/done</code> — закрыть загрузку\n"
             "❌ <code>/cancel</code> — отменить загрузку\n"
             "🖕 5 средних пальцев — народный суд удаляет пикчу из пула"
@@ -99,7 +99,7 @@ def build_router(
     async def mood_command(message: Message) -> None:
         await message.answer(
             f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n"
-            "Подписи под пикчами сегодня подмешивают это настроение",
+            "Caption под пикчами остаётся чистым, без лишних приставок",
             parse_mode="HTML",
         )
 
@@ -111,8 +111,8 @@ def build_router(
 
         await message.answer(f"Ваш user ID: {message.from_user.id}")
 
-    @router.message(Command(UPLOAD_COMMAND))
-    @router.channel_post(Command(UPLOAD_COMMAND))
+    @router.message(Command(*UPLOAD_COMMANDS))
+    @router.channel_post(Command(*UPLOAD_COMMANDS))
     async def start_upload(message: Message, state: FSMContext) -> None:
         await activate_upload(message, state)
 
