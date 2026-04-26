@@ -15,7 +15,6 @@ from bot.texts import (
     BOT_MOODS,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
-    MOOD_CAPTION_PREFIXES,
     PICTURE_CAPTIONS,
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
@@ -146,7 +145,7 @@ def build_router(
                 await message.answer("Пикчи принимаю. Когда хватит, жми кнопку", reply_markup=upload_menu())
             achievement = achievement_for(message, image_pool)
             if achievement:
-                await message.answer(achievement)
+                await message.answer(achievement, parse_mode="HTML")
             return
 
         if result.duplicate:
@@ -399,10 +398,7 @@ def daily_mood() -> str:
 
 
 def random_picture_caption() -> str:
-    mood = daily_mood()
-    prefix = random.choice(MOOD_CAPTION_PREFIXES[mood])
-    caption = random.choice(PICTURE_CAPTIONS)
-    return f"{prefix} {caption}"
+    return random.choice(PICTURE_CAPTIONS)
 
 
 def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
@@ -413,7 +409,7 @@ def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
     uploader = f"@{message.from_user.username}" if message.from_user.username else (message.from_user.first_name or "кто-то")
     for threshold, achievement in ACHIEVEMENTS:
         if uploaded_count == threshold:
-            return f"{achievement}\n{uploader} загрузил пикч: {uploaded_count}"
+            return f"<b>🏅 Достижение:</b> {achievement}\n{uploader} загрузил пикч: {uploaded_count}"
 
     return None
 

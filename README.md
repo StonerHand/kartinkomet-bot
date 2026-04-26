@@ -36,12 +36,12 @@ Telegram bot for random images, group chaos, reactions, uploads, per-chat random
 - `333` caption-фразы для картинок
 - `150` стартовых фраз для режима загрузки
 - `30` фраз завершения загрузки
-- ежедневный `/mood` влияет на подпись через mood-префикс
+- `/mood` показывает режим бота на сегодня, но не засоряет caption под картинкой
 
 Пример caption:
 
 ```text
-После третьего кофе: Пикча как маленькая катастрофа
+Пикча как маленькая катастрофа
 ```
 
 ### Реакции
@@ -219,12 +219,12 @@ With a large pool, repeats become much less frequent. With a small pool, repeats
 - `333` image caption phrases
 - `150` upload-start phrases
 - `30` upload-finish phrases
-- daily `/mood` affects captions through a mood-flavored prefix
+- `/mood` shows the bot's daily mode, but captions stay clean
 
 Example caption:
 
 ```text
-After the third coffee: Pic as a tiny disaster
+Pic as a tiny disaster
 ```
 
 The real bot text is intentionally Russian-first because the bot UI is Russian.
