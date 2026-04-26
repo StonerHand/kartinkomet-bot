@@ -12,7 +12,7 @@ from bot.image_pool import ImagePool
 
 BOT_COMMANDS = [
     BotCommand(command="pic", description="рандомная пикча"),
-    BotCommand(command="upload", description="загрузить пикчи в пул"),
+    BotCommand(command="upload_pidor", description="загрузить пикчи в пул"),
     BotCommand(command="done", description="закончить загрузку"),
     BotCommand(command="cancel", description="отменить загрузку"),
     BotCommand(command="count", description="количество пикч"),

@@ -16,7 +16,7 @@ Telegram bot for random images, group chaos, reactions, uploads, per-chat random
 | --- | --- |
 | `🎲 Рандом`, `/pic` | Отправляет случайную пикчу |
 | `🎲 Ещё` | Запрашивает следующую пикчу прямо под текущей |
-| `⬆️ Залить пикчи`, `/upload` | Включает режим загрузки для всех |
+| `⬆️ Залить пикчи`, `/upload_pidor` | Включает режим загрузки для всех |
 | `✅ Закончить`, `/done` | Завершает загрузку и показывает итог |
 | `❌ Отмена`, `/cancel` | Отменяет активную загрузку |
 | `/count` | Показывает количество пикч в пуле |
@@ -62,7 +62,7 @@ Telegram bot for random images, group chaos, reactions, uploads, per-chat random
 
 ### Загрузка картинок
 
-1. Нажмите `⬆️ Залить пикчи` или отправьте `/upload`.
+1. Нажмите `⬆️ Залить пикчи` или отправьте `/upload_pidor`.
 2. Отправьте одну картинку, несколько картинок подряд, альбом Telegram или пересланные изображения.
 3. Когда закончите, нажмите `✅ Закончить` или отправьте `/done`.
 
@@ -70,7 +70,7 @@ Telegram bot for random images, group chaos, reactions, uploads, per-chat random
 
 Дубликаты не добавляются. Проверка идёт по Telegram `file_unique_id`.
 
-Загружать пикчи может любой участник, который видит кнопку или знает команду `/upload`.
+Загружать пикчи может любой участник, который видит кнопку или знает команду `/upload_pidor`.
 
 ### Группы и каналы
 
@@ -201,7 +201,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | --- | --- |
 | `🎲 Рандом`, `/pic` | Sends a random image |
 | `🎲 Ещё` | Requests another image below the current one |
-| `⬆️ Залить пикчи`, `/upload` | Starts upload mode for everyone |
+| `⬆️ Залить пикчи`, `/upload_pidor` | Starts upload mode for everyone |
 | `✅ Закончить`, `/done` | Finishes upload mode and shows a summary |
 | `❌ Отмена`, `/cancel` | Cancels the active upload session |
 | `/count` | Shows how many images are in the pool |
@@ -249,7 +249,7 @@ Jury rule:
 
 ### Uploading Images
 
-1. Press `⬆️ Залить пикчи` or send `/upload`.
+1. Press `⬆️ Залить пикчи` or send `/upload_pidor`.
 2. Send one image, multiple images, a Telegram album, or forwarded images.
 3. Press `✅ Закончить` or send `/done`.
 
@@ -257,7 +257,7 @@ The bot does not spam a confirmation for every image. It confirms once after the
 
 Duplicates are ignored using Telegram `file_unique_id`.
 
-Any participant who can see the button or knows `/upload` can upload images.
+Any participant who can see the button or knows `/upload_pidor` can upload images.
 
 ### Groups And Channels
 
