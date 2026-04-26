@@ -1,5 +1,6 @@
 import random
 from datetime import date
+from typing import TypedDict
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
@@ -21,7 +22,17 @@ from bot.texts import (
 )
 
 UPLOAD_COMMAND = "upload_pidor"
-active_uploads: dict[int, dict[str, int | bool]] = {}
+RANDOM = random.SystemRandom()
+
+
+class UploadSession(TypedDict):
+    added: int
+    failed: int
+    duplicates: int
+    ack_sent: bool
+
+
+active_uploads: dict[int, UploadSession] = {}
 
 
 class AddPicture(StatesGroup):
@@ -31,6 +42,7 @@ class AddPicture(StatesGroup):
 def build_router(
     image_pool: ImagePool,
     target_channel_id: str | None = None,
+    admin_user_ids: frozenset[int] = frozenset(),
 ) -> Router:
     router = Router()
 
@@ -91,6 +103,10 @@ def build_router(
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
     async def reset_stats_command(message: Message) -> None:
+        if not is_admin(message, admin_user_ids):
+            await message.answer("Сброс статистики доступен только админам")
+            return
+
         image_pool.reset_stats()
         await message.answer("Статистика сброшена. Реакции, показы и история рандома обнулены")
 
@@ -140,9 +156,19 @@ def build_router(
 
         result = image_pool.add_from_message(message)
         if result.added:
-            data.update({"added": added + 1, "failed": failed, "duplicates": duplicates, "ack_sent": True})
+            data.update(
+                {
+                    "added": added + 1,
+                    "failed": failed,
+                    "duplicates": duplicates,
+                    "ack_sent": True,
+                }
+            )
             if not ack_sent:
-                await message.answer("Пикчи принимаю. Когда хватит, жми кнопку", reply_markup=upload_menu())
+                await message.answer(
+                    "Пикчи принимаю. Когда хватит, жми кнопку",
+                    reply_markup=upload_menu(),
+                )
             achievement = achievement_for(message, image_pool)
             if achievement:
                 await message.answer(achievement, parse_mode="HTML")
@@ -283,9 +309,9 @@ async def send_picture(
     )
     if image is None:
         if answer_message:
-            await answer_message.answer(random.choice(EMPTY_POOL_PHRASES))
+            await answer_message.answer(RANDOM.choice(EMPTY_POOL_PHRASES))
         else:
-            await bot.send_message(chat_id=chat_id, text=random.choice(EMPTY_POOL_PHRASES))
+            await bot.send_message(chat_id=chat_id, text=RANDOM.choice(EMPTY_POOL_PHRASES))
         return
 
     await bot.send_photo(
@@ -295,16 +321,19 @@ async def send_picture(
         reply_markup=picture_actions(image.id),
     )
 
-    if target_channel_id and answer_message and str(answer_message.chat.id) != str(target_channel_id):
+    if (
+        target_channel_id
+        and answer_message
+        and str(answer_message.chat.id) != str(target_channel_id)
+    ):
         await answer_message.answer("Пикча улетела в канал")
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
-    active_uploads[message.chat.id] = {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False}
-    await state.update_data(added=0, failed=0, duplicates=0, ack_sent=False)
+    active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
-        f"{random.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
+        f"{RANDOM.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
         "Когда хватит, отправьте <code>/done</code> или нажми <code>✅ Закончить</code>"
     )
     await message.answer(
@@ -352,7 +381,7 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     await state.clear()
     active_uploads.pop(message.chat.id, None)
 
-    text = f"{random.choice(UPLOAD_FINISH_PHRASES)}. Добавлено пикч: {added}"
+    text = f"{RANDOM.choice(UPLOAD_FINISH_PHRASES)}. Добавлено пикч: {added}"
     if failed:
         text += f". Не зашло: {failed}"
     if duplicates:
@@ -365,11 +394,22 @@ def is_upload_active(message: Message) -> bool:
     return message.chat.id in active_uploads
 
 
-def upload_data(message: Message) -> dict[str, int | bool]:
+def new_upload_session() -> UploadSession:
+    return {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False}
+
+
+def upload_data(message: Message) -> UploadSession:
     return active_uploads.setdefault(
         message.chat.id,
-        {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False},
+        new_upload_session(),
     )
+
+
+def is_admin(message: Message, admin_user_ids: frozenset[int]) -> bool:
+    if not admin_user_ids or message.from_user is None:
+        return False
+
+    return message.from_user.id in admin_user_ids
 
 
 async def show_menu(message: Message) -> None:
@@ -398,7 +438,7 @@ def daily_mood() -> str:
 
 
 def random_picture_caption() -> str:
-    return random.choice(PICTURE_CAPTIONS)
+    return RANDOM.choice(PICTURE_CAPTIONS)
 
 
 def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
@@ -406,7 +446,11 @@ def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
         return None
 
     uploaded_count = image_pool.count_by_user(message.from_user.id)
-    uploader = f"@{message.from_user.username}" if message.from_user.username else (message.from_user.first_name or "кто-то")
+    uploader = (
+        f"@{message.from_user.username}"
+        if message.from_user.username
+        else (message.from_user.first_name or "кто-то")
+    )
     for threshold, achievement in ACHIEVEMENTS:
         if uploaded_count == threshold:
             return f"<b>🏅 Достижение:</b> {achievement}\n{uploader} загрузил пикч: {uploaded_count}"

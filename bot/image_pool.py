@@ -15,6 +15,7 @@ REACTION_FIELDS = {
 }
 STORAGE_VERSION = 2
 MAX_CHAT_HISTORY = 500
+RANDOM = random.SystemRandom()
 
 
 @dataclass(frozen=True)
@@ -66,7 +67,7 @@ class ImagePool:
             return None
 
         records = self._selectable_records(avoid_recent=avoid_recent, chat_id=chat_id)
-        record = random.choice(records)
+        record = RANDOM.choice(records)
         self._mark_shown(record, chat_id=chat_id)
         return self._to_image_record(record)
 
@@ -320,6 +321,16 @@ class ImagePool:
         if isinstance(added_by, str) and added_by.isdigit():
             added_by = int(added_by)
 
+        reactions_by_user = self._normalize_reactions(item.get("reactions_by_user"))
+        if reactions_by_user:
+            reaction_totals = self._reaction_totals(reactions_by_user)
+        else:
+            reaction_totals = {
+                "likes": int(item.get("likes") or 0),
+                "fires": int(item.get("fires") or 0),
+                "dislikes": int(item.get("dislikes") or 0),
+            }
+
         return {
             "id": str(item.get("id") or uuid4().hex),
             "file_id": file_id,
@@ -328,11 +339,28 @@ class ImagePool:
             "added_at": item.get("added_at"),
             "shown_count": int(item.get("shown_count") or 0),
             "last_shown_at": item.get("last_shown_at"),
-            "likes": int(item.get("likes") or 0),
-            "fires": int(item.get("fires") or 0),
-            "dislikes": int(item.get("dislikes") or 0),
-            "reactions_by_user": dict(item.get("reactions_by_user") or {}),
+            "likes": reaction_totals["likes"],
+            "fires": reaction_totals["fires"],
+            "dislikes": reaction_totals["dislikes"],
+            "reactions_by_user": reactions_by_user,
         }
+
+    def _normalize_reactions(self, item: object) -> dict[str, str]:
+        if not isinstance(item, dict):
+            return {}
+
+        return {
+            str(user_id): reaction
+            for user_id, reaction in item.items()
+            if reaction in REACTION_FIELDS
+        }
+
+    def _reaction_totals(self, reactions_by_user: dict[str, str]) -> dict[str, int]:
+        totals = {"likes": 0, "fires": 0, "dislikes": 0}
+        for reaction in reactions_by_user.values():
+            totals[REACTION_FIELDS[reaction]] += 1
+
+        return totals
 
     def _write(self) -> None:
         self._atomic_write(self._records, self._chat_history)

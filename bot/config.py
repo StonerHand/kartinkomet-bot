@@ -9,6 +9,7 @@ class Config:
     bot_token: str
     image_pool_path: str
     target_channel_id: str | None
+    admin_user_ids: frozenset[int]
 
 
 def load_config() -> Config:
@@ -29,4 +30,18 @@ def load_config() -> Config:
         bot_token=bot_token,
         image_pool_path=os.getenv("IMAGE_POOL_PATH", default_pool_path),
         target_channel_id=os.getenv("TARGET_CHANNEL_ID") or None,
+        admin_user_ids=parse_user_ids(os.getenv("ADMIN_USER_IDS", "")),
     )
+
+
+def parse_user_ids(value: str) -> frozenset[int]:
+    user_ids: set[int] = set()
+    for raw_user_id in value.replace(";", ",").split(","):
+        raw_user_id = raw_user_id.strip()
+        if raw_user_id:
+            try:
+                user_ids.add(int(raw_user_id))
+            except ValueError as error:
+                raise RuntimeError(f"ADMIN_USER_IDS contains an invalid user ID: {raw_user_id}") from error
+
+    return frozenset(user_ids)
