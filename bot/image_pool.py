@@ -288,6 +288,17 @@ class ImagePool:
         if records != raw_records:
             needs_write = True
 
+        seen_unique_ids: set[str] = set()
+        deduped = []
+        for record in records:
+            uid = record["file_unique_id"]
+            if uid not in seen_unique_ids:
+                seen_unique_ids.add(uid)
+                deduped.append(record)
+        if len(deduped) != len(records):
+            records = deduped
+            needs_write = True
+
         chat_history = self._normalize_chat_history(raw_chat_history, records)
         if chat_history != raw_chat_history:
             needs_write = True
