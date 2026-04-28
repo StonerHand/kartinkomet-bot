@@ -1,3 +1,4 @@
+import asyncio
 import random
 from datetime import date
 from html import escape
@@ -11,7 +12,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import duel_vote, main_menu, picture_actions, picture_actions_with_counts, upload_menu
+from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -24,6 +25,7 @@ from bot.texts import (
 )
 
 UPLOAD_COMMAND = "upload_pidor"
+DUEL_SECONDS = 60
 RANDOM = random.SystemRandom()
 
 
@@ -328,6 +330,9 @@ def build_router(
         if duel is None:
             await callback.answer("Дуэль уже растворилась в истории", show_alert=True)
             return
+        if not duel.get("active", False):
+            await callback.answer("Дуэль уже закончилась", show_alert=True)
+            return
 
         votes = duel["votes"]
         votes[str(callback.from_user.id)] = side
@@ -340,6 +345,16 @@ def build_router(
                 reply_markup=duel_vote(duel_id, left_votes, right_votes),
             )
         await callback.answer("Голос принят")
+
+    @router.callback_query(F.data == "duel_new")
+    async def new_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        await send_duel(bot=bot, message=callback.message, image_pool=image_pool)
+        await callback.answer("Запускаю новую дуэль")
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
@@ -401,7 +416,7 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
 
     await message.answer(
         "<b>⚔️ Дуэль пикч запускается</b>\n\n"
-        "Сейчас вылетят два претендента. Голосуйте за того, кто сильнее",
+        f"Сейчас вылетят два претендента. Голосование: <b>{DUEL_SECONDS} секунд</b>",
         parse_mode="HTML",
     )
     left = image_pool.random_image(chat_id=f"duel:{message.chat.id}:left")
@@ -424,12 +439,49 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
     await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первый участник дуэли")
     await bot.send_photo(chat_id=message.chat.id, photo=right.file_id, caption="🅱️ Второй участник дуэли")
     duel_id = uuid4().hex
-    duel_sessions[duel_id] = {"left": left.id, "right": right.id, "votes": {}}
-    await message.answer(
+    duel_sessions[duel_id] = {"left": left.id, "right": right.id, "votes": {}, "active": True}
+    score_message = await message.answer(
         format_duel_score(0, 0),
         parse_mode="HTML",
         reply_markup=duel_vote(duel_id),
     )
+    asyncio.create_task(finalize_duel(duel_id, bot, image_pool, message.chat.id, score_message.message_id))
+
+
+async def finalize_duel(
+    duel_id: str,
+    bot: Bot,
+    image_pool: ImagePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    await asyncio.sleep(DUEL_SECONDS)
+    duel = duel_sessions.get(duel_id)
+    if duel is None or not duel.get("active", False):
+        return
+
+    duel["active"] = False
+    votes = duel["votes"]
+    left_votes = sum(1 for vote in votes.values() if vote == "left")
+    right_votes = sum(1 for vote in votes.values() if vote == "right")
+
+    if left_votes == right_votes:
+        result_text = format_duel_result(left_votes, right_votes, winner=None)
+    elif left_votes > right_votes:
+        image_pool.delete(duel["right"])
+        result_text = format_duel_result(left_votes, right_votes, winner="left")
+    else:
+        image_pool.delete(duel["left"])
+        result_text = format_duel_result(left_votes, right_votes, winner="right")
+
+    await bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=result_text,
+        parse_mode="HTML",
+        reply_markup=new_duel(),
+    )
+    duel_sessions.pop(duel_id, None)
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
@@ -784,9 +836,26 @@ def format_duel_score(left_votes: int, right_votes: int) -> str:
 
     return (
         "<b>⚔️ Дуэль пикч</b>\n\n"
+        f"⏱ Голосование: <b>{DUEL_SECONDS} секунд</b>\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
         f"{verdict}"
+    )
+
+
+def format_duel_result(left_votes: int, right_votes: int, winner: str | None) -> str:
+    if winner is None:
+        verdict = "Ничья. Обе пикчи выжили, суд разошёлся без приговора"
+    elif winner == "left":
+        verdict = "🅰️ победила. 🅱️ проиграла и удалена из пула"
+    else:
+        verdict = "🅱️ победила. 🅰️ проиграла и удалена из пула"
+
+    return (
+        "<b>⚔️ Дуэль завершена</b>\n\n"
+        f"🅰️ Первая: <b>{left_votes}</b>\n"
+        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
+        f"🏁 {verdict}"
     )
 
 

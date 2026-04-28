@@ -10,6 +10,7 @@ from bot.handlers import (
     combo_achievements_for,
     current_achievement_for,
     format_duel_score,
+    format_duel_result,
     format_help,
     format_mood,
     format_start,
@@ -122,7 +123,10 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn(2, JURY_THRESHOLDS)
 
     def test_duel_score_format(self) -> None:
+        self.assertIn("⏱ Голосование: <b>60 секунд</b>", format_duel_score(2, 1))
         self.assertIn("🅰️ Первая: <b>2</b>", format_duel_score(2, 1))
+        self.assertIn("🅱️ проиграла и удалена из пула", format_duel_result(2, 1, "left"))
+        self.assertIn("Обе пикчи выжили", format_duel_result(1, 1, None))
 
     def test_quality_title_and_combos(self) -> None:
         stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)
