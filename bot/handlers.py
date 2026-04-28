@@ -207,7 +207,7 @@ def build_router(
             )
             if not ack_sent:
                 await message.answer(
-                    "Пикчи принимаю. Когда хватит, жми кнопку",
+                    "Пикчи принимаю. Когда всё закинули, отправьте /done",
                     reply_markup=upload_menu(),
                 )
             achievement = achievement_for(message, image_pool)
@@ -445,8 +445,11 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await bot.send_media_group(
             chat_id=message.chat.id,
             media=[
-                InputMediaPhoto(media=left.file_id, caption=f"🅰️ {random_duel_image_caption()}"),
-                InputMediaPhoto(media=right.file_id, caption=f"🅱️ {random_duel_image_caption()}"),
+                InputMediaPhoto(
+                    media=left.file_id,
+                    caption=f"🅰️ слева: {random_duel_image_caption()}\n🅱️ справа: {random_duel_image_caption()}",
+                ),
+                InputMediaPhoto(media=right.file_id),
             ],
         )
     except TelegramAPIError:
@@ -523,8 +526,10 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
-        f"{RANDOM.choice(UPLOAD_START_PHRASES)}. Кидайте одну пикчу, пачку или пересланные изображения. "
-        "Когда хватит, отправьте <code>/done</code> или нажми <code>✅ Закончить</code>"
+        f"{RANDOM.choice(UPLOAD_START_PHRASES)}. "
+        "Кидайте одну пикчу, пачку, альбом или пересланные изображения. "
+        "Когда всё закинули, отправьте <code>/done</code>. "
+        "Если передумали — жмите <code>❌ Отмена</code>"
     )
     await message.answer(
         upload_text,
@@ -571,13 +576,18 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     await state.clear()
     active_uploads.pop(message.chat.id, None)
 
-    text = f"{RANDOM.choice(UPLOAD_FINISH_PHRASES)}. Добавлено пикч: {added}"
+    lines = [
+        f"<b>✅ {escape(RANDOM.choice(UPLOAD_FINISH_PHRASES))}</b>",
+        "",
+        "<b>📦 Итог загрузки</b>",
+        f"Добавлено пикч: <b>{added}</b>",
+    ]
     if failed:
-        text += f". Не зашло: {failed}"
+        lines.append(f"Не зашло: <b>{failed}</b>")
     if duplicates:
-        text += f". Дубликатов пропущено: {duplicates}"
+        lines.append(f"Дубликатов пропущено: <b>{duplicates}</b>")
 
-    await message.answer(text)
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 def is_upload_active(message: Message) -> bool:
@@ -626,24 +636,26 @@ async def show_menu(message: Message) -> None:
 def format_stats(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
-        "<b>Сводка по реактору kartinkomet:</b>\n\n"
-        f"📦 Пикч в пуле: <b>{stats.total_images}</b>\n"
-        f"🎲 Выстрелов рандома: <b>{stats.total_shows}</b>\n"
+        "<b>📊 Сводка kartinkomet</b>\n\n"
+        "<b>📦 Пул</b>\n"
+        f"Пикч внутри: <b>{stats.total_images}</b>\n\n"
+        "<b>🎲 Рандом</b>\n"
+        f"Выстрелов: <b>{stats.total_shows}</b>\n\n"
+        "<b>🧪 Реакции</b>\n"
         f"👍 Одобрений: <b>{stats.total_likes}</b>\n"
-        f"💩 Какашек прилетело: <b>{stats.total_fires}</b>\n"
-        f"🖕 Средних пальцев: <b>{stats.total_dislikes}</b>"
+        f"💩 Какашек: <b>{stats.total_fires}</b>\n"
+        f"🖕 Пальцев: <b>{stats.total_dislikes}</b>"
     )
 
 
 def format_start() -> str:
     return (
         "<b>Я @kartinkomet_bot</b>\n\n"
-        "<b>🎲 Что делаю</b>\n"
-        "Кидаю случайные изображения из общего пула\n"
-        "Принимаю новые пикчи пачками\n"
-        "Устраиваю дуэли и считаю вклад\n\n"
-        f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
-        "Жмите <code>🎲 Рандом</code> или используйте <code>/pic</code>"
+        "Раздаю случайные пикчи из общего пула, принимаю новые пачками, "
+        "устраиваю мемные дуэли и считаю вклад каждого поставщика хаоса\n\n"
+        f"<b>🧠 Режим дня:</b> {daily_mood()}\n\n"
+        "Жмите <code>🎲 Рандом</code>, запускайте <code>⚔️ Дуэль</code> "
+        "или закидывайте пикчи через <code>⬆️ Залить пикчи</code>"
     )
 
 
@@ -807,8 +819,7 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
         achievement = current_achievement_for(count)
         user_label = escape(image_pool.user_label(user_id))
         lines.append(
-            f"{prefix} <b>{user_label}</b> — <b>{count}</b> пикч\n"
-            f"   {achievement}"
+            f"{prefix} <b>{user_label}</b> — <b>{count}</b> пикч · {achievement}"
         )
 
     return "\n".join(lines)

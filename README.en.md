@@ -35,15 +35,15 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | Command or Button | Action |
 | --- | --- |
 | `🎲 Рандом`, `/pic` | Sends a random image |
+| `⚔️ Дуэль`, `/duel` | Starts a one-minute duel between two random images |
 | `🎲 Ещё` | Sends another image below the current one |
 | `⬆️ Залить пикчи`, `/upload_pidor` | Starts upload mode |
-| `✅ Закончить`, `/done` | Finishes upload mode and shows a summary |
+| `/done` | Finishes upload mode and shows a summary |
 | `❌ Отмена`, `/cancel` | Cancels the active upload |
 | `/count` | Shows the pool size |
-| `/stats` | Shows views and reactions |
+| `/stats` | Shows pool, random output, and reactions by section |
 | `/me` | Shows your uploads and achievements |
 | `/top` | Shows the upload leaderboard |
-| `/duel` | Starts a one-minute duel between two random images |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
@@ -79,9 +79,9 @@ Rules:
 
 1. Press `⬆️ Залить пикчи` or send `/upload_pidor`.
 2. Send one image, multiple images, a Telegram album, or forwarded images.
-3. Press `✅ Закончить` or send `/done`.
+3. Send `/done` when the batch is complete.
 
-The bot confirms batch upload only once after the first accepted image.
+The bot confirms batch upload only once after the first accepted image and leaves only the cancel button under upload prompts.
 
 Non-image files are rejected. Duplicate images are skipped.
 

@@ -5,6 +5,9 @@ def main_menu() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
+        ],
+        [
             InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload"),
         ]
     ]
@@ -16,7 +19,6 @@ def upload_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Закончить", callback_data="done"),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_upload"),
             ],
         ]

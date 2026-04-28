@@ -22,6 +22,7 @@ from bot.handlers import (
     quality_title,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
+from bot.keyboards import main_menu, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -123,6 +124,13 @@ class BotContractTest(unittest.TestCase):
             333,
         )
 
+    def test_keyboards_keep_main_actions_and_upload_cancel_only(self) -> None:
+        main_buttons = [button.text for row in main_menu().inline_keyboard for button in row]
+        upload_buttons = [button.text for row in upload_menu().inline_keyboard for button in row]
+
+        self.assertEqual(main_buttons, ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Залить пикчи"])
+        self.assertEqual(upload_buttons, ["❌ Отмена"])
+
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
 
@@ -162,7 +170,8 @@ class BotContractTest(unittest.TestCase):
             self.assertIn("<b>🎯 Следующий рубеж</b>", text)
 
     def test_core_command_texts_are_grouped(self) -> None:
-        self.assertIn("<b>🎲 Что делаю</b>", format_start())
+        self.assertIn("<b>Я @kartinkomet_bot</b>", format_start())
+        self.assertIn("⚔️ Дуэль", format_start())
         self.assertIn("<b>⬆️ Загрузка</b>", format_help())
         self.assertIn("<b>⚔️ Игры</b>", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
