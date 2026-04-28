@@ -6,7 +6,7 @@ from heapq import nlargest
 from pathlib import Path
 from uuid import uuid4
 
-from aiogram.types import Message
+from aiogram.types import Message, User
 
 REACTION_FIELDS = {
     "like": "likes",
@@ -52,7 +52,7 @@ class ImagePool:
     def __init__(self, storage_path: str) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._records, self._chat_history = self._load()
+        self._records, self._chat_history, self._users = self._load()
         self._rebuild_indexes()
 
     def count(self) -> int:
@@ -72,6 +72,7 @@ class ImagePool:
         return self._to_image_record(record)
 
     def add_from_message(self, message: Message) -> AddResult:
+        self.remember_user(message.from_user)
         image_data = self._extract_image_data(message)
         if image_data is None:
             return AddResult(added=False)
@@ -172,6 +173,46 @@ class ImagePool:
             key=lambda item: (-item[1], item[0]),
         )[:limit]
 
+    def remember_user(self, user: User | None) -> None:
+        if user is None:
+            return
+
+        user_key = str(user.id)
+        existing_user = self._users.get(user_key)
+        if (
+            existing_user
+            and existing_user.get("username") == user.username
+            and existing_user.get("first_name") == user.first_name
+            and existing_user.get("last_name") == user.last_name
+        ):
+            return
+
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        self._users[user_key] = user_data
+        self._write()
+
+    def user_label(self, user_id: int) -> str:
+        user = self._users.get(str(user_id))
+        if not user:
+            return str(user_id)
+
+        username = user.get("username")
+        if username:
+            return f"@{username}"
+
+        full_name = " ".join(
+            part
+            for part in [user.get("first_name"), user.get("last_name")]
+            if part
+        ).strip()
+        return full_name or str(user_id)
+
     def _selectable_records(
         self,
         avoid_recent: bool,
@@ -267,10 +308,10 @@ class ImagePool:
 
         return None
 
-    def _load(self) -> tuple[list[dict], dict[str, list[str]]]:
+    def _load(self) -> tuple[list[dict], dict[str, list[str]], dict[str, dict]]:
         if not self.storage_path.exists():
-            self._atomic_write([], {})
-            return [], {}
+            self._atomic_write([], {}, {})
+            return [], {}, {}
 
         with self.storage_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
@@ -279,10 +320,12 @@ class ImagePool:
         if isinstance(data, list):
             raw_records = data
             raw_chat_history = {}
+            raw_users = {}
             needs_write = True
         elif isinstance(data, dict):
             raw_records = data.get("images")
             raw_chat_history = data.get("chat_history", {})
+            raw_users = data.get("users", {})
             needs_write = data.get("version") != STORAGE_VERSION
         else:
             raise RuntimeError(f"{self.storage_path} must contain a JSON list or object.")
@@ -309,10 +352,14 @@ class ImagePool:
         if chat_history != raw_chat_history:
             needs_write = True
 
-        if needs_write:
-            self._atomic_write(records, chat_history)
+        users = self._normalize_users(raw_users)
+        if users != raw_users:
+            needs_write = True
 
-        return records, chat_history
+        if needs_write:
+            self._atomic_write(records, chat_history, users)
+
+        return records, chat_history, users
 
     def _normalize_record(self, item: object) -> dict:
         if isinstance(item, str):
@@ -380,7 +427,7 @@ class ImagePool:
         return totals
 
     def _write(self) -> None:
-        self._atomic_write(self._records, self._chat_history)
+        self._atomic_write(self._records, self._chat_history, self._users)
 
     def _rebuild_indexes(self) -> None:
         self._record_by_id: dict[str, dict] = {}
@@ -427,12 +474,42 @@ class ImagePool:
 
         return chat_history
 
-    def _atomic_write(self, records: list[dict], chat_history: dict[str, list[str]]) -> None:
+    def _normalize_users(self, item: object) -> dict[str, dict]:
+        if not isinstance(item, dict):
+            return {}
+
+        users: dict[str, dict] = {}
+        for user_id, user in item.items():
+            if not isinstance(user, dict):
+                continue
+
+            try:
+                normalized_id = int(user.get("id") or user_id)
+            except (TypeError, ValueError):
+                continue
+
+            users[str(normalized_id)] = {
+                "id": normalized_id,
+                "username": user.get("username"),
+                "first_name": user.get("first_name"),
+                "last_name": user.get("last_name"),
+                "updated_at": user.get("updated_at"),
+            }
+
+        return users
+
+    def _atomic_write(
+        self,
+        records: list[dict],
+        chat_history: dict[str, list[str]],
+        users: dict[str, dict],
+    ) -> None:
         temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         payload = {
             "version": STORAGE_VERSION,
             "images": records,
             "chat_history": chat_history,
+            "users": users,
         }
         with temp_path.open("w", encoding="utf-8") as file:
             json.dump(payload, file, ensure_ascii=False, indent=2)

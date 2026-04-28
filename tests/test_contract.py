@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
-from bot.handlers import current_achievement_for, next_achievement_for
+from bot.handlers import current_achievement_for, format_top_uploaders, next_achievement_for
 from bot.image_pool import ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
@@ -23,7 +23,26 @@ def fake_photo_message(file_id: str, file_unique_id: str, user_id: int = 1) -> S
     return SimpleNamespace(
         photo=[SimpleNamespace(file_id=file_id, file_unique_id=file_unique_id)],
         document=None,
-        from_user=SimpleNamespace(id=user_id),
+        from_user=SimpleNamespace(
+            id=user_id,
+            username=None,
+            first_name=f"User {user_id}",
+            last_name=None,
+        ),
+    )
+
+
+def fake_user(
+    user_id: int,
+    username: str | None = None,
+    first_name: str = "Test",
+    last_name: str | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=user_id,
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
     )
 
 
@@ -70,6 +89,7 @@ class ImagePoolTest(unittest.TestCase):
             payload = json.loads(storage_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["version"], 2)
             self.assertEqual(len(payload["images"]), 2)
+            self.assertEqual(payload["users"], {})
 
     def test_rejects_duplicate_file_unique_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -149,6 +169,30 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.count_by_user(10), 2)
             self.assertEqual(pool.top_uploaders(), [(10, 2), (20, 1)])
+
+    def test_remembers_user_labels_for_top_uploaders(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=10))
+            pool.remember_user(fake_user(10, username="artem"))
+
+            self.assertEqual(pool.user_label(10), "@artem")
+            top_text = format_top_uploaders(pool)
+            self.assertIn("\n\n🥇 @artem", top_text)
+
+    def test_top_uploaders_escapes_user_names_for_html(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=10))
+            pool.remember_user(fake_user(10, first_name="A < B"))
+
+            self.assertIn("A &lt; B", format_top_uploaders(pool))
+
+    def test_user_label_falls_back_to_id_for_unknown_users(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+
+            self.assertEqual(pool.user_label(999), "999")
 
     def test_random_avoids_immediate_repeat_per_chat(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

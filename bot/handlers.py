@@ -1,5 +1,6 @@
 import random
 from datetime import date
+from html import escape
 from typing import TypedDict
 
 from aiogram import Bot, F, Router
@@ -48,6 +49,7 @@ def build_router(
 
     @router.message(CommandStart())
     async def start(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer(
             "Я @kartinkomet_bot. Отправляю случайные изображения из общего пула\n\n"
             f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n\n"
@@ -59,6 +61,7 @@ def build_router(
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         text = (
             "<b>Пульт управления хаосом:</b>\n\n"
             "🎲 <code>/pic</code> — выстрелить рандомной пикчей\n"
@@ -78,12 +81,14 @@ def build_router(
 
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer("Убираю лишние кнопки", reply_markup=ReplyKeyboardRemove())
         await show_menu(message)
 
     @router.message(Command("pic"))
     @router.channel_post(Command("pic"))
     async def send_random_picture(message: Message, bot: Bot) -> None:
+        image_pool.remember_user(message.from_user)
         await send_picture(
             bot=bot,
             chat_id=message.chat.id,
@@ -95,11 +100,13 @@ def build_router(
     @router.message(Command("count"))
     @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer(f"В пуле пикч: {image_pool.count()}")
 
     @router.message(Command("stats"))
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer(format_stats(image_pool), parse_mode="HTML")
 
     @router.message(Command("me"))
@@ -107,6 +114,7 @@ def build_router(
         if message.from_user is None:
             return
 
+        image_pool.remember_user(message.from_user)
         await message.answer(
             format_user_progress(message.from_user.id, image_pool),
             parse_mode="HTML",
@@ -114,11 +122,13 @@ def build_router(
 
     @router.message(Command("top"))
     async def top_uploaders_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
     async def reset_stats_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         if not is_admin(message, admin_user_ids):
             await message.answer("Сброс статистики доступен только админам")
             return
@@ -129,6 +139,7 @@ def build_router(
     @router.message(Command("mood"))
     @router.channel_post(Command("mood"))
     async def mood_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await message.answer(
             f"Сегодня бот в режиме: <b>{daily_mood()}</b>",
             parse_mode="HTML",
@@ -140,26 +151,31 @@ def build_router(
             await message.answer("Не смог определить user ID")
             return
 
+        image_pool.remember_user(message.from_user)
         await message.answer(f"Ваш user ID: {message.from_user.id}")
 
     @router.message(Command(UPLOAD_COMMAND))
     @router.channel_post(Command(UPLOAD_COMMAND))
     async def start_upload(message: Message, state: FSMContext) -> None:
+        image_pool.remember_user(message.from_user)
         await activate_upload(message, state)
 
     @router.message(Command("done"))
     @router.channel_post(Command("done"))
     async def done_upload(message: Message, state: FSMContext) -> None:
+        image_pool.remember_user(message.from_user)
         await finish_upload_or_warn(message, state)
 
     @router.message(Command("cancel"))
     @router.channel_post(Command("cancel"))
     async def cancel_upload_command(message: Message, state: FSMContext) -> None:
+        image_pool.remember_user(message.from_user)
         await cancel_upload(message, state)
 
     @router.message(F.photo | F.document)
     @router.channel_post(F.photo | F.document)
     async def save_picture(message: Message, state: FSMContext) -> None:
+        image_pool.remember_user(message.from_user)
         if not is_upload_active(message):
             return
 
@@ -199,6 +215,7 @@ def build_router(
 
     @router.callback_query(F.data == "pic")
     async def pic_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
             return
@@ -213,16 +230,19 @@ def build_router(
 
     @router.callback_query(F.data == "count")
     async def count_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
         await callback.answer(f"В пуле пикч: {image_pool.count()}", show_alert=True)
 
     @router.callback_query(F.data == "stats")
     async def stats_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.message:
             await callback.message.answer(format_stats(image_pool), parse_mode="HTML")
         await callback.answer()
 
     @router.callback_query(F.data == "upload")
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
             return
@@ -232,6 +252,7 @@ def build_router(
 
     @router.callback_query(F.data == "done")
     async def done_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
             return
@@ -241,6 +262,7 @@ def build_router(
 
     @router.callback_query(F.data == "cancel_upload")
     async def cancel_upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
             return
@@ -250,6 +272,7 @@ def build_router(
 
     @router.callback_query(F.data.startswith("react:"))
     async def react_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
         if callback.data is None:
             await callback.answer()
             return
@@ -289,11 +312,13 @@ def build_router(
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         await help_command(message)
 
     @router.message()
     @router.channel_post()
     async def fallback(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
         if is_upload_active(message):
             data = upload_data(message)
             failed = int(data.get("failed", 0))
@@ -468,13 +493,14 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     if not top_uploaders:
         return "Топ загрузчиков пуст. Пока никто не занёс пикчи в общий котёл"
 
-    lines = ["<b>🏆 Топ загрузчиков пикч:</b>"]
+    lines = ["<b>🏆 Топ загрузчиков пикч:</b>", ""]
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
         achievement = current_achievement_for(count)
+        user_label = escape(image_pool.user_label(user_id))
         lines.append(
-            f"{prefix} <code>{user_id}</code> — <b>{count}</b> пикч, {achievement}"
+            f"{prefix} {user_label} — <b>{count}</b> пикч, {achievement}"
         )
 
     return "\n".join(lines)

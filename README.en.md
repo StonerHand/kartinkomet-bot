@@ -126,7 +126,7 @@ Image captions are clean. Old mood prefixes were removed from card captions.
 
 `/me` shows the current user's uploaded image count, current achievement, and progress to the next achievement.
 
-`/top` shows the upload leaderboard by Telegram user ID. The bot does not store display names separately, so IDs can be checked through `/id`.
+`/top` shows the upload leaderboard. If the bot has already seen a user, it shows their `@username` or Telegram name. Older records without a saved profile fall back to Telegram user ID until the user presses any command or button again.
 
 ## Maintenance
 
