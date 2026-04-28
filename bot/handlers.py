@@ -320,7 +320,7 @@ def build_router(
             ):
                 image_pool.delete(image.id)
                 await callback.message.edit_reply_markup(reply_markup=None)
-                await callback.message.reply("Три средних пальца. Пикча удалена из пула")
+                await callback.message.reply("Два средних пальца. Пикча удалена из пула")
                 await callback.answer("Народный суд сработал")
                 return
 

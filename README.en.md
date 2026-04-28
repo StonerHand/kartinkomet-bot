@@ -109,8 +109,7 @@ Rules:
 Jury rule:
 
 - `1 🖕` - no bot message
-- `2 🖕` - warning
-- `3 🖕` - image removed from the pool
+- `2 🖕` - image removed from the pool, with the removal notice sent as a reply to it
 
 ## Text Pools
 

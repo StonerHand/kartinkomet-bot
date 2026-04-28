@@ -812,8 +812,6 @@ ACHIEVEMENTS = [
     (10000, "мифический бог общего архива"),
 ]
 
-JURY_THRESHOLDS = {
-    2: "Суд присяжных напрягся. Ещё один 🖕 — и пикча улетит из пула",
-}
+JURY_THRESHOLDS = {}
 
-AUTO_DELETE_DISLIKES = 3
+AUTO_DELETE_DISLIKES = 2

@@ -108,9 +108,9 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(next_achievement_for(1), (2, "двойной занос"))
 
     def test_dislike_jury_thresholds_stay_intentional(self) -> None:
-        self.assertEqual(AUTO_DELETE_DISLIKES, 3)
+        self.assertEqual(AUTO_DELETE_DISLIKES, 2)
         self.assertNotIn(1, JURY_THRESHOLDS)
-        self.assertIn(2, JURY_THRESHOLDS)
+        self.assertNotIn(2, JURY_THRESHOLDS)
 
 
 class ImagePoolTest(unittest.TestCase):
