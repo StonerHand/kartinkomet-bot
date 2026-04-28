@@ -68,6 +68,23 @@ class BotContractTest(unittest.TestCase):
     def test_upload_pidor_is_the_only_slash_upload_command(self) -> None:
         commands = [command.command for command in BOT_COMMANDS]
 
+        self.assertEqual(
+            commands,
+            [
+                "pic",
+                "duel",
+                "menu",
+                "upload_pidor",
+                "done",
+                "cancel",
+                "me",
+                "top",
+                "stats",
+                "count",
+                "mood",
+                "help",
+            ],
+        )
         self.assertIn("upload_pidor", commands)
         self.assertIn("me", commands)
         self.assertIn("top", commands)
@@ -147,6 +164,7 @@ class BotContractTest(unittest.TestCase):
     def test_duel_score_format(self) -> None:
         self.assertIn("⏱ <b>60 секунд</b>", format_duel_score(2, 1))
         self.assertIn("🅰️ слева: <b>2</b>", format_duel_score(2, 1))
+        self.assertIn("🅱️ справа: <b>1</b>\n\n⏱", format_duel_score(2, 1))
         self.assertIn("🅱️ проиграла и удалена из пула", format_duel_result(2, 1, "left"))
         self.assertIn("Обе пикчи выжили", format_duel_result(1, 1, None))
 

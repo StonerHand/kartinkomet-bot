@@ -902,7 +902,7 @@ def format_duel_score(left_votes: int, right_votes: int, announcement: str | Non
 
     return (
         f"<b>⚔️ {escape(announcement or random_duel_announcement())}</b>\n\n"
-        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n"
+        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
         f"⏱ <b>{DUEL_SECONDS} секунд</b> · {verdict}"
     )
 

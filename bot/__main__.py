@@ -12,17 +12,17 @@ from bot.image_pool import ImagePool
 
 BOT_COMMANDS = [
     BotCommand(command="pic", description="рандомная пикча"),
-    BotCommand(command="upload_pidor", description="загрузить пикчи в пул"),
+    BotCommand(command="duel", description="дуэль двух пикч"),
+    BotCommand(command="menu", description="открыть пульт"),
+    BotCommand(command="upload_pidor", description="начать загрузку пикч"),
     BotCommand(command="done", description="закончить загрузку"),
     BotCommand(command="cancel", description="отменить загрузку"),
-    BotCommand(command="count", description="количество пикч"),
-    BotCommand(command="stats", description="статы по реакциям"),
-    BotCommand(command="me", description="ваш вклад и достижение"),
+    BotCommand(command="me", description="мой вклад и достижения"),
     BotCommand(command="top", description="топ загрузчиков"),
-    BotCommand(command="duel", description="дуэль двух пикч"),
+    BotCommand(command="stats", description="сводка по пулу и реакциям"),
+    BotCommand(command="count", description="количество пикч в пуле"),
     BotCommand(command="mood", description="режим бота на сегодня"),
-    BotCommand(command="menu", description="открыть пульт"),
-    BotCommand(command="help", description="список команд"),
+    BotCommand(command="help", description="помощь по командам"),
 ]
 
 
