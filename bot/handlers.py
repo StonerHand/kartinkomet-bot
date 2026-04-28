@@ -19,6 +19,9 @@ from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
     BOT_MOODS,
+    DUEL_ANNOUNCEMENTS,
+    DUEL_IMAGE_CAPTIONS,
+    DUEL_RESULT_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
@@ -343,7 +346,11 @@ def build_router(
         right_votes = sum(1 for vote in votes.values() if vote == "right")
         if callback.message:
             await callback.message.edit_text(
-                format_duel_score(left_votes, right_votes),
+                format_duel_score(
+                    left_votes,
+                    right_votes,
+                    announcement=str(duel.get("announcement") or random_duel_announcement()),
+                ),
                 parse_mode="HTML",
                 reply_markup=duel_vote(duel_id, left_votes, right_votes),
             )
@@ -438,19 +445,34 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await bot.send_media_group(
             chat_id=message.chat.id,
             media=[
-                InputMediaPhoto(media=left.file_id, caption="🅰️ Первая"),
-                InputMediaPhoto(media=right.file_id, caption="🅱️ Вторая"),
+                InputMediaPhoto(media=left.file_id, caption=f"🅰️ {random_duel_image_caption()}"),
+                InputMediaPhoto(media=right.file_id, caption=f"🅱️ {random_duel_image_caption()}"),
             ],
         )
     except TelegramAPIError:
         LOGGER.warning("Failed to send duel media group, falling back to separate photos", exc_info=True)
-        await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первая")
-        await bot.send_photo(chat_id=message.chat.id, photo=right.file_id, caption="🅱️ Вторая")
+        await bot.send_photo(
+            chat_id=message.chat.id,
+            photo=left.file_id,
+            caption=f"🅰️ {random_duel_image_caption()}",
+        )
+        await bot.send_photo(
+            chat_id=message.chat.id,
+            photo=right.file_id,
+            caption=f"🅱️ {random_duel_image_caption()}",
+        )
 
     duel_id = uuid4().hex
-    duel_sessions[duel_id] = {"left": left.id, "right": right.id, "votes": {}, "active": True}
+    announcement = random_duel_announcement()
+    duel_sessions[duel_id] = {
+        "left": left.id,
+        "right": right.id,
+        "votes": {},
+        "active": True,
+        "announcement": announcement,
+    }
     score_message = await message.answer(
-        format_duel_score(0, 0),
+        format_duel_score(0, 0, announcement=announcement),
         parse_mode="HTML",
         reply_markup=duel_vote(duel_id),
     )
@@ -849,7 +871,7 @@ def combo_achievements_for(stats) -> list[str]:
     return combos[:4]
 
 
-def format_duel_score(left_votes: int, right_votes: int) -> str:
+def format_duel_score(left_votes: int, right_votes: int, announcement: str | None = None) -> str:
     if left_votes == right_votes:
         verdict = "пока ничья, чат думает"
     elif left_votes > right_votes:
@@ -858,10 +880,9 @@ def format_duel_score(left_votes: int, right_votes: int) -> str:
         verdict = "🅱️ вырывается вперёд"
 
     return (
-        "<b>⚔️ Мемная дуэль началась</b>\n\n"
+        f"<b>⚔️ {escape(announcement or random_duel_announcement())}</b>\n\n"
         "🅰️ слева / первая\n"
         "🅱️ справа / вторая\n\n"
-        "Голосуй, пока таймер не сгорел\n\n"
         f"⏱ Голосование: <b>{DUEL_SECONDS} секунд</b>\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
@@ -879,10 +900,23 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
 
     return (
         "<b>⚔️ Дуэль завершена</b>\n\n"
+        f"{escape(random_duel_result_phrase())}\n\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
         f"🏁 {verdict}"
     )
+
+
+def random_duel_announcement() -> str:
+    return RANDOM.choice(DUEL_ANNOUNCEMENTS)
+
+
+def random_duel_image_caption() -> str:
+    return RANDOM.choice(DUEL_IMAGE_CAPTIONS)
+
+
+def random_duel_result_phrase() -> str:
+    return RANDOM.choice(DUEL_RESULT_PHRASES)
 
 
 def achievement_for(message: Message, image_pool: ImagePool) -> str | None:

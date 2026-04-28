@@ -25,6 +25,9 @@ from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
+    DUEL_ANNOUNCEMENTS,
+    DUEL_IMAGE_CAPTIONS,
+    DUEL_RESULT_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
@@ -108,6 +111,17 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(len(UPLOAD_FINISH_PHRASES), 150)
         self.assertEqual(len(EMPTY_POOL_PHRASES), 150)
         self.assertEqual(len(ACHIEVEMENTS), 50)
+
+    def test_duel_phrase_pools_have_expected_size(self) -> None:
+        self.assertEqual(len(DUEL_ANNOUNCEMENTS), 111)
+        self.assertEqual(len(DUEL_IMAGE_CAPTIONS), 111)
+        self.assertEqual(len(DUEL_RESULT_PHRASES), 111)
+        self.assertEqual(
+            len(DUEL_ANNOUNCEMENTS)
+            + len(DUEL_IMAGE_CAPTIONS)
+            + len(DUEL_RESULT_PHRASES),
+            333,
+        )
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))

@@ -65,6 +65,8 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 
 `/duel` selects two random images, sends them as one album marked `🅰️` and `🅱️`, then opens a `60` second vote.
 
+Duels use `333` dedicated phrases across fight announcements, participant captions, and final verdicts, so battles feel less repetitive.
+
 Rules:
 
 - each user gets one vote but can switch sides
