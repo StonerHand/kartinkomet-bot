@@ -53,9 +53,7 @@ def build_router(
     async def start(message: Message) -> None:
         image_pool.remember_user(message.from_user)
         await message.answer(
-            "Я @kartinkomet_bot. Отправляю случайные изображения из общего пула\n\n"
-            f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n\n"
-            "Жмите кнопку <code>🎲 Рандом</code> или используйте <code>/pic</code>",
+            format_start(),
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -64,23 +62,7 @@ def build_router(
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        text = (
-            "<b>Пульт управления хаосом:</b>\n\n"
-            "🎲 <code>/pic</code> — выстрелить рандомной пикчей\n"
-            "📦 <code>/count</code> — проверить, сколько пикч в реакторе\n"
-            "📊 <code>/stats</code> — посмотреть лайки, какашки и средние пальцы\n"
-            "🧾 <code>/me</code> — ваш вклад и достижение\n"
-            "🏆 <code>/top</code> — топ загрузчиков пикч\n"
-            "⚔️ <code>/duel</code> — битва двух случайных пикч\n"
-            "🧠 <code>/mood</code> — узнать, в каком режиме бот сегодня\n"
-            "🚨 <code>/menu</code> — открыть пульт от ядерки\n"
-            "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
-            "✅ <code>/done</code> — закрыть загрузку\n"
-            "❌ <code>/cancel</code> — отменить загрузку\n"
-            "🖕 2 средних пальца — народный суд удаляет пикчу из пула"
-        )
-
-        await message.answer(text, parse_mode="HTML")
+        await message.answer(format_help(), parse_mode="HTML")
 
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
@@ -104,7 +86,7 @@ def build_router(
     @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(f"В пуле пикч: {image_pool.count()}")
+        await message.answer(format_count(image_pool), parse_mode="HTML")
 
     @router.message(Command("stats"))
     @router.channel_post(Command("stats"))
@@ -138,42 +120,32 @@ def build_router(
     async def reset_stats_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
         if not is_admin(message, admin_user_ids):
-            await message.answer("Сброс статистики доступен только админам")
+            await message.answer(format_admin_only("Сброс статистики"))
             return
 
         image_pool.reset_stats()
-        await message.answer("Статистика сброшена. Реакции, показы и история рандома обнулены")
+        await message.answer(format_reset_stats_done(), parse_mode="HTML")
 
     @router.message(Command("dedupe_user"))
     async def dedupe_user_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
         if not is_admin(message, admin_user_ids):
-            await message.answer("Чистка дублей доступна только админам")
+            await message.answer(format_admin_only("Чистка дублей"))
             return
 
         target_user_id = parse_user_id_argument(message)
         if target_user_id is None:
-            await message.answer("Формат: <code>/dedupe_user 1045485205</code>", parse_mode="HTML")
+            await message.answer(format_dedupe_usage(), parse_mode="HTML")
             return
 
         result = image_pool.dedupe_user(target_user_id)
-        await message.answer(
-            "<b>Чистка дублей завершена</b>\n\n"
-            f"👤 Пользователь: <code>{result.user_id}</code>\n"
-            f"🔎 Проверено его пикч: <b>{result.scanned}</b>\n"
-            f"🧹 Убрано дублей: <b>{result.removed}</b>\n"
-            f"📦 Осталось его пикч: <b>{result.remaining}</b>",
-            parse_mode="HTML",
-        )
+        await message.answer(format_dedupe_result(result), parse_mode="HTML")
 
     @router.message(Command("mood"))
     @router.channel_post(Command("mood"))
     async def mood_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(
-            f"Сегодня бот в режиме: <b>{daily_mood()}</b>",
-            parse_mode="HTML",
-        )
+        await message.answer(format_mood(), parse_mode="HTML")
 
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
@@ -182,7 +154,7 @@ def build_router(
             return
 
         image_pool.remember_user(message.from_user)
-        await message.answer(f"Ваш user ID: {message.from_user.id}")
+        await message.answer(format_user_id(message.from_user.id), parse_mode="HTML")
 
     @router.message(Command(UPLOAD_COMMAND))
     @router.channel_post(Command(UPLOAD_COMMAND))
@@ -237,18 +209,15 @@ def build_router(
 
         if result.duplicate:
             data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
-            await message.answer("Дубликат пропущен")
+            await message.answer(format_duplicate_skipped())
             return
 
         if result.rate_limited:
-            await message.answer(
-                f"Стоп-кран сработал. Можно {UPLOAD_LIMIT_PER_HOUR} пикч в час. "
-                "Пауза, склад перегрелся"
-            )
+            await message.answer(format_upload_limit(), parse_mode="HTML")
             return
 
         data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-        await message.answer("Файл не зашёл. Отправьте изображение")
+        await message.answer(format_invalid_file())
 
     @router.callback_query(F.data == "pic")
     async def pic_callback(callback: CallbackQuery, bot: Bot) -> None:
@@ -268,7 +237,7 @@ def build_router(
     @router.callback_query(F.data == "count")
     async def count_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
-        await callback.answer(f"В пуле пикч: {image_pool.count()}", show_alert=True)
+        await callback.answer(f"📦 В пуле пикч: {image_pool.count()}", show_alert=True)
 
     @router.callback_query(F.data == "stats")
     async def stats_callback(callback: CallbackQuery) -> None:
@@ -385,7 +354,7 @@ def build_router(
             data = upload_data(message)
             failed = int(data.get("failed", 0))
             data["failed"] = failed + 1
-            await message.answer("Файл не зашёл. Отправьте изображение")
+            await message.answer(format_invalid_file())
 
     return router
 
@@ -427,13 +396,18 @@ async def send_picture(
 
 async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
     if image_pool.count() < 2:
-        await message.answer("Для дуэли нужно хотя бы две пикчи в пуле")
+        await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
         return
 
+    await message.answer(
+        "<b>⚔️ Дуэль пикч запускается</b>\n\n"
+        "Сейчас вылетят два претендента. Голосуйте за того, кто сильнее",
+        parse_mode="HTML",
+    )
     left = image_pool.random_image(chat_id=f"duel:{message.chat.id}:left")
     right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right")
     if left is None or right is None:
-        await message.answer("Дуэль сорвалась. Пул пустоват")
+        await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
         return
 
     attempts = 0
@@ -444,7 +418,7 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
             break
 
     if right is None or right.id == left.id:
-        await message.answer("Дуэль не собралась. Рандом принёс одну и ту же пикчу")
+        await message.answer("⚔️ Дуэль не собралась. Рандом принёс одну и ту же пикчу")
         return
 
     await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первый участник дуэли")
@@ -483,7 +457,7 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer("Загрузка сейчас не открыта")
+        await message.answer(format_upload_not_active("Закрывать нечего"))
         return
 
     await finish_upload(message, state)
@@ -492,14 +466,14 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer("Отменять нечего. Загрузка сейчас не открыта")
+        await message.answer(format_upload_not_active("Отменять нечего"))
         return
 
     data = upload_data(message)
     added = int(data.get("added", 0))
     await state.clear()
     active_uploads.pop(message.chat.id, None)
-    await message.answer(f"Загрузка отменена. Уже добавлено пикч: {added}")
+    await message.answer(format_upload_cancelled(added), parse_mode="HTML")
 
 
 async def finish_upload(message: Message, state: FSMContext) -> None:
@@ -571,6 +545,117 @@ def format_stats(image_pool: ImagePool) -> str:
         f"👍 Одобрений: <b>{stats.total_likes}</b>\n"
         f"💩 Какашек прилетело: <b>{stats.total_fires}</b>\n"
         f"🖕 Средних пальцев: <b>{stats.total_dislikes}</b>"
+    )
+
+
+def format_start() -> str:
+    return (
+        "<b>Я @kartinkomet_bot</b>\n\n"
+        "<b>🎲 Что делаю</b>\n"
+        "Кидаю случайные изображения из общего пула\n"
+        "Принимаю новые пикчи пачками\n"
+        "Устраиваю дуэли и считаю вклад\n\n"
+        f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
+        "Жмите <code>🎲 Рандом</code> или используйте <code>/pic</code>"
+    )
+
+
+def format_help() -> str:
+    return (
+        "<b>Пульт управления хаосом</b>\n\n"
+        "<b>🎲 Картинки</b>\n"
+        "<code>/pic</code> — выстрелить рандомной пикчей\n"
+        "<code>/count</code> — размер общего пула\n"
+        "<code>/menu</code> — открыть пульт от ядерки\n\n"
+        "<b>⬆️ Загрузка</b>\n"
+        "<code>/upload_pidor</code> — открыть загрузку пикч\n"
+        "<code>/done</code> — закрыть загрузку\n"
+        "<code>/cancel</code> — отменить загрузку\n\n"
+        "<b>📊 Статистика</b>\n"
+        "<code>/stats</code> — общие реакции и показы\n"
+        "<code>/me</code> — ваш вклад, титулы и комбо\n"
+        "<code>/top</code> — топ загрузчиков\n\n"
+        "<b>⚔️ Игры</b>\n"
+        "<code>/duel</code> — битва двух случайных пикч\n"
+        "<code>/mood</code> — режим бота на сегодня\n\n"
+        "<b>🧹 Народный суд</b>\n"
+        "2 средних пальца удаляют пикчу из пула"
+    )
+
+
+def format_count(image_pool: ImagePool) -> str:
+    return (
+        "<b>📦 Общий пул</b>\n\n"
+        f"Сейчас внутри: <b>{image_pool.count()}</b> пикч"
+    )
+
+
+def format_mood() -> str:
+    return (
+        "<b>🧠 Режим дня</b>\n\n"
+        f"{daily_mood()}"
+    )
+
+
+def format_user_id(user_id: int) -> str:
+    return (
+        "<b>🪪 Telegram user ID</b>\n\n"
+        f"<code>{user_id}</code>"
+    )
+
+
+def format_upload_limit() -> str:
+    return (
+        "<b>🧯 Стоп-кран сработал</b>\n\n"
+        f"Можно <b>{UPLOAD_LIMIT_PER_HOUR}</b> новых пикч в час\n"
+        "Пауза, склад перегрелся"
+    )
+
+
+def format_duplicate_skipped() -> str:
+    return "♻️ Дубликат пропущен"
+
+
+def format_invalid_file() -> str:
+    return "⚠️ Файл не зашёл. Отправьте изображение"
+
+
+def format_upload_not_active(reason: str) -> str:
+    return f"⚠️ {reason}. Загрузка сейчас не открыта"
+
+
+def format_upload_cancelled(added: int) -> str:
+    return (
+        "<b>❌ Загрузка отменена</b>\n\n"
+        f"Уже добавлено пикч: <b>{added}</b>"
+    )
+
+
+def format_admin_only(action: str) -> str:
+    return f"🔒 {action} доступна только админам"
+
+
+def format_reset_stats_done() -> str:
+    return (
+        "<b>♻️ Статистика сброшена</b>\n\n"
+        "Реакции, показы и память рандома обнулены"
+    )
+
+
+def format_dedupe_usage() -> str:
+    return (
+        "<b>🧹 Формат чистки дублей</b>\n\n"
+        "<code>/dedupe_user 1045485205</code>"
+    )
+
+
+def format_dedupe_result(result) -> str:
+    return (
+        "<b>🧹 Чистка дублей завершена</b>\n\n"
+        f"👤 Пользователь: <code>{result.user_id}</code>\n"
+        f"🔎 Проверено его пикч: <b>{result.scanned}</b>\n"
+        f"🧹 Убрано дублей: <b>{result.removed}</b>\n"
+        f"📦 Осталось его пикч: <b>{result.remaining}</b>"
     )
 
 

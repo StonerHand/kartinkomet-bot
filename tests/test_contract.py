@@ -10,8 +10,12 @@ from bot.handlers import (
     combo_achievements_for,
     current_achievement_for,
     format_duel_score,
+    format_help,
+    format_mood,
+    format_start,
     format_user_progress,
     format_top_uploaders,
+    format_upload_limit,
     next_achievement_for,
     parse_user_id_argument,
     quality_title,
@@ -138,6 +142,13 @@ class BotContractTest(unittest.TestCase):
             self.assertIn("<b>📊 Реакции на ваши пикчи</b>", text)
             self.assertIn("<b>🎖 Статус</b>", text)
             self.assertIn("<b>🎯 Следующий рубеж</b>", text)
+
+    def test_core_command_texts_are_grouped(self) -> None:
+        self.assertIn("<b>🎲 Что делаю</b>", format_start())
+        self.assertIn("<b>⬆️ Загрузка</b>", format_help())
+        self.assertIn("<b>⚔️ Игры</b>", format_help())
+        self.assertIn("<b>🧠 Режим дня</b>", format_mood())
+        self.assertIn("100</b> новых пикч в час", format_upload_limit())
 
 
 class ImagePoolTest(unittest.TestCase):
