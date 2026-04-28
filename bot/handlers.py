@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, Message, ReplyKeyboardRemove
 
-from bot.image_pool import ImagePool
+from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
@@ -230,6 +230,12 @@ def build_router(
         if result.duplicate:
             data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
             await message.answer("Дубликат пропущен")
+            return
+
+        if result.rate_limited:
+            await message.answer(
+                f"Лимит загрузки выбит. Можно {UPLOAD_LIMIT_PER_HOUR} пикч в час"
+            )
             return
 
         data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})

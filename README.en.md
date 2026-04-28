@@ -17,6 +17,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - the only slash upload command is `/upload_pidor`
 - no physical image storage on the bot server
 - duplicate detection through Telegram `file_unique_id`
+- uploads are limited to `100` new images per user per hour
 - per-chat anti-repeat random memory
 - one reaction per user per image, with reaction switching
 - automatic image removal after `3 🖕`
@@ -66,6 +67,8 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 The bot confirms batch upload only once after the first accepted image.
 
 Non-image files are rejected. Duplicate images are skipped.
+
+Script-flood protection: one Telegram user ID can add up to `100` new images per hour. Duplicates and failed files do not spend the limit.
 
 ## Groups And Privacy Mode
 

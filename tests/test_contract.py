@@ -12,7 +12,7 @@ from bot.handlers import (
     next_achievement_for,
     parse_user_id_argument,
 )
-from bot.image_pool import ImagePool
+from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -138,6 +138,29 @@ class ImagePoolTest(unittest.TestCase):
             self.assertFalse(second.added)
             self.assertTrue(second.duplicate)
             self.assertEqual(pool.count(), 1)
+
+    def test_limits_successful_uploads_per_user_per_hour(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            user_id = 1628762436
+
+            for index in range(UPLOAD_LIMIT_PER_HOUR):
+                result = pool.add_from_message(
+                    fake_photo_message(f"file-{index}", f"unique-{index}", user_id=user_id)
+                )
+                self.assertTrue(result.added)
+
+            blocked = pool.add_from_message(
+                fake_photo_message("file-blocked", "unique-blocked", user_id=user_id)
+            )
+            other_user = pool.add_from_message(
+                fake_photo_message("file-other", "unique-other", user_id=1)
+            )
+
+            self.assertFalse(blocked.added)
+            self.assertTrue(blocked.rate_limited)
+            self.assertTrue(other_user.added)
+            self.assertEqual(pool.count_by_user(user_id), UPLOAD_LIMIT_PER_HOUR)
 
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

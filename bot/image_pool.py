@@ -1,7 +1,7 @@
 import json
 import random
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from heapq import nlargest
 from pathlib import Path
 from uuid import uuid4
@@ -15,6 +15,7 @@ REACTION_FIELDS = {
 }
 STORAGE_VERSION = 2
 MAX_CHAT_HISTORY = 500
+UPLOAD_LIMIT_PER_HOUR = 100
 RANDOM = random.SystemRandom()
 
 
@@ -22,6 +23,7 @@ RANDOM = random.SystemRandom()
 class AddResult:
     added: bool
     duplicate: bool = False
+    rate_limited: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,12 +91,16 @@ class ImagePool:
         if file_unique_id in self._unique_ids:
             return AddResult(added=False, duplicate=True)
 
+        user_id = message.from_user.id if message.from_user else None
+        if isinstance(user_id, int) and self.user_uploads_in_last_hour(user_id) >= UPLOAD_LIMIT_PER_HOUR:
+            return AddResult(added=False, rate_limited=True)
+
         record = self._normalize_record(
             {
                 "id": uuid4().hex,
                 "file_id": file_id,
                 "file_unique_id": file_unique_id,
-                "added_by": message.from_user.id if message.from_user else None,
+                "added_by": user_id,
                 "added_at": datetime.now(UTC).isoformat(),
             }
         )
@@ -174,6 +180,19 @@ class ImagePool:
 
     def count_by_user(self, user_id: int) -> int:
         return self._uploads_by_user.get(user_id, 0)
+
+    def user_uploads_in_last_hour(self, user_id: int) -> int:
+        cutoff = datetime.now(UTC) - timedelta(hours=1)
+        count = 0
+        for record in self._records:
+            if record.get("added_by") != user_id:
+                continue
+
+            added_at = self._added_at_datetime(record)
+            if added_at is not None and added_at >= cutoff:
+                count += 1
+
+        return count
 
     def top_uploaders(self, limit: int = 10) -> list[tuple[int, int]]:
         return sorted(
@@ -349,6 +368,20 @@ class ImagePool:
             fires=record["fires"],
             dislikes=record["dislikes"],
         )
+
+    def _added_at_datetime(self, record: dict) -> datetime | None:
+        added_at = record.get("added_at")
+        if not isinstance(added_at, str):
+            return None
+
+        try:
+            value = datetime.fromisoformat(added_at)
+        except ValueError:
+            return None
+
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     def _extract_image_data(self, message: Message) -> tuple[str, str] | None:
         if message.photo:
