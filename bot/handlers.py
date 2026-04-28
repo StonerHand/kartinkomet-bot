@@ -11,7 +11,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ForceReply, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, ForceReply, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts, upload_menu
@@ -417,11 +417,6 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
         return
 
-    await message.answer(
-        "<b>⚔️ Дуэль пикч запускается</b>\n\n"
-        f"Сейчас вылетят два претендента. Голосование: <b>{DUEL_SECONDS} секунд</b>",
-        parse_mode="HTML",
-    )
     left = image_pool.random_image(chat_id=f"duel:{message.chat.id}:left")
     right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right")
     if left is None or right is None:
@@ -439,8 +434,19 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await message.answer("⚔️ Дуэль не собралась. Рандом принёс одну и ту же пикчу")
         return
 
-    await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первый участник дуэли")
-    await bot.send_photo(chat_id=message.chat.id, photo=right.file_id, caption="🅱️ Второй участник дуэли")
+    try:
+        await bot.send_media_group(
+            chat_id=message.chat.id,
+            media=[
+                InputMediaPhoto(media=left.file_id, caption="🅰️ Первая"),
+                InputMediaPhoto(media=right.file_id, caption="🅱️ Вторая"),
+            ],
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send duel media group, falling back to separate photos", exc_info=True)
+        await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первая")
+        await bot.send_photo(chat_id=message.chat.id, photo=right.file_id, caption="🅱️ Вторая")
+
     duel_id = uuid4().hex
     duel_sessions[duel_id] = {"left": left.id, "right": right.id, "votes": {}, "active": True}
     score_message = await message.answer(
@@ -852,7 +858,10 @@ def format_duel_score(left_votes: int, right_votes: int) -> str:
         verdict = "🅱️ вырывается вперёд"
 
     return (
-        "<b>⚔️ Дуэль пикч</b>\n\n"
+        "<b>⚔️ Мемная дуэль началась</b>\n\n"
+        "🅰️ слева / первая\n"
+        "🅱️ справа / вторая\n\n"
+        "Голосуй, пока таймер не сгорел\n\n"
         f"⏱ Голосование: <b>{DUEL_SECONDS} секунд</b>\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"

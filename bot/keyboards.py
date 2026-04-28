@@ -27,8 +27,8 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=f"🅰️ {left_votes}", callback_data=f"duel:{duel_id}:left"),
-                InlineKeyboardButton(text=f"🅱️ {right_votes}", callback_data=f"duel:{duel_id}:right"),
+                InlineKeyboardButton(text=f"🅰️ За первую · {left_votes}", callback_data=f"duel:{duel_id}:left"),
+                InlineKeyboardButton(text=f"🅱️ За вторую · {right_votes}", callback_data=f"duel:{duel_id}:right"),
             ],
         ]
     )

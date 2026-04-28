@@ -63,7 +63,7 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 
 ## Duels
 
-`/duel` selects two random images, sends them as `🅰️` and `🅱️`, then opens a `60` second vote.
+`/duel` selects two random images, sends them as one album marked `🅰️` and `🅱️`, then opens a `60` second vote.
 
 Rules:
 
