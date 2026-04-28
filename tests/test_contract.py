@@ -9,6 +9,7 @@ from bot.config import parse_user_ids
 from bot.image_pool import ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
+    EMPTY_POOL_PHRASES,
     PICTURE_CAPTIONS,
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
@@ -32,10 +33,11 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("addpack_pidor", commands)
 
     def test_text_pool_sizes_stay_intentional(self) -> None:
-        self.assertEqual(len(PICTURE_CAPTIONS), 333)
+        self.assertEqual(len(PICTURE_CAPTIONS), 1500)
         self.assertEqual(len(UPLOAD_START_PHRASES), 150)
-        self.assertEqual(len(UPLOAD_FINISH_PHRASES), 30)
-        self.assertEqual(len(ACHIEVEMENTS), 24)
+        self.assertEqual(len(UPLOAD_FINISH_PHRASES), 150)
+        self.assertEqual(len(EMPTY_POOL_PHRASES), 150)
+        self.assertEqual(len(ACHIEVEMENTS), 50)
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
@@ -65,6 +67,45 @@ class ImagePoolTest(unittest.TestCase):
             self.assertFalse(second.added)
             self.assertTrue(second.duplicate)
             self.assertEqual(pool.count(), 1)
+
+    def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "pool.json"
+            storage_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "images": [
+                            {
+                                "id": "first",
+                                "file_id": "file-a",
+                                "file_unique_id": "same-image",
+                                "shown_count": 2,
+                            },
+                            {
+                                "id": "duplicate",
+                                "file_id": "file-b",
+                                "file_unique_id": "same-image",
+                                "shown_count": 9,
+                            },
+                            {
+                                "id": "second",
+                                "file_id": "file-c",
+                                "file_unique_id": "other-image",
+                            },
+                        ],
+                        "chat_history": {"1": ["duplicate", "first", "second"]},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            pool = ImagePool(str(storage_path))
+
+            self.assertEqual(pool.count(), 2)
+            payload = json.loads(storage_path.read_text(encoding="utf-8"))
+            self.assertEqual([record["id"] for record in payload["images"]], ["first", "second"])
+            self.assertEqual(payload["chat_history"], {"1": ["second"]})
 
     def test_reactions_accumulate_by_user_and_can_be_switched(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

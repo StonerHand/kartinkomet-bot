@@ -114,8 +114,7 @@ def build_router(
     @router.channel_post(Command("mood"))
     async def mood_command(message: Message) -> None:
         await message.answer(
-            f"Сегодня бот в режиме: <b>{daily_mood()}</b>\n"
-            "Caption под пикчами остаётся чистым, без лишних приставок",
+            f"Сегодня бот в режиме: <b>{daily_mood()}</b>",
             parse_mode="HTML",
         )
 
