@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
+from bot.handlers import current_achievement_for, next_achievement_for
 from bot.image_pool import ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
@@ -29,6 +30,8 @@ class BotContractTest(unittest.TestCase):
         commands = [command.command for command in BOT_COMMANDS]
 
         self.assertIn("upload_pidor", commands)
+        self.assertIn("me", commands)
+        self.assertIn("top", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
 
@@ -41,6 +44,11 @@ class BotContractTest(unittest.TestCase):
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
+
+    def test_achievement_progress_helpers(self) -> None:
+        self.assertEqual(current_achievement_for(0), "пока без медали, но путь начат")
+        self.assertEqual(current_achievement_for(1), "первый вброс")
+        self.assertEqual(next_achievement_for(1), (2, "двойной занос"))
 
 
 class ImagePoolTest(unittest.TestCase):
@@ -124,6 +132,16 @@ class ImagePoolTest(unittest.TestCase):
             stats = pool.stats()
             self.assertEqual(stats.total_likes, 0)
             self.assertEqual(stats.total_dislikes, 2)
+
+    def test_top_uploaders_uses_upload_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=20))
+            pool.add_from_message(fake_photo_message("file-b", "unique-b", user_id=10))
+            pool.add_from_message(fake_photo_message("file-c", "unique-c", user_id=10))
+
+            self.assertEqual(pool.count_by_user(10), 2)
+            self.assertEqual(pool.top_uploaders(), [(10, 2), (20, 1)])
 
     def test_random_avoids_immediate_repeat_per_chat(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

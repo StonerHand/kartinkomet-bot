@@ -64,6 +64,8 @@ def build_router(
             "🎲 <code>/pic</code> — выстрелить рандомной пикчей\n"
             "📦 <code>/count</code> — проверить, сколько пикч в реакторе\n"
             "📊 <code>/stats</code> — посмотреть лайки, какашки и средние пальцы\n"
+            "🧾 <code>/me</code> — ваш вклад и достижение\n"
+            "🏆 <code>/top</code> — топ загрузчиков пикч\n"
             "🧠 <code>/mood</code> — узнать, в каком режиме бот сегодня\n"
             "🚨 <code>/menu</code> — открыть пульт от ядерки\n"
             "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
@@ -99,6 +101,20 @@ def build_router(
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
         await message.answer(format_stats(image_pool), parse_mode="HTML")
+
+    @router.message(Command("me"))
+    async def my_uploads_command(message: Message) -> None:
+        if message.from_user is None:
+            return
+
+        await message.answer(
+            format_user_progress(message.from_user.id, image_pool),
+            parse_mode="HTML",
+        )
+
+    @router.message(Command("top"))
+    async def top_uploaders_command(message: Message) -> None:
+        await message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -283,12 +299,6 @@ def build_router(
             failed = int(data.get("failed", 0))
             data["failed"] = failed + 1
             await message.answer("Файл не зашёл. Отправьте изображение")
-            return
-
-        await message.answer(
-            "Жми <code>/pic</code> или открой <code>/menu</code>",
-            parse_mode="HTML",
-        )
 
     return router
 
@@ -429,6 +439,64 @@ def format_stats(image_pool: ImagePool) -> str:
         f"💩 Какашек прилетело: <b>{stats.total_fires}</b>\n"
         f"🖕 Средних пальцев: <b>{stats.total_dislikes}</b>"
     )
+
+
+def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
+    uploaded_count = image_pool.count_by_user(user_id)
+    current_achievement = current_achievement_for(uploaded_count)
+    next_achievement = next_achievement_for(uploaded_count)
+    text = (
+        "<b>Ваш вклад в общий хаос:</b>\n\n"
+        f"📦 Загружено пикч: <b>{uploaded_count}</b>\n"
+        f"🏅 Текущее достижение: <b>{current_achievement}</b>"
+    )
+
+    if next_achievement is None:
+        return f"{text}\n🚀 Следующее достижение: лимиты здравого смысла закончились"
+
+    threshold, achievement = next_achievement
+    remaining = threshold - uploaded_count
+    return (
+        f"{text}\n"
+        f"🎯 До следующего: <b>{remaining}</b>\n"
+        f"➡️ Следующее достижение: <b>{achievement}</b> на {threshold} пикч"
+    )
+
+
+def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
+    top_uploaders = image_pool.top_uploaders(limit=limit)
+    if not top_uploaders:
+        return "Топ загрузчиков пуст. Пока никто не занёс пикчи в общий котёл"
+
+    lines = ["<b>🏆 Топ загрузчиков пикч:</b>"]
+    medals = ["🥇", "🥈", "🥉"]
+    for position, (user_id, count) in enumerate(top_uploaders, start=1):
+        prefix = medals[position - 1] if position <= len(medals) else f"{position}."
+        achievement = current_achievement_for(count)
+        lines.append(
+            f"{prefix} <code>{user_id}</code> — <b>{count}</b> пикч, {achievement}"
+        )
+
+    return "\n".join(lines)
+
+
+def current_achievement_for(uploaded_count: int) -> str:
+    current = "пока без медали, но путь начат"
+    for threshold, achievement in ACHIEVEMENTS:
+        if uploaded_count >= threshold:
+            current = achievement
+        else:
+            break
+
+    return current
+
+
+def next_achievement_for(uploaded_count: int) -> tuple[int, str] | None:
+    for threshold, achievement in ACHIEVEMENTS:
+        if uploaded_count < threshold:
+            return threshold, achievement
+
+    return None
 
 
 def daily_mood() -> str:

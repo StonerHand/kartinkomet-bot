@@ -21,7 +21,10 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - one reaction per user per image, with reaction switching
 - automatic image removal after `5 🖕`
 - upload achievements
+- `/me` shows personal upload count and next achievement
+- `/top` shows the upload leaderboard
 - `/reset_stats` protected by `ADMIN_USER_IDS`
+- the bot stays silent on regular text mentions without a command
 
 ## Commands And Buttons
 
@@ -34,6 +37,8 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `❌ Отмена`, `/cancel` | Cancels the active upload |
 | `/count` | Shows the pool size |
 | `/stats` | Shows views and reactions |
+| `/me` | Shows your uploads and achievements |
+| `/top` | Shows the upload leaderboard |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
@@ -118,6 +123,10 @@ Current counts:
 - jury threshold messages
 
 Image captions are clean. Old mood prefixes were removed from card captions.
+
+`/me` shows the current user's uploaded image count, current achievement, and progress to the next achievement.
+
+`/top` shows the upload leaderboard by Telegram user ID. The bot does not store display names separately, so IDs can be checked through `/id`.
 
 ## Maintenance
 

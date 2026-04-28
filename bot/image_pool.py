@@ -166,6 +166,12 @@ class ImagePool:
     def count_by_user(self, user_id: int) -> int:
         return self._uploads_by_user.get(user_id, 0)
 
+    def top_uploaders(self, limit: int = 10) -> list[tuple[int, int]]:
+        return sorted(
+            self._uploads_by_user.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[:limit]
+
     def _selectable_records(
         self,
         avoid_recent: bool,
