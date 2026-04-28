@@ -134,6 +134,7 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(len(DUEL_RESULT_PHRASES), 111)
         self.assertEqual(len(DUEL_ANNOUNCEMENTS) + len(DUEL_RESULT_PHRASES), 222)
         self.assertNotIn(". голосуй", "\n".join(DUEL_ANNOUNCEMENTS))
+        self.assertNotIn(". слабый", "\n".join(DUEL_RESULT_PHRASES))
 
     def test_main_keyboard_keeps_structured_actions(self) -> None:
         main_buttons = [button.text for row in main_menu().inline_keyboard for button in row]
