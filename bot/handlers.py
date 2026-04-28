@@ -300,6 +300,11 @@ def build_router(
             await callback.answer()
             return
 
+        current_state = await state.get_state()
+        if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
+            await callback.answer("Загрузка уже закрыта", show_alert=False)
+            return
+
         await cancel_upload(callback.message, state)
         await callback.answer()
 
@@ -569,14 +574,12 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer(format_upload_not_active("Отменять нечего"))
+        await message.answer("⚠️ Загрузка уже закрыта")
         return
 
-    data = upload_data(message)
-    added = int(data.get("added", 0))
     await state.clear()
     active_uploads.pop(message.chat.id, None)
-    await message.answer(format_upload_cancelled(added), parse_mode="HTML")
+    await message.answer(format_upload_cancelled(), parse_mode="HTML")
 
 
 async def finish_upload(message: Message, state: FSMContext) -> None:
@@ -734,11 +737,8 @@ def format_upload_not_active(reason: str) -> str:
     return f"⚠️ {reason}. Загрузка сейчас не открыта"
 
 
-def format_upload_cancelled(added: int) -> str:
-    return (
-        "<b>❌ Загрузка отменена</b>\n\n"
-        f"Уже добавлено пикч: <b>{added}</b>"
-    )
+def format_upload_cancelled() -> str:
+    return "<b>❌ Загрузка отменена</b>"
 
 
 def format_admin_only(action: str) -> str:
