@@ -19,7 +19,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - duplicate detection through Telegram `file_unique_id`
 - per-chat anti-repeat random memory
 - one reaction per user per image, with reaction switching
-- automatic image removal after `5 🖕`
+- automatic image removal after `3 🖕`
 - upload achievements
 - `/me` shows personal upload count and next achievement
 - `/top` shows the upload leaderboard
@@ -104,9 +104,9 @@ Rules:
 
 Jury rule:
 
-- `3 🖕` - warning
-- `4 🖕` - final warning
-- `5 🖕` - image removed from the pool
+- `1 🖕` - no bot message
+- `2 🖕` - warning
+- `3 🖕` - image removed from the pool
 
 ## Text Pools
 

@@ -71,7 +71,7 @@ def build_router(
             "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
             "✅ <code>/done</code> — закрыть загрузку\n"
             "❌ <code>/cancel</code> — отменить загрузку\n"
-            "🖕 5 средних пальцев — народный суд удаляет пикчу из пула"
+            "🖕 3 средних пальца — народный суд удаляет пикчу из пула"
         )
 
         await message.answer(text, parse_mode="HTML")
@@ -269,7 +269,7 @@ def build_router(
             ):
                 image_pool.delete(image.id)
                 await callback.message.edit_reply_markup(reply_markup=None)
-                await callback.message.answer("Пять средних пальцев. Пикча удалена из пула")
+                await callback.message.reply("Три средних пальца. Пикча удалена из пула")
                 await callback.answer("Народный суд сработал")
                 return
 
@@ -283,7 +283,7 @@ def build_router(
             )
             jury_message = jury_verdict(image.dislikes)
             if reaction_update.changed and reaction == "dislike" and jury_message:
-                await callback.message.answer(jury_message)
+                await callback.message.reply(jury_message)
 
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 

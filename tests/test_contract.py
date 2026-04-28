@@ -10,7 +10,9 @@ from bot.handlers import current_achievement_for, next_achievement_for
 from bot.image_pool import ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
+    AUTO_DELETE_DISLIKES,
     EMPTY_POOL_PHRASES,
+    JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
@@ -49,6 +51,11 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(current_achievement_for(0), "пока без медали, но путь начат")
         self.assertEqual(current_achievement_for(1), "первый вброс")
         self.assertEqual(next_achievement_for(1), (2, "двойной занос"))
+
+    def test_dislike_jury_thresholds_stay_intentional(self) -> None:
+        self.assertEqual(AUTO_DELETE_DISLIKES, 3)
+        self.assertNotIn(1, JURY_THRESHOLDS)
+        self.assertIn(2, JURY_THRESHOLDS)
 
 
 class ImagePoolTest(unittest.TestCase):
