@@ -22,6 +22,7 @@ from bot.texts import (
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
 )
+from scripts.visual_dedupe import HashResult, clean_chat_history, find_duplicates, hamming_distance
 
 
 def fake_photo_message(file_id: str, file_unique_id: str, user_id: int = 1) -> SimpleNamespace:
@@ -69,6 +70,27 @@ class BotContractTest(unittest.TestCase):
         )
         self.assertIsNone(parse_user_id_argument(SimpleNamespace(text="/dedupe_user", caption=None)))
         self.assertIsNone(parse_user_id_argument(SimpleNamespace(text="/dedupe_user nope", caption=None)))
+
+    def test_visual_dedupe_finds_near_hashes(self) -> None:
+        hashes = [
+            HashResult("keep", "unique-a", 0b11110000),
+            HashResult("duplicate", "unique-b", 0b11110001),
+            HashResult("other", "unique-c", 0b00001111),
+        ]
+
+        duplicates = find_duplicates(hashes, threshold=1)
+
+        self.assertEqual(len(duplicates), 1)
+        self.assertEqual(duplicates[0].duplicate_id, "duplicate")
+        self.assertEqual(duplicates[0].keeper_id, "keep")
+        self.assertEqual(hamming_distance(0b11110000, 0b11110001), 1)
+
+    def test_visual_dedupe_cleans_chat_history(self) -> None:
+        data = {"chat_history": {"1": ["keep", "remove"], "2": ["remove"]}}
+
+        clean_chat_history(data, {"remove"})
+
+        self.assertEqual(data["chat_history"], {"1": ["keep"]})
 
     def test_text_pool_sizes_stay_intentional(self) -> None:
         self.assertEqual(len(PICTURE_CAPTIONS), 1500)

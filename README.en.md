@@ -135,6 +135,26 @@ Image captions are clean. Old mood prefixes were removed from card captions.
 
 Use `/id` in a private chat with the bot to get your Telegram user ID.
 
+## Visual Duplicate Cleanup
+
+If identical images were uploaded as different files, Telegram may assign different `file_unique_id` values. Exact duplicate checks will not catch those records.
+
+Use the maintenance script for visual dedupe:
+
+```bash
+python scripts/visual_dedupe.py --user-id 1045485205 --dry-run
+```
+
+By default it reads `/data/image_pool.json`, downloads images from Telegram, computes a visual `dHash`, and reports likely duplicates without changing the database.
+
+Apply the cleanup only after the dry run looks right:
+
+```bash
+python scripts/visual_dedupe.py --user-id 1045485205 --apply
+```
+
+The script creates a backup next to `image_pool.json` before writing changes. Run it as one-off Railway maintenance, preferably outside active chat traffic.
+
 ## Storage And Performance
 
 The pool is stored as JSON and automatically migrates older plain `file_id` lists to the current versioned format.
