@@ -51,6 +51,15 @@ class PoolStats:
 
 
 @dataclass(frozen=True)
+class UserReactionStats:
+    uploaded: int
+    likes: int
+    fires: int
+    dislikes: int
+    shown: int
+
+
+@dataclass(frozen=True)
 class DedupeResult:
     user_id: int
     scanned: int
@@ -180,6 +189,16 @@ class ImagePool:
 
     def count_by_user(self, user_id: int) -> int:
         return self._uploads_by_user.get(user_id, 0)
+
+    def reaction_stats_by_user(self, user_id: int) -> UserReactionStats:
+        records = [record for record in self._records if record.get("added_by") == user_id]
+        return UserReactionStats(
+            uploaded=len(records),
+            likes=sum(record["likes"] for record in records),
+            fires=sum(record["fires"] for record in records),
+            dislikes=sum(record["dislikes"] for record in records),
+            shown=sum(record["shown_count"] for record in records),
+        )
 
     def user_uploads_in_last_hour(self, user_id: int) -> int:
         cutoff = datetime.now(UTC) - timedelta(hours=1)

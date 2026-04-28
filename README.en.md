@@ -23,7 +23,9 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - automatic image removal after `3 🖕`
 - upload achievements
 - `/me` shows personal upload count and next achievement
+- `/me` shows quality title, reactions on your uploads, and combo achievements
 - `/top` shows the upload leaderboard
+- `/duel` starts a vote between two random images
 - `/reset_stats` protected by `ADMIN_USER_IDS`
 - hidden admin command `/dedupe_user USER_ID` removes exact duplicates from one uploader
 - the bot stays silent on regular text mentions without a command
@@ -41,6 +43,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `/stats` | Shows views and reactions |
 | `/me` | Shows your uploads and achievements |
 | `/top` | Shows the upload leaderboard |
+| `/duel` | Starts a duel between two random images |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
@@ -127,7 +130,7 @@ Current counts:
 
 Image captions are clean. Old mood prefixes were removed from card captions.
 
-`/me` shows the current user's uploaded image count, current achievement, and progress to the next achievement.
+`/me` shows the current user's uploaded image count, current achievement, quality title, combo achievements, and progress to the next achievement.
 
 `/top` shows the upload leaderboard. If the bot has already seen a user, it shows their `@username` or Telegram name. Older records without a saved profile fall back to Telegram user ID until the user presses any command or button again.
 

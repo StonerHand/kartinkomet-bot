@@ -7,10 +7,13 @@ from types import SimpleNamespace
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
 from bot.handlers import (
+    combo_achievements_for,
     current_achievement_for,
+    format_duel_score,
     format_top_uploaders,
     next_achievement_for,
     parse_user_id_argument,
+    quality_title,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.texts import (
@@ -59,6 +62,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("upload_pidor", commands)
         self.assertIn("me", commands)
         self.assertIn("top", commands)
+        self.assertIn("duel", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
         self.assertNotIn("dedupe_user", commands)
@@ -111,6 +115,16 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(AUTO_DELETE_DISLIKES, 2)
         self.assertNotIn(1, JURY_THRESHOLDS)
         self.assertNotIn(2, JURY_THRESHOLDS)
+
+    def test_duel_score_format(self) -> None:
+        self.assertIn("🅰️ Первая: <b>2</b>", format_duel_score(2, 1))
+
+    def test_quality_title_and_combos(self) -> None:
+        stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)
+
+        self.assertEqual(quality_title(stats), "поставщик годноты")
+        self.assertIn("заливочный марафонец", combo_achievements_for(stats))
+        self.assertIn("частый гость рандома", combo_achievements_for(stats))
 
 
 class ImagePoolTest(unittest.TestCase):
@@ -228,6 +242,22 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.count_by_user(10), 2)
             self.assertEqual(pool.top_uploaders(), [(10, 2), (20, 1)])
+
+    def test_reaction_stats_by_user(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=10))
+            image = pool.random_image(chat_id=1)
+            assert image is not None
+            pool.react(image.id, "like", user_id=1)
+            pool.react(image.id, "fire", user_id=2)
+
+            stats = pool.reaction_stats_by_user(10)
+
+            self.assertEqual(stats.uploaded, 1)
+            self.assertEqual(stats.likes, 1)
+            self.assertEqual(stats.fires, 1)
+            self.assertEqual(stats.shown, 1)
 
     def test_remembers_user_labels_for_top_uploaders(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

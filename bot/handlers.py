@@ -2,6 +2,7 @@ import random
 from datetime import date
 from html import escape
 from typing import TypedDict
+from uuid import uuid4
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
@@ -10,7 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
+from bot.keyboards import duel_vote, main_menu, picture_actions, picture_actions_with_counts, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -34,6 +35,7 @@ class UploadSession(TypedDict):
 
 
 active_uploads: dict[int, UploadSession] = {}
+duel_sessions: dict[str, dict] = {}
 
 
 class AddPicture(StatesGroup):
@@ -69,12 +71,13 @@ def build_router(
             "📊 <code>/stats</code> — посмотреть лайки, какашки и средние пальцы\n"
             "🧾 <code>/me</code> — ваш вклад и достижение\n"
             "🏆 <code>/top</code> — топ загрузчиков пикч\n"
+            "⚔️ <code>/duel</code> — битва двух случайных пикч\n"
             "🧠 <code>/mood</code> — узнать, в каком режиме бот сегодня\n"
             "🚨 <code>/menu</code> — открыть пульт от ядерки\n"
             "⬆️ <code>/upload_pidor</code> — открыть загрузку пикч\n"
             "✅ <code>/done</code> — закрыть загрузку\n"
             "❌ <code>/cancel</code> — отменить загрузку\n"
-            "🖕 3 средних пальца — народный суд удаляет пикчу из пула"
+            "🖕 2 средних пальца — народный суд удаляет пикчу из пула"
         )
 
         await message.answer(text, parse_mode="HTML")
@@ -124,6 +127,11 @@ def build_router(
     async def top_uploaders_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
         await message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
+
+    @router.message(Command("duel"))
+    async def duel_command(message: Message, bot: Bot) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_duel(bot=bot, message=message, image_pool=image_pool)
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -234,7 +242,8 @@ def build_router(
 
         if result.rate_limited:
             await message.answer(
-                f"Лимит загрузки выбит. Можно {UPLOAD_LIMIT_PER_HOUR} пикч в час"
+                f"Стоп-кран сработал. Можно {UPLOAD_LIMIT_PER_HOUR} пикч в час. "
+                "Пауза, склад перегрелся"
             )
             return
 
@@ -338,6 +347,31 @@ def build_router(
 
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
+    @router.callback_query(F.data.startswith("duel:"))
+    async def duel_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.data is None:
+            await callback.answer()
+            return
+
+        _, duel_id, side = callback.data.split(":", 2)
+        duel = duel_sessions.get(duel_id)
+        if duel is None:
+            await callback.answer("Дуэль уже растворилась в истории", show_alert=True)
+            return
+
+        votes = duel["votes"]
+        votes[str(callback.from_user.id)] = side
+        left_votes = sum(1 for vote in votes.values() if vote == "left")
+        right_votes = sum(1 for vote in votes.values() if vote == "right")
+        if callback.message:
+            await callback.message.edit_text(
+                format_duel_score(left_votes, right_votes),
+                parse_mode="HTML",
+                reply_markup=duel_vote(duel_id, left_votes, right_votes),
+            )
+        await callback.answer("Голос принят")
+
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
         image_pool.remember_user(message.from_user)
@@ -389,6 +423,39 @@ async def send_picture(
         and str(answer_message.chat.id) != str(target_channel_id)
     ):
         await answer_message.answer("Пикча улетела в канал")
+
+
+async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
+    if image_pool.count() < 2:
+        await message.answer("Для дуэли нужно хотя бы две пикчи в пуле")
+        return
+
+    left = image_pool.random_image(chat_id=f"duel:{message.chat.id}:left")
+    right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right")
+    if left is None or right is None:
+        await message.answer("Дуэль сорвалась. Пул пустоват")
+        return
+
+    attempts = 0
+    while right.id == left.id and attempts < 5:
+        right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right:{attempts}")
+        attempts += 1
+        if right is None:
+            break
+
+    if right is None or right.id == left.id:
+        await message.answer("Дуэль не собралась. Рандом принёс одну и ту же пикчу")
+        return
+
+    await bot.send_photo(chat_id=message.chat.id, photo=left.file_id, caption="🅰️ Первый участник дуэли")
+    await bot.send_photo(chat_id=message.chat.id, photo=right.file_id, caption="🅱️ Второй участник дуэли")
+    duel_id = uuid4().hex
+    duel_sessions[duel_id] = {"left": left.id, "right": right.id, "votes": {}}
+    await message.answer(
+        format_duel_score(0, 0),
+        parse_mode="HTML",
+        reply_markup=duel_vote(duel_id),
+    )
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
@@ -509,13 +576,21 @@ def format_stats(image_pool: ImagePool) -> str:
 
 def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     uploaded_count = image_pool.count_by_user(user_id)
+    reaction_stats = image_pool.reaction_stats_by_user(user_id)
     current_achievement = current_achievement_for(uploaded_count)
     next_achievement = next_achievement_for(uploaded_count)
+    combo_achievements = combo_achievements_for(reaction_stats)
     text = (
         "<b>Ваш вклад в общий хаос:</b>\n\n"
         f"📦 Загружено пикч: <b>{uploaded_count}</b>\n"
-        f"🏅 Текущее достижение: <b>{current_achievement}</b>"
+        f"🏅 Текущее достижение: <b>{current_achievement}</b>\n"
+        f"🎖 Титул качества: <b>{quality_title(reaction_stats)}</b>\n"
+        f"👍 На ваших пикчах: <b>{reaction_stats.likes}</b>\n"
+        f"💩 Какашек: <b>{reaction_stats.fires}</b>\n"
+        f"🖕 Пальцев: <b>{reaction_stats.dislikes}</b>"
     )
+    if combo_achievements:
+        text += "\n🧩 Комбо: " + ", ".join(f"<b>{item}</b>" for item in combo_achievements)
 
     if next_achievement is None:
         return f"{text}\n🚀 Следующее достижение: лимиты здравого смысла закончились"
@@ -573,6 +648,51 @@ def daily_mood() -> str:
 
 def random_picture_caption() -> str:
     return RANDOM.choice(PICTURE_CAPTIONS)
+
+
+def quality_title(stats) -> str:
+    if stats.uploaded == 0:
+        return "кандидат в поставщики хаоса"
+    if stats.likes >= 50 and stats.likes >= stats.fires + stats.dislikes:
+        return "поставщик годноты"
+    if stats.fires >= 50 and stats.fires > stats.likes:
+        return "магистр спорного контента"
+    if stats.dislikes >= 10:
+        return "любимец народного суда"
+    if stats.uploaded >= 100 and stats.likes == 0:
+        return "архитектор тишины"
+    return "стабильный участник беспорядка"
+
+
+def combo_achievements_for(stats) -> list[str]:
+    combos = []
+    if stats.uploaded >= UPLOAD_LIMIT_PER_HOUR:
+        combos.append("заливочный марафонец")
+    if stats.likes >= 10:
+        combos.append("пикчи собирают одобрение")
+    if stats.fires >= 10:
+        combos.append("контент вызывает вопросы")
+    if stats.dislikes >= 5:
+        combos.append("народный суд заметил")
+    if stats.shown >= 50:
+        combos.append("частый гость рандома")
+    return combos[:4]
+
+
+def format_duel_score(left_votes: int, right_votes: int) -> str:
+    if left_votes == right_votes:
+        verdict = "пока ничья, чат думает"
+    elif left_votes > right_votes:
+        verdict = "🅰️ ведёт, вторая пикча нервничает"
+    else:
+        verdict = "🅱️ вырывается вперёд"
+
+    return (
+        "<b>⚔️ Дуэль пикч</b>\n\n"
+        f"🅰️ Первая: <b>{left_votes}</b>\n"
+        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
+        f"{verdict}"
+    )
 
 
 def achievement_for(message: Message, image_pool: ImagePool) -> str | None:

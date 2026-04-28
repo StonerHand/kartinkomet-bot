@@ -23,6 +23,17 @@ def upload_menu() -> InlineKeyboardMarkup:
     )
 
 
+def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=f"🅰️ {left_votes}", callback_data=f"duel:{duel_id}:left"),
+                InlineKeyboardButton(text=f"🅱️ {right_votes}", callback_data=f"duel:{duel_id}:right"),
+            ],
+        ]
+    )
+
+
 def picture_actions(image_id: str) -> InlineKeyboardMarkup:
     keyboard = [
         [

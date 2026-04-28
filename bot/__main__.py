@@ -19,6 +19,7 @@ BOT_COMMANDS = [
     BotCommand(command="stats", description="статы по реакциям"),
     BotCommand(command="me", description="ваш вклад и достижение"),
     BotCommand(command="top", description="топ загрузчиков"),
+    BotCommand(command="duel", description="дуэль двух пикч"),
     BotCommand(command="mood", description="режим бота на сегодня"),
     BotCommand(command="menu", description="открыть пульт"),
     BotCommand(command="help", description="список команд"),
