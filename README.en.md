@@ -37,13 +37,13 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `🎲 Рандом`, `/pic` | Sends a random image |
 | `⚔️ Дуэль`, `/duel` | Starts a one-minute duel between two random images |
 | `🎲 Ещё` | Sends another image below the current one |
-| `⬆️ Залить пикчи`, `/upload_pidor` | Starts upload mode |
+| `⬆️ Загрузка`, `/upload_pidor` | Starts upload mode |
+| `👤 Мой вклад`, `/me` | Shows your uploads and achievements |
+| `🏆 Топ`, `/top` | Shows the upload leaderboard |
+| `📊 Статы`, `/stats` | Shows pool, random output, and reactions by section |
 | `/done` | Finishes upload mode and shows a summary |
 | `❌ Отмена`, `/cancel` | Cancels the active upload |
 | `/count` | Shows the pool size |
-| `/stats` | Shows pool, random output, and reactions by section |
-| `/me` | Shows your uploads and achievements |
-| `/top` | Shows the upload leaderboard |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
@@ -63,9 +63,9 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 
 ## Duels
 
-`/duel` selects two random images, sends them as one album marked `🅰️` and `🅱️`, then opens a `60` second vote.
+`/duel` selects two random images, sends them as one album without captions under the photos, then opens a `60` second vote.
 
-Duels use `333` dedicated phrases across fight announcements, participant captions, and final verdicts, so battles feel less repetitive.
+Duels use `222` dedicated phrases across fight announcements and final verdicts, so battles feel less repetitive while photos stay clean.
 
 Rules:
 
@@ -77,7 +77,7 @@ Rules:
 
 ## Uploading
 
-1. Press `⬆️ Залить пикчи` or send `/upload_pidor`.
+1. Press `⬆️ Загрузка` or send `/upload_pidor`.
 2. Send one image, multiple images, a Telegram album, or forwarded images.
 3. Send `/done` when the batch is complete.
 

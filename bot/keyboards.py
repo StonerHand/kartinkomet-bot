@@ -8,8 +8,13 @@ def main_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
         ],
         [
-            InlineKeyboardButton(text="⬆️ Залить пикчи", callback_data="upload"),
-        ]
+            InlineKeyboardButton(text="⬆️ Загрузка", callback_data="upload"),
+            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+        ],
+        [
+            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
+            InlineKeyboardButton(text="📊 Статы", callback_data="stats"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -20,7 +20,6 @@ from bot.texts import (
     AUTO_DELETE_DISLIKES,
     BOT_MOODS,
     DUEL_ANNOUNCEMENTS,
-    DUEL_IMAGE_CAPTIONS,
     DUEL_RESULT_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
@@ -254,6 +253,23 @@ def build_router(
             await callback.message.answer(format_stats(image_pool), parse_mode="HTML")
         await callback.answer()
 
+    @router.callback_query(F.data == "me")
+    async def me_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await callback.message.answer(
+                format_user_progress(callback.from_user.id, image_pool),
+                parse_mode="HTML",
+            )
+        await callback.answer()
+
+    @router.callback_query(F.data == "top")
+    async def top_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await callback.message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
+        await callback.answer()
+
     @router.callback_query(F.data == "upload")
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
         image_pool.remember_user(callback.from_user)
@@ -445,10 +461,7 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await bot.send_media_group(
             chat_id=message.chat.id,
             media=[
-                InputMediaPhoto(
-                    media=left.file_id,
-                    caption=f"🅰️ слева: {random_duel_image_caption()}\n🅱️ справа: {random_duel_image_caption()}",
-                ),
+                InputMediaPhoto(media=left.file_id),
                 InputMediaPhoto(media=right.file_id),
             ],
         )
@@ -457,12 +470,10 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         await bot.send_photo(
             chat_id=message.chat.id,
             photo=left.file_id,
-            caption=f"🅰️ {random_duel_image_caption()}",
         )
         await bot.send_photo(
             chat_id=message.chat.id,
             photo=right.file_id,
-            caption=f"🅱️ {random_duel_image_caption()}",
         )
 
     duel_id = uuid4().hex
@@ -655,7 +666,7 @@ def format_start() -> str:
         "устраиваю мемные дуэли и считаю вклад каждого поставщика хаоса\n\n"
         f"<b>🧠 Режим дня:</b> {daily_mood()}\n\n"
         "Жмите <code>🎲 Рандом</code>, запускайте <code>⚔️ Дуэль</code> "
-        "или закидывайте пикчи через <code>⬆️ Залить пикчи</code>"
+        "или закидывайте пикчи через <code>⬆️ Загрузка</code>"
     )
 
 
@@ -884,20 +895,16 @@ def combo_achievements_for(stats) -> list[str]:
 
 def format_duel_score(left_votes: int, right_votes: int, announcement: str | None = None) -> str:
     if left_votes == right_votes:
-        verdict = "пока ничья, чат думает"
+        verdict = "ничья, чат думает"
     elif left_votes > right_votes:
-        verdict = "🅰️ ведёт, вторая пикча нервничает"
+        verdict = "🅰️ ведёт"
     else:
-        verdict = "🅱️ вырывается вперёд"
+        verdict = "🅱️ ведёт"
 
     return (
         f"<b>⚔️ {escape(announcement or random_duel_announcement())}</b>\n\n"
-        "🅰️ слева / первая\n"
-        "🅱️ справа / вторая\n\n"
-        f"⏱ Голосование: <b>{DUEL_SECONDS} секунд</b>\n"
-        f"🅰️ Первая: <b>{left_votes}</b>\n"
-        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
-        f"{verdict}"
+        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n"
+        f"⏱ <b>{DUEL_SECONDS} секунд</b> · {verdict}"
     )
 
 
@@ -920,10 +927,6 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
 
 def random_duel_announcement() -> str:
     return RANDOM.choice(DUEL_ANNOUNCEMENTS)
-
-
-def random_duel_image_caption() -> str:
-    return RANDOM.choice(DUEL_IMAGE_CAPTIONS)
 
 
 def random_duel_result_phrase() -> str:

@@ -27,7 +27,6 @@ from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
     DUEL_ANNOUNCEMENTS,
-    DUEL_IMAGE_CAPTIONS,
     DUEL_RESULT_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
@@ -115,20 +114,17 @@ class BotContractTest(unittest.TestCase):
 
     def test_duel_phrase_pools_have_expected_size(self) -> None:
         self.assertEqual(len(DUEL_ANNOUNCEMENTS), 111)
-        self.assertEqual(len(DUEL_IMAGE_CAPTIONS), 111)
         self.assertEqual(len(DUEL_RESULT_PHRASES), 111)
-        self.assertEqual(
-            len(DUEL_ANNOUNCEMENTS)
-            + len(DUEL_IMAGE_CAPTIONS)
-            + len(DUEL_RESULT_PHRASES),
-            333,
-        )
+        self.assertEqual(len(DUEL_ANNOUNCEMENTS) + len(DUEL_RESULT_PHRASES), 222)
 
     def test_keyboards_keep_main_actions_and_upload_cancel_only(self) -> None:
         main_buttons = [button.text for row in main_menu().inline_keyboard for button in row]
         upload_buttons = [button.text for row in upload_menu().inline_keyboard for button in row]
 
-        self.assertEqual(main_buttons, ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Залить пикчи"])
+        self.assertEqual(
+            main_buttons,
+            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "👤 Мой вклад", "🏆 Топ", "📊 Статы"],
+        )
         self.assertEqual(upload_buttons, ["❌ Отмена"])
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
@@ -145,8 +141,8 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn(2, JURY_THRESHOLDS)
 
     def test_duel_score_format(self) -> None:
-        self.assertIn("⏱ Голосование: <b>60 секунд</b>", format_duel_score(2, 1))
-        self.assertIn("🅰️ Первая: <b>2</b>", format_duel_score(2, 1))
+        self.assertIn("⏱ <b>60 секунд</b>", format_duel_score(2, 1))
+        self.assertIn("🅰️ слева: <b>2</b>", format_duel_score(2, 1))
         self.assertIn("🅱️ проиграла и удалена из пула", format_duel_result(2, 1, "left"))
         self.assertIn("Обе пикчи выжили", format_duel_result(1, 1, None))
 

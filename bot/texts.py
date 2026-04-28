@@ -198,36 +198,6 @@ def _build_duel_announcements() -> Iterable[str]:
     return (f"{start}. {ending}" for start in starts for ending in endings)
 
 
-def _build_duel_image_captions() -> Iterable[str]:
-    starts = [
-        "Кандидат с мутной биографией",
-        "Экспонат без адвоката",
-        "Файл на нервной почве",
-        "Пикча пришла побеждать",
-        "Участник без плана отхода",
-        "Визуальный подозреваемый",
-        "Боец из общего пула",
-        "Архивный персонаж",
-        "Контент на испытании",
-        "Объект народного суда",
-        "Мемный гладиатор",
-        "Картинка с характером",
-    ]
-    endings = [
-        "смотрит уверенно",
-        "делает вид, что не боится",
-        "просит не судить строго",
-        "уже слышит таймер",
-        "держится на file_id",
-        "готова к кнопочной драке",
-        "надеется на чат",
-        "выглядит подозрительно бодро",
-        "пришла без гарантий",
-        "пахнет спорным решением",
-    ]
-    return (f"{start}, {ending}" for start in starts for ending in endings)
-
-
 def _build_duel_result_phrases() -> Iterable[str]:
     starts = [
         "Народный суд вынес вердикт",
@@ -856,16 +826,6 @@ DUEL_ANNOUNCEMENTS = _extend_unique(
         "Суд пикч открыт. Тут демократия с последствиями",
     ],
     _build_duel_announcements(),
-    111,
-)
-
-DUEL_IMAGE_CAPTIONS = _extend_unique(
-    [
-        "Кандидат с мутной биографией",
-        "Экспонат без адвоката",
-        "Файл на нервной почве",
-    ],
-    _build_duel_image_captions(),
     111,
 )
 
