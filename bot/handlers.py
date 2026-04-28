@@ -580,28 +580,38 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     current_achievement = current_achievement_for(uploaded_count)
     next_achievement = next_achievement_for(uploaded_count)
     combo_achievements = combo_achievements_for(reaction_stats)
-    text = (
-        "<b>Ваш вклад в общий хаос:</b>\n\n"
-        f"📦 Загружено пикч: <b>{uploaded_count}</b>\n"
-        f"🏅 Текущее достижение: <b>{current_achievement}</b>\n"
-        f"🎖 Титул качества: <b>{quality_title(reaction_stats)}</b>\n"
-        f"👍 На ваших пикчах: <b>{reaction_stats.likes}</b>\n"
-        f"💩 Какашек: <b>{reaction_stats.fires}</b>\n"
-        f"🖕 Пальцев: <b>{reaction_stats.dislikes}</b>"
-    )
+    lines = [
+        "<b>Ваш вклад в общий хаос</b>",
+        "",
+        "<b>📦 Загрузка</b>",
+        f"Загружено пикч: <b>{uploaded_count}</b>",
+        f"Текущее достижение: <b>{current_achievement}</b>",
+        "",
+        "<b>📊 Реакции на ваши пикчи</b>",
+        f"👍 Одобрений: <b>{reaction_stats.likes}</b>",
+        f"💩 Какашек: <b>{reaction_stats.fires}</b>",
+        f"🖕 Пальцев: <b>{reaction_stats.dislikes}</b>",
+        f"🎲 Показов: <b>{reaction_stats.shown}</b>",
+        "",
+        "<b>🎖 Статус</b>",
+        f"Титул качества: <b>{quality_title(reaction_stats)}</b>",
+    ]
     if combo_achievements:
-        text += "\n🧩 Комбо: " + ", ".join(f"<b>{item}</b>" for item in combo_achievements)
+        lines.append("Комбо:")
+        lines.extend(f"• <b>{item}</b>" for item in combo_achievements)
+
+    lines.append("")
+    lines.append("<b>🎯 Следующий рубеж</b>")
 
     if next_achievement is None:
-        return f"{text}\n🚀 Следующее достижение: лимиты здравого смысла закончились"
+        lines.append("Лимиты здравого смысла закончились")
+        return "\n".join(lines)
 
     threshold, achievement = next_achievement
     remaining = threshold - uploaded_count
-    return (
-        f"{text}\n"
-        f"🎯 До следующего: <b>{remaining}</b>\n"
-        f"➡️ Следующее достижение: <b>{achievement}</b> на {threshold} пикч"
-    )
+    lines.append(f"До следующего: <b>{remaining}</b>")
+    lines.append(f"Следующее достижение: <b>{achievement}</b> на {threshold} пикч")
+    return "\n".join(lines)
 
 
 def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:

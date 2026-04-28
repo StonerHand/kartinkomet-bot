@@ -10,6 +10,7 @@ from bot.handlers import (
     combo_achievements_for,
     current_achievement_for,
     format_duel_score,
+    format_user_progress,
     format_top_uploaders,
     next_achievement_for,
     parse_user_id_argument,
@@ -125,6 +126,18 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(quality_title(stats), "поставщик годноты")
         self.assertIn("заливочный марафонец", combo_achievements_for(stats))
         self.assertIn("частый гость рандома", combo_achievements_for(stats))
+
+    def test_user_progress_is_grouped_by_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=10))
+
+            text = format_user_progress(10, pool)
+
+            self.assertIn("<b>📦 Загрузка</b>", text)
+            self.assertIn("<b>📊 Реакции на ваши пикчи</b>", text)
+            self.assertIn("<b>🎖 Статус</b>", text)
+            self.assertIn("<b>🎯 Следующий рубеж</b>", text)
 
 
 class ImagePoolTest(unittest.TestCase):
