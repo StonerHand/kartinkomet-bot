@@ -206,8 +206,9 @@ def build_router(
             )
             if not ack_sent:
                 await message.answer(
-                    "Пикчи принимаю. Когда всё закинули нажми <code>✅ Закончить</code>. "
-                    "Если передумали <code>❌ Отмена</code>",
+                    "<b>✅ Пикчи принимаю</b>\n\n"
+                    "Когда всё закинули — нажми <code>✅ Закончить</code>\n"
+                    "Если передумали — <code>❌ Отмена</code>",
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
@@ -539,8 +540,8 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     await state.set_state(AddPicture.uploading)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
-        f"{RANDOM.choice(UPLOAD_START_PHRASES)}. "
-        "Кидайте одну пикчу, пачку, альбом или пересланные изображения"
+        f"📥 <b>{escape(RANDOM.choice(UPLOAD_START_PHRASES))}</b>\n\n"
+        "🖼 Кидайте одну пикчу, пачку, альбом или пересланные изображения"
     )
     await message.answer(
         upload_text,
