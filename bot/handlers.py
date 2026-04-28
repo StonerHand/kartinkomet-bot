@@ -136,6 +136,28 @@ def build_router(
         image_pool.reset_stats()
         await message.answer("Статистика сброшена. Реакции, показы и история рандома обнулены")
 
+    @router.message(Command("dedupe_user"))
+    async def dedupe_user_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        if not is_admin(message, admin_user_ids):
+            await message.answer("Чистка дублей доступна только админам")
+            return
+
+        target_user_id = parse_user_id_argument(message)
+        if target_user_id is None:
+            await message.answer("Формат: <code>/dedupe_user 1045485205</code>", parse_mode="HTML")
+            return
+
+        result = image_pool.dedupe_user(target_user_id)
+        await message.answer(
+            "<b>Чистка дублей завершена</b>\n\n"
+            f"👤 Пользователь: <code>{result.user_id}</code>\n"
+            f"🔎 Проверено его пикч: <b>{result.scanned}</b>\n"
+            f"🧹 Убрано дублей: <b>{result.removed}</b>\n"
+            f"📦 Осталось его пикч: <b>{result.remaining}</b>",
+            parse_mode="HTML",
+        )
+
     @router.message(Command("mood"))
     @router.channel_post(Command("mood"))
     async def mood_command(message: Message) -> None:
@@ -444,6 +466,19 @@ def is_admin(message: Message, admin_user_ids: frozenset[int]) -> bool:
         return False
 
     return message.from_user.id in admin_user_ids
+
+
+def parse_user_id_argument(message: Message) -> int | None:
+    text = message.text or message.caption or ""
+    parts = text.split(maxsplit=1)
+    if len(parts) != 2:
+        return None
+
+    raw_user_id = parts[1].strip()
+    if not raw_user_id.isdigit():
+        return None
+
+    return int(raw_user_id)
 
 
 async def show_menu(message: Message) -> None:

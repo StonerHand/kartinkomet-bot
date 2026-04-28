@@ -6,7 +6,12 @@ from types import SimpleNamespace
 
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
-from bot.handlers import current_achievement_for, format_top_uploaders, next_achievement_for
+from bot.handlers import (
+    current_achievement_for,
+    format_top_uploaders,
+    next_achievement_for,
+    parse_user_id_argument,
+)
 from bot.image_pool import ImagePool
 from bot.texts import (
     ACHIEVEMENTS,
@@ -55,6 +60,15 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("top", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
+        self.assertNotIn("dedupe_user", commands)
+
+    def test_hidden_dedupe_user_argument_parser(self) -> None:
+        self.assertEqual(
+            parse_user_id_argument(SimpleNamespace(text="/dedupe_user 1045485205", caption=None)),
+            1045485205,
+        )
+        self.assertIsNone(parse_user_id_argument(SimpleNamespace(text="/dedupe_user", caption=None)))
+        self.assertIsNone(parse_user_id_argument(SimpleNamespace(text="/dedupe_user nope", caption=None)))
 
     def test_text_pool_sizes_stay_intentional(self) -> None:
         self.assertEqual(len(PICTURE_CAPTIONS), 1500)
@@ -193,6 +207,47 @@ class ImagePoolTest(unittest.TestCase):
             pool = ImagePool(str(Path(temp_dir) / "pool.json"))
 
             self.assertEqual(pool.user_label(999), "999")
+
+    def test_dedupe_user_removes_only_target_user_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "pool.json"
+            pool = ImagePool(str(storage_path))
+            first = pool._normalize_record(
+                {
+                    "id": "first",
+                    "file_id": "file-a",
+                    "file_unique_id": "same-image",
+                    "added_by": 10,
+                }
+            )
+            duplicate = pool._normalize_record(
+                {
+                    "id": "duplicate",
+                    "file_id": "file-b",
+                    "file_unique_id": "same-image",
+                    "added_by": 10,
+                }
+            )
+            other_user = pool._normalize_record(
+                {
+                    "id": "other-user",
+                    "file_id": "file-c",
+                    "file_unique_id": "other-image",
+                    "added_by": 20,
+                }
+            )
+            pool._records = [first, duplicate, other_user]
+            pool._chat_history = {"1": ["first", "duplicate", "other-user"]}
+            pool._rebuild_indexes()
+
+            result = pool.dedupe_user(10)
+
+            self.assertEqual(result.scanned, 2)
+            self.assertEqual(result.removed, 1)
+            self.assertEqual(result.remaining, 1)
+            payload = json.loads(storage_path.read_text(encoding="utf-8"))
+            self.assertEqual([record["id"] for record in payload["images"]], ["first", "other-user"])
+            self.assertEqual(payload["chat_history"], {"1": ["first", "other-user"]})
 
     def test_random_avoids_immediate_repeat_per_chat(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

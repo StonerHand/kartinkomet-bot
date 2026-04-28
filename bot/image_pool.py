@@ -48,6 +48,14 @@ class PoolStats:
     total_dislikes: int
 
 
+@dataclass(frozen=True)
+class DedupeResult:
+    user_id: int
+    scanned: int
+    removed: int
+    remaining: int
+
+
 class ImagePool:
     def __init__(self, storage_path: str) -> None:
         self.storage_path = Path(storage_path)
@@ -173,6 +181,45 @@ class ImagePool:
             key=lambda item: (-item[1], item[0]),
         )[:limit]
 
+    def dedupe_user(self, user_id: int) -> DedupeResult:
+        scanned = self._uploads_by_user.get(user_id, 0)
+        if scanned == 0:
+            return DedupeResult(user_id=user_id, scanned=0, removed=0, remaining=0)
+
+        seen_unique_ids: set[str] = set()
+        kept_records = []
+        removed_ids: set[str] = set()
+        for record in self._records:
+            file_unique_id = record["file_unique_id"]
+            is_target_user_duplicate = (
+                record.get("added_by") == user_id and file_unique_id in seen_unique_ids
+            )
+            if is_target_user_duplicate:
+                removed_ids.add(record["id"])
+                continue
+
+            kept_records.append(record)
+            seen_unique_ids.add(file_unique_id)
+
+        if not removed_ids:
+            return DedupeResult(
+                user_id=user_id,
+                scanned=scanned,
+                removed=0,
+                remaining=scanned,
+            )
+
+        self._records = kept_records
+        self._remove_from_chat_history(removed_ids)
+        self._rebuild_indexes()
+        self._write()
+        return DedupeResult(
+            user_id=user_id,
+            scanned=scanned,
+            removed=len(removed_ids),
+            remaining=self._uploads_by_user.get(user_id, 0),
+        )
+
     def remember_user(self, user: User | None) -> None:
         if user is None:
             return
@@ -284,6 +331,12 @@ class ImagePool:
         max_history = min(MAX_CHAT_HISTORY, max(1, len(self._records) - 1))
         if len(history) > max_history:
             del history[:-max_history]
+
+    def _remove_from_chat_history(self, image_ids: set[str]) -> None:
+        for chat_key, history in list(self._chat_history.items()):
+            history[:] = [shown_id for shown_id in history if shown_id not in image_ids]
+            if not history:
+                del self._chat_history[chat_key]
 
     def _find(self, image_id: str) -> dict | None:
         return self._record_by_id.get(image_id)

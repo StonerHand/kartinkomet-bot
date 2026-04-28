@@ -24,6 +24,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - `/me` shows personal upload count and next achievement
 - `/top` shows the upload leaderboard
 - `/reset_stats` protected by `ADMIN_USER_IDS`
+- hidden admin command `/dedupe_user USER_ID` removes exact duplicates from one uploader
 - the bot stays silent on regular text mentions without a command
 
 ## Commands And Buttons
