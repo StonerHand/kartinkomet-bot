@@ -14,7 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts, upload_menu
+from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -206,8 +206,8 @@ def build_router(
             )
             if not ack_sent:
                 await message.answer(
-                    "Пикчи принимаю. Когда всё закинули, отправьте /done",
-                    reply_markup=upload_menu(),
+                    "Пикчи принимаю. Когда всё закинули — <code>/done</code>. Передумали — <code>/cancel</code>",
+                    parse_mode="HTML",
                 )
             achievement = achievement_for(message, image_pool)
             if achievement:
@@ -539,13 +539,12 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
     upload_text = (
         f"{RANDOM.choice(UPLOAD_START_PHRASES)}. "
         "Кидайте одну пикчу, пачку, альбом или пересланные изображения. "
-        "Когда всё закинули, отправьте <code>/done</code>. "
-        "Если передумали — жмите <code>❌ Отмена</code>"
+        "Когда всё закинули — <code>/done</code>. "
+        "Если передумали — <code>/cancel</code>"
     )
     await message.answer(
         upload_text,
         parse_mode="HTML",
-        reply_markup=upload_menu(),
     )
     if message.chat.type in {"group", "supergroup"}:
         await message.answer(

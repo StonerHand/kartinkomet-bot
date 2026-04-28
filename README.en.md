@@ -42,7 +42,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `🏆 Топ`, `/top` | Shows the upload leaderboard |
 | `📊 Статы`, `/stats` | Shows pool, random output, and reactions by section |
 | `/done` | Finishes upload mode and shows a summary |
-| `❌ Отмена`, `/cancel` | Cancels the active upload |
+| `/cancel` | Cancels the active upload |
 | `/count` | Shows the pool size |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
@@ -81,7 +81,7 @@ Rules:
 2. Send one image, multiple images, a Telegram album, or forwarded images.
 3. Send `/done` when the batch is complete.
 
-The bot confirms batch upload only once after the first accepted image and leaves only the cancel button under upload prompts.
+The bot confirms batch upload only once after the first accepted image. Upload mode has no inline buttons: finish with `/done`, cancel with `/cancel`.
 
 Non-image files are rejected. Duplicate images are skipped.
 
