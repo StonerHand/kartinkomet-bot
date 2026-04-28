@@ -295,7 +295,8 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.user_label(10), "@artem")
             top_text = format_top_uploaders(pool)
-            self.assertIn("\n\n🥇 @artem", top_text)
+            self.assertIn("<b>👑 Пьедестал</b>", top_text)
+            self.assertIn("🥇 <b>@artem</b>", top_text)
 
     def test_top_uploaders_escapes_user_names_for_html(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

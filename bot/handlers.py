@@ -754,16 +754,26 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
 def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     top_uploaders = image_pool.top_uploaders(limit=limit)
     if not top_uploaders:
-        return "Топ загрузчиков пуст. Пока никто не занёс пикчи в общий котёл"
+        return (
+            "<b>🏆 Топ загрузчиков пикч</b>\n\n"
+            "Пьедестал пуст. Пока никто не занёс пикчи в общий котёл"
+        )
 
-    lines = ["<b>🏆 Топ загрузчиков пикч:</b>", ""]
+    lines = ["<b>🏆 Топ загрузчиков пикч</b>", ""]
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
+        if position == 1:
+            lines.append("<b>👑 Пьедестал</b>")
+        if position == 4:
+            lines.append("")
+            lines.append("<b>📦 Остальные поставщики</b>")
+
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
         achievement = current_achievement_for(count)
         user_label = escape(image_pool.user_label(user_id))
         lines.append(
-            f"{prefix} {user_label} — <b>{count}</b> пикч, {achievement}"
+            f"{prefix} <b>{user_label}</b> — <b>{count}</b> пикч\n"
+            f"   {achievement}"
         )
 
     return "\n".join(lines)
