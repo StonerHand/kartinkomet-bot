@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random
 from datetime import date
 from html import escape
@@ -6,6 +7,7 @@ from typing import TypedDict
 from uuid import uuid4
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -27,6 +29,7 @@ from bot.texts import (
 UPLOAD_COMMAND = "upload_pidor"
 DUEL_SECONDS = 60
 RANDOM = random.SystemRandom()
+LOGGER = logging.getLogger(__name__)
 
 
 class UploadSession(TypedDict):
@@ -474,14 +477,18 @@ async def finalize_duel(
         image_pool.delete(duel["left"])
         result_text = format_duel_result(left_votes, right_votes, winner="right")
 
-    await bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=message_id,
-        text=result_text,
-        parse_mode="HTML",
-        reply_markup=new_duel(),
-    )
-    duel_sessions.pop(duel_id, None)
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=result_text,
+            parse_mode="HTML",
+            reply_markup=new_duel(),
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to edit completed duel message", exc_info=True)
+    finally:
+        duel_sessions.pop(duel_id, None)
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:

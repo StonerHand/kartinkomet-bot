@@ -204,6 +204,23 @@ class ImagePoolTest(unittest.TestCase):
             self.assertTrue(other_user.added)
             self.assertEqual(pool.count_by_user(user_id), UPLOAD_LIMIT_PER_HOUR)
 
+    def test_upload_limit_index_updates_after_delete(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            user_id = 10
+            for index in range(UPLOAD_LIMIT_PER_HOUR):
+                pool.add_from_message(
+                    fake_photo_message(f"file-{index}", f"unique-{index}", user_id=user_id)
+                )
+
+            deleted = pool.delete(pool._records[0]["id"])
+            added_after_delete = pool.add_from_message(
+                fake_photo_message("file-new", "unique-new", user_id=user_id)
+            )
+
+            self.assertTrue(deleted)
+            self.assertTrue(added_after_delete.added)
+
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             storage_path = Path(temp_dir) / "pool.json"

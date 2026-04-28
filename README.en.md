@@ -1,6 +1,6 @@
 # kartinkomet
 
-Telegram bot for random images, shared pools, batch uploads, reactions, achievements, and meme-flavored chaos.
+Telegram bot for random images, shared pools, batch uploads, reactions, duels, achievements, and meme-flavored chaos.
 
 [Русская версия](README.md)
 
@@ -20,14 +20,14 @@ The bot does not store image files on the server. It stores only Telegram `file_
 - uploads are limited to `100` new images per user per hour
 - per-chat anti-repeat random memory
 - one reaction per user per image, with reaction switching
-- automatic image removal after `3 🖕`
+- automatic image removal after `2 🖕`
 - upload achievements
-- `/me` shows personal upload count and next achievement
 - `/me` shows quality title, reactions on your uploads, and combo achievements
 - `/top` shows the upload leaderboard
-- `/duel` starts a vote between two random images
+- `/duel` starts a one-minute image duel and removes the loser
 - `/reset_stats` protected by `ADMIN_USER_IDS`
 - hidden admin command `/dedupe_user USER_ID` removes exact duplicates from one uploader
+- standalone maintenance script removes visual duplicates with `dHash`
 - the bot stays silent on regular text mentions without a command
 
 ## Commands And Buttons
@@ -43,7 +43,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `/stats` | Shows views and reactions |
 | `/me` | Shows your uploads and achievements |
 | `/top` | Shows the upload leaderboard |
-| `/duel` | Starts a duel between two random images |
+| `/duel` | Starts a one-minute duel between two random images |
 | `/mood` | Shows today's bot mood |
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
@@ -60,6 +60,18 @@ The random picker is chat-aware:
 4. It uses `SystemRandom` for the final choice.
 
 Large pools repeat much less often. Small pools can still repeat, but the bot tries not to send the same image immediately.
+
+## Duels
+
+`/duel` selects two random images, sends them as `🅰️` and `🅱️`, then opens a `60` second vote.
+
+Rules:
+
+- each user gets one vote but can switch sides
+- the bot announces the result after the timer
+- the losing image is removed from the pool
+- ties keep both images alive
+- the result includes a `⚔️ Новая дуэль?` button
 
 ## Uploading
 
@@ -170,9 +182,12 @@ Performance notes:
 - image lookup by `id` uses an in-memory index
 - duplicate checks use an in-memory `file_unique_id` set
 - uploaded-count lookup uses an in-memory user index
+- the `100` uploads-per-hour limit uses a sorted timestamp index instead of scanning the full pool
 - reactions are normalized while reading JSON
-- JSON writes are atomic
+- JSON writes are atomic and compact to reduce Railway Volume I/O
 - anti-repeat selection avoids full sorting of the whole pool
+- image deletion rebuilds indexes so `/top`, limits, and counters stay consistent
+- duel state is cleaned after completion, and Telegram API edit errors do not crash polling
 - large text pools are built at import time and then used as normal lists
 
 ## Local Run

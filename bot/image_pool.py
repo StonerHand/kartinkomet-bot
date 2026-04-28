@@ -1,5 +1,6 @@
 import json
 import random
+from bisect import bisect_left, insort
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from heapq import nlargest
@@ -148,21 +149,8 @@ class ImagePool:
             return False
 
         self._records.remove(record)
-        self._record_by_id.pop(record["id"], None)
-        self._unique_ids.discard(record["file_unique_id"])
-        if isinstance(record["added_by"], int):
-            remaining_uploads = max(
-                0,
-                self._uploads_by_user.get(record["added_by"], 0) - 1,
-            )
-            if remaining_uploads:
-                self._uploads_by_user[record["added_by"]] = remaining_uploads
-            else:
-                self._uploads_by_user.pop(record["added_by"], None)
-        for chat_key, history in list(self._chat_history.items()):
-            history[:] = [shown_id for shown_id in history if shown_id != image_id]
-            if not history:
-                del self._chat_history[chat_key]
+        self._remove_from_chat_history({image_id})
+        self._rebuild_indexes()
         self._write()
         return True
 
@@ -202,16 +190,8 @@ class ImagePool:
 
     def user_uploads_in_last_hour(self, user_id: int) -> int:
         cutoff = datetime.now(UTC) - timedelta(hours=1)
-        count = 0
-        for record in self._records:
-            if record.get("added_by") != user_id:
-                continue
-
-            added_at = self._added_at_datetime(record)
-            if added_at is not None and added_at >= cutoff:
-                count += 1
-
-        return count
+        upload_times = self._upload_times_by_user.get(user_id, [])
+        return len(upload_times) - bisect_left(upload_times, cutoff)
 
     def top_uploaders(self, limit: int = 10) -> list[tuple[int, int]]:
         return sorted(
@@ -238,7 +218,6 @@ class ImagePool:
 
             kept_records.append(record)
             seen_unique_ids.add(file_unique_id)
-
         if not removed_ids:
             return DedupeResult(
                 user_id=user_id,
@@ -538,16 +517,26 @@ class ImagePool:
         self._record_by_id: dict[str, dict] = {}
         self._unique_ids: set[str] = set()
         self._uploads_by_user: dict[int, int] = {}
+        self._upload_times_by_user: dict[int, list[datetime]] = {}
         for record in self._records:
-            self._index_record(record)
+            self._index_record(record, keep_upload_times_sorted=False)
+        for upload_times in self._upload_times_by_user.values():
+            upload_times.sort()
 
-    def _index_record(self, record: dict) -> None:
+    def _index_record(self, record: dict, keep_upload_times_sorted: bool = True) -> None:
         self._record_by_id[record["id"]] = record
         self._unique_ids.add(record["file_unique_id"])
         if isinstance(record["added_by"], int):
             self._uploads_by_user[record["added_by"]] = (
                 self._uploads_by_user.get(record["added_by"], 0) + 1
             )
+            added_at = self._added_at_datetime(record)
+            if added_at is not None:
+                upload_times = self._upload_times_by_user.setdefault(record["added_by"], [])
+                if keep_upload_times_sorted and upload_times and added_at < upload_times[-1]:
+                    insort(upload_times, added_at)
+                else:
+                    upload_times.append(added_at)
 
     def _normalize_chat_history(
         self,
@@ -617,7 +606,7 @@ class ImagePool:
             "users": users,
         }
         with temp_path.open("w", encoding="utf-8") as file:
-            json.dump(payload, file, ensure_ascii=False, indent=2)
+            json.dump(payload, file, ensure_ascii=False, separators=(",", ":"))
             file.write("\n")
 
         temp_path.replace(self.storage_path)
