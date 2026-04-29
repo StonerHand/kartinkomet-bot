@@ -13,7 +13,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 ## Core Features
 
 - shared image pool
-- uploads are open to everyone
+- uploads are open to everyone, but only in private chat with the bot
 - the only slash upload command is `/upload_pidor`
 - no physical image storage on the bot server
 - duplicate detection through Telegram `file_unique_id`
@@ -37,7 +37,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `🎲 Рандом`, `/pic` | Sends a random image |
 | `⚔️ Дуэль`, `/duel` | Starts a one-minute duel between two random images |
 | `🎲 Ещё` | Sends another image below the current one |
-| `⬆️ Загрузка`, `/upload_pidor` | Starts upload mode |
+| `⬆️ Загрузка`, `/upload_pidor` | Starts upload mode in private chat, shows a hint in groups |
 | `👤 Мой вклад`, `/me` | Shows your uploads and achievements |
 | `🏆 Топ`, `/top` | Shows the upload leaderboard |
 | `📊 Статы`, `/stats` | Shows pool, random output, and reactions by section |
@@ -48,7 +48,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `/menu` | Opens the main control panel |
 | `/help` | Shows the command list |
 
-There is no `/upload` command by design. Upload mode starts through the button or `/upload_pidor`.
+There is no `/upload` command by design. Upload mode starts through the button or `/upload_pidor`, but image files are accepted only in private chat with the bot.
 
 ## Random Selection
 
@@ -85,9 +85,12 @@ Rules:
 
 ## Uploading
 
-1. Press `⬆️ Загрузка` or send `/upload_pidor`.
-2. Send one image, multiple images, a Telegram album, or forwarded images.
-3. Send `/done` when the batch is complete.
+1. Open a private chat with `@kartinkomet_bot`.
+2. Press `⬆️ Загрузка` or send `/upload_pidor`.
+3. Send one image, multiple images, a Telegram album, or forwarded images.
+4. Send `/done` when the batch is complete.
+
+In groups, the `⬆️ Загрузка` button and `/upload_pidor` command do not open file intake mode. The bot shows a hint and sends users to private chat instead. The pool remains shared: upload in private chat, then `/pic`, `/duel`, and reactions keep working in the group.
 
 The bot confirms batch upload only once after the first accepted image and shows `✅ Закончить` and `❌ Отмена` buttons.
 
@@ -97,16 +100,16 @@ Non-image files are rejected. Duplicate images are skipped.
 
 Script-flood protection: one Telegram user ID can add up to `100` new images per hour. Duplicates and failed files do not spend the limit.
 
-## Groups And Privacy Mode
+## Groups
 
-For group uploads, disable BotFather Privacy Mode:
+The bot does not accept pool uploads directly in Telegram groups. This is intentional: Telegram Privacy Mode and group albums can be unreliable for this workflow.
 
-1. Open `@BotFather`.
-2. Run `/setprivacy`.
-3. Select `@kartinkomet_bot`.
-4. Select `Disable`.
+Groups keep the stable actions:
 
-If Privacy Mode remains enabled, Telegram may hide regular group photos from the bot. Start upload mode and attach images as a reply to the bot's ForceReply message.
+- `🎲 Рандом` and `/pic`
+- `⚔️ Дуэль` and `/duel`
+- `📊 Статы`, `/count`, `/me`, `/top`
+- `⬆️ Загрузка`, which explains that uploads go through private chat
 
 ## Channels
 
@@ -114,7 +117,7 @@ For channels, the bot must be an admin with permission to post messages and medi
 
 The reliable flow is:
 
-1. Upload images in a private chat with the bot or in an admin group.
+1. Upload images in a private chat with the bot.
 2. Set `TARGET_CHANNEL_ID`.
 3. Call `/pic` to publish into the target channel.
 

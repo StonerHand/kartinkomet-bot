@@ -11,7 +11,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ForceReply, InputMediaPhoto, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts, upload_menu
@@ -287,8 +287,8 @@ def build_router(
             await callback.answer()
             return
 
-        await activate_upload(callback.message, state)
-        await callback.answer()
+        activated = await activate_upload(callback.message, state)
+        await callback.answer("Загрузка открыта" if activated else "Открой личку с ботом")
 
     @router.callback_query(F.data == "done")
     async def done_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -630,7 +630,11 @@ def clear_active_duel(chat_id: int, duel_id: str) -> None:
         active_duels_by_chat.pop(chat_id, None)
 
 
-async def activate_upload(message: Message, state: FSMContext) -> None:
+async def activate_upload(message: Message, state: FSMContext) -> bool:
+    if not is_private_chat(message):
+        await message.answer(format_upload_private_only(), parse_mode="HTML")
+        return False
+
     await state.set_state(AddPicture.uploading)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
@@ -641,14 +645,7 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
         upload_text,
         parse_mode="HTML",
     )
-    if message.chat.type in {"group", "supergroup"}:
-        await message.answer(
-            "В группе прикрепляйте пикчи ответом на это сообщение, чтобы Telegram точно отдал их боту",
-            reply_markup=ForceReply(
-                selective=True,
-                input_field_placeholder="Прикрепите пикчи сюда",
-            ),
-        )
+    return True
 
 
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
@@ -694,7 +691,11 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
 
 
 def is_upload_active(message: Message) -> bool:
-    return message.chat.id in active_uploads
+    return is_private_chat(message) and message.chat.id in active_uploads
+
+
+def is_private_chat(message: Message) -> bool:
+    return message.chat.type == "private"
 
 
 def new_upload_session() -> UploadSession:
@@ -758,7 +759,7 @@ def format_start() -> str:
         "устраиваю мемные дуэли и считаю вклад каждого поставщика хаоса\n\n"
         f"<b>🧠 Режим дня:</b> {daily_mood()}\n\n"
         "Жмите <code>🎲 Рандом</code>, запускайте <code>⚔️ Дуэль</code> "
-        "или закидывайте пикчи через <code>⬆️ Загрузка</code>"
+        "или закидывайте пикчи в личке через <code>⬆️ Загрузка</code>"
     )
 
 
@@ -770,9 +771,9 @@ def format_help() -> str:
         "<code>/count</code> — размер общего пула\n"
         "<code>/menu</code> — открыть пульт от ядерки\n\n"
         "<b>⬆️ Загрузка</b>\n"
-        "<code>/upload_pidor</code> — открыть загрузку пикч\n"
-        "<code>/done</code> — закрыть загрузку\n"
-        "<code>/cancel</code> — отменить загрузку\n\n"
+        "<code>/upload_pidor</code> — открыть загрузку пикч в личке\n"
+        "<code>/done</code> — закрыть загрузку в личке\n"
+        "<code>/cancel</code> — отменить загрузку в личке\n\n"
         "<b>📊 Статистика</b>\n"
         "<code>/stats</code> — общие реакции и показы\n"
         "<code>/me</code> — ваш вклад, титулы и комбо\n"
@@ -796,6 +797,16 @@ def format_mood() -> str:
     return (
         "<b>🧠 Режим дня</b>\n\n"
         f"{daily_mood()}"
+    )
+
+
+def format_upload_private_only() -> str:
+    return (
+        "<b>📬 Загрузка теперь в личке</b>\n\n"
+        "В группе бот только раздаёт пикчи, показывает статы и запускает дуэли\n\n"
+        "Чтобы пополнить общий пул, откройте "
+        '<a href="https://t.me/kartinkomet_bot">@kartinkomet_bot</a>, '
+        f"отправьте <code>/{UPLOAD_COMMAND}</code> и кидайте картинки туда"
     )
 
 

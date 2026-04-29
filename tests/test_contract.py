@@ -23,6 +23,7 @@ from bot.handlers import (
     format_user_progress,
     format_top_uploaders,
     format_upload_limit,
+    format_upload_private_only,
     next_achievement_for,
     parse_user_id_argument,
     quality_title,
@@ -235,6 +236,8 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>⬆️ Загрузка</b>", format_help())
         self.assertIn("<b>⚔️ Игры</b>", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
+        self.assertIn("Загрузка теперь в личке", format_upload_private_only())
+        self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("100</b> новых пикч в час", format_upload_limit())
 
 
