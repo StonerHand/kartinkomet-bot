@@ -120,7 +120,7 @@ def format_weather_report(report: WeatherReport) -> str:
         f"• День: <b>{format_degrees(report.daily_min)}</b> / <b>{format_degrees(report.daily_max)}</b>\n"
         f"• Ветер: <b>{report.wind_speed:.0f} км/ч</b>\n"
         f"{rain_line}\n\n"
-        f"<i>Малая Токмачка, прогноз Open-Meteo</i>"
+        "<i>Малая Токмачка</i>"
     )
 
 
