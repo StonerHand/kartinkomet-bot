@@ -65,7 +65,7 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 
 `/duel` selects two random images, sends them as one album without captions under the photos, then opens a `60` second vote.
 
-Duels use a compact card: title, live status, score, timer, and current leader. No `file_id`, no long text walls, and no captions under the photos.
+Duels use a compact card: title, live status, score, refreshing timer, and current leader. No `file_id`, no long text walls, and no captions under the photos.
 
 Duels have `400` short dedicated phrases:
 
@@ -78,10 +78,12 @@ Rules:
 
 - only one active duel can run in the same chat
 - each user gets one vote but can switch sides
+- the timer refreshes during voting
 - the bot announces the result after the timer
 - the losing image is removed from the pool
 - ties keep both images alive
 - the result includes a `⚔️ Новая дуэль` button
+- if Telegram/API stumbles, the bot clears stale duel state instead of locking the chat forever
 
 ## Uploading
 

@@ -3,6 +3,7 @@ import logging
 import random
 from datetime import date
 from html import escape
+from time import monotonic
 from typing import Literal, TypedDict
 from uuid import uuid4
 
@@ -32,6 +33,8 @@ from bot.texts import (
 
 UPLOAD_COMMAND = "upload_pidor"
 DUEL_SECONDS = 60
+DUEL_TICK_SECONDS = 15
+DUEL_STALE_GRACE_SECONDS = 20
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +53,7 @@ active_uploads: dict[int, UploadSession] = {}
 duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, str] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
+duel_tasks: dict[str, asyncio.Task] = {}
 
 
 class AddPicture(StatesGroup):
@@ -387,8 +391,7 @@ def build_router(
 
         votes = duel["votes"]
         votes[str(callback.from_user.id)] = side
-        left_votes = sum(1 for vote in votes.values() if vote == "left")
-        right_votes = sum(1 for vote in votes.values() if vote == "right")
+        left_votes, right_votes = duel_vote_counts(duel)
         if callback.message:
             try:
                 await callback.message.edit_text(
@@ -397,6 +400,7 @@ def build_router(
                         right_votes,
                         title=str(duel.get("title") or random_duel_start_phrase()),
                         status=str(duel.get("status") or random_duel_status_phrase()),
+                        remaining_seconds=duel_remaining_seconds(duel),
                     ),
                     parse_mode="HTML",
                     reply_markup=duel_vote(duel_id, left_votes, right_votes),
@@ -542,6 +546,7 @@ async def send_duel(
             "active": True,
             "title": title,
             "status": status,
+            "expires_at": monotonic() + DUEL_SECONDS,
         }
         try:
             score_message = await message.answer(
@@ -555,7 +560,7 @@ async def send_duel(
             return "failed"
 
         register_active_duel(chat_id, duel_id)
-        asyncio.create_task(finalize_duel(duel_id, bot, image_pool, chat_id, score_message.message_id))
+        schedule_duel_finalizer(duel_id, bot, image_pool, chat_id, score_message.message_id)
         return "started"
 
 
@@ -566,41 +571,144 @@ async def finalize_duel(
     chat_id: int,
     message_id: int,
 ) -> None:
-    await asyncio.sleep(DUEL_SECONDS)
-    duel = duel_sessions.get(duel_id)
-    if duel is None or not duel.get("active", False):
+    try:
+        while True:
+            duel = duel_sessions.get(duel_id)
+            if duel is None or not duel.get("active", False):
+                return
+
+            remaining_seconds = duel_remaining_seconds(duel)
+            if remaining_seconds <= 0:
+                break
+
+            await asyncio.sleep(min(DUEL_TICK_SECONDS, remaining_seconds))
+            duel = duel_sessions.get(duel_id)
+            if duel is None or not duel.get("active", False):
+                return
+
+            remaining_seconds = duel_remaining_seconds(duel)
+            if remaining_seconds > 0:
+                await update_duel_score_message(
+                    bot=bot,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    duel_id=duel_id,
+                    duel=duel,
+                    remaining_seconds=remaining_seconds,
+                )
+
+        duel = duel_sessions.get(duel_id)
+        if duel is None or not duel.get("active", False):
+            return
+
+        duel["active"] = False
+        left_votes, right_votes = duel_vote_counts(duel)
+
+        if left_votes == right_votes:
+            image_pool.record_duel_result(tied=True)
+            result_text = format_duel_result(left_votes, right_votes, winner=None)
+        elif left_votes > right_votes:
+            image_pool.delete(duel["right"])
+            image_pool.record_duel_result(tied=False)
+            result_text = format_duel_result(left_votes, right_votes, winner="left")
+        else:
+            image_pool.delete(duel["left"])
+            image_pool.record_duel_result(tied=False)
+            result_text = format_duel_result(left_votes, right_votes, winner="right")
+
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=result_text,
+                parse_mode="HTML",
+                reply_markup=new_duel(),
+            )
+        except TelegramAPIError:
+            LOGGER.warning("Failed to edit completed duel message", exc_info=True)
+    except Exception:
+        LOGGER.exception("Duel finalizer crashed")
+    finally:
+        clear_active_duel(chat_id, duel_id)
+        duel_sessions.pop(duel_id, None)
+        duel_tasks.pop(duel_id, None)
+
+
+def schedule_duel_finalizer(
+    duel_id: str,
+    bot: Bot,
+    image_pool: ImagePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    task = asyncio.create_task(finalize_duel(duel_id, bot, image_pool, chat_id, message_id))
+    duel_tasks[duel_id] = task
+    task.add_done_callback(log_duel_task_exception)
+
+
+def log_duel_task_exception(task: asyncio.Task) -> None:
+    if task.cancelled():
         return
 
-    duel["active"] = False
-    votes = duel["votes"]
-    left_votes = sum(1 for vote in votes.values() if vote == "left")
-    right_votes = sum(1 for vote in votes.values() if vote == "right")
+    error = task.exception()
+    if error is not None:
+        LOGGER.error(
+            "Duel task finished with an error",
+            exc_info=(type(error), error, error.__traceback__),
+        )
 
-    if left_votes == right_votes:
-        image_pool.record_duel_result(tied=True)
-        result_text = format_duel_result(left_votes, right_votes, winner=None)
-    elif left_votes > right_votes:
-        image_pool.delete(duel["right"])
-        image_pool.record_duel_result(tied=False)
-        result_text = format_duel_result(left_votes, right_votes, winner="left")
-    else:
-        image_pool.delete(duel["left"])
-        image_pool.record_duel_result(tied=False)
-        result_text = format_duel_result(left_votes, right_votes, winner="right")
 
+async def update_duel_score_message(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    duel_id: str,
+    duel: dict,
+    remaining_seconds: int,
+) -> None:
+    left_votes, right_votes = duel_vote_counts(duel)
     try:
         await bot.edit_message_text(
             chat_id=chat_id,
             message_id=message_id,
-            text=result_text,
+            text=format_duel_score(
+                left_votes,
+                right_votes,
+                title=str(duel.get("title") or random_duel_start_phrase()),
+                status=str(duel.get("status") or random_duel_status_phrase()),
+                remaining_seconds=remaining_seconds,
+            ),
             parse_mode="HTML",
-            reply_markup=new_duel(),
+            reply_markup=duel_vote(duel_id, left_votes, right_votes),
         )
     except TelegramAPIError:
-        LOGGER.warning("Failed to edit completed duel message", exc_info=True)
-    finally:
-        clear_active_duel(chat_id, duel_id)
-        duel_sessions.pop(duel_id, None)
+        LOGGER.warning("Failed to update duel timer message", exc_info=True)
+
+
+def duel_vote_counts(duel: dict) -> tuple[int, int]:
+    votes = duel.get("votes", {})
+    return (
+        sum(1 for vote in votes.values() if vote == "left"),
+        sum(1 for vote in votes.values() if vote == "right"),
+    )
+
+
+def duel_remaining_seconds(duel: dict) -> int:
+    try:
+        expires_at = float(duel.get("expires_at") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+    return max(0, round(expires_at - monotonic()))
+
+
+def duel_is_stale(duel: dict) -> bool:
+    try:
+        expires_at = float(duel.get("expires_at") or 0)
+    except (TypeError, ValueError):
+        return True
+
+    return monotonic() > expires_at + DUEL_STALE_GRACE_SECONDS
 
 
 def duel_lock_for(chat_id: int) -> asyncio.Lock:
@@ -618,6 +726,13 @@ def active_duel_id_for_chat(chat_id: int) -> str | None:
 
     duel = duel_sessions.get(duel_id)
     if duel and duel.get("active", False):
+        if duel_is_stale(duel):
+            duel["active"] = False
+            active_duels_by_chat.pop(chat_id, None)
+            duel_sessions.pop(duel_id, None)
+            duel_tasks.pop(duel_id, None)
+            LOGGER.warning("Cleared stale duel %s in chat %s", duel_id, chat_id)
+            return None
         return duel_id
 
     active_duels_by_chat.pop(chat_id, None)
@@ -1008,6 +1123,7 @@ def format_duel_score(
     right_votes: int,
     title: str | None = None,
     status: str | None = None,
+    remaining_seconds: int | None = None,
 ) -> str:
     if left_votes == right_votes:
         verdict = "⚖️ Пока ничья"
@@ -1016,12 +1132,13 @@ def format_duel_score(
     else:
         verdict = "🔥 Лидирует: 🅱️ Вторая"
 
+    seconds_left = DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
         f"<b>⚔️ {escape(title or random_duel_start_phrase())}</b>\n"
         f"{escape(status or random_duel_status_phrase())}\n\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
-        f"⏱ <b>{DUEL_SECONDS} секунд</b>\n"
+        f"⏱ Осталось: <b>{seconds_left} секунд</b>\n"
         f"{verdict}"
     )
 

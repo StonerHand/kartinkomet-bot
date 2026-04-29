@@ -14,7 +14,10 @@ from bot.handlers import (
     clear_active_duel,
     combo_achievements_for,
     current_achievement_for,
+    duel_is_stale,
+    duel_remaining_seconds,
     duel_sessions,
+    duel_tasks,
     format_duel_already_active,
     format_duel_score,
     format_duel_result,
@@ -193,12 +196,19 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn(2, JURY_THRESHOLDS)
 
     def test_duel_score_format(self) -> None:
-        score = format_duel_score(2, 1, title="Суд мемов", status="Чат держит паузу")
+        score = format_duel_score(
+            2,
+            1,
+            title="Суд мемов",
+            status="Чат держит паузу",
+            remaining_seconds=45,
+        )
 
         self.assertIn("<b>⚔️ Суд мемов</b>", score)
         self.assertIn("Чат держит паузу", score)
         self.assertIn("🅰️ Первая: <b>2</b>", score)
         self.assertIn("🅱️ Вторая: <b>1</b>\n\n⏱", score)
+        self.assertIn("Осталось: <b>45 секунд</b>", score)
         self.assertIn("🔥 Лидирует: 🅰️ Первая", score)
         self.assertIn("👑 Победила: <b>🅰️ Первая</b>", format_duel_result(2, 1, "left"))
         self.assertIn("🗑 Удалена: <b>🅱️ Вторая</b>", format_duel_result(2, 1, "left"))
@@ -207,8 +217,9 @@ class BotContractTest(unittest.TestCase):
     def test_one_active_duel_per_chat_guard(self) -> None:
         duel_sessions.clear()
         active_duels_by_chat.clear()
+        duel_tasks.clear()
 
-        duel_sessions["duel-1"] = {"active": True}
+        duel_sessions["duel-1"] = {"active": True, "expires_at": 10**12}
         register_active_duel(123, "duel-1")
 
         self.assertEqual(active_duel_id_for_chat(123), "duel-1")
@@ -219,13 +230,28 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn(123, active_duels_by_chat)
         self.assertIn("Дуэль уже идёт", format_duel_already_active())
 
-        duel_sessions["duel-2"] = {"active": True}
+        duel_sessions["duel-2"] = {"active": True, "expires_at": 10**12}
         register_active_duel(123, "duel-2")
         clear_active_duel(123, "other-duel")
         self.assertEqual(active_duel_id_for_chat(123), "duel-2")
         clear_active_duel(123, "duel-2")
         self.assertIsNone(active_duel_id_for_chat(123))
         duel_sessions.clear()
+        duel_tasks.clear()
+
+    def test_stale_duel_is_cleared_from_active_guard(self) -> None:
+        duel_sessions.clear()
+        active_duels_by_chat.clear()
+        duel_tasks.clear()
+
+        duel_sessions["stale-duel"] = {"active": True, "expires_at": 0}
+        register_active_duel(123, "stale-duel")
+
+        self.assertTrue(duel_is_stale(duel_sessions["stale-duel"]))
+        self.assertEqual(duel_remaining_seconds(duel_sessions["stale-duel"]), 0)
+        self.assertIsNone(active_duel_id_for_chat(123))
+        self.assertNotIn(123, active_duels_by_chat)
+        self.assertNotIn("stale-duel", duel_sessions)
 
     def test_quality_title_and_combos(self) -> None:
         stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)
