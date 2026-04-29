@@ -19,7 +19,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - visual duplicates can be cleaned with a separate `dHash` script
 - one user can add up to `100` new images per hour
 - one user can cast one reaction per image, but can switch it
-- `2 🖕` remove an image from the pool
+- `2 🖕🏻` remove an image from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
 - duels are self-healing: timer refreshes and stale duel state is cleared
 
@@ -61,7 +61,7 @@ Main panel:
 Under a random image:
 
 ```text
-👍  💩  🖕
+🤙🏻  🖕🏻
 🎲 Ещё
 ```
 
@@ -80,16 +80,17 @@ Leaderboard example:
 ```text
 🏆 Топ загрузчиков пикч
 
-👑 Пьедестал
-🥇 TakaKenshi
-📦 3441 пикч · картинный монополист
+👑 Пьедестал:
 
-🥈 Art_Denisovich
-📦 242 пикч · архитектор мемного склада
+🥇 TakaKenshi — 3441 пикч · картинный монополист
+🥈 Art_Denisovich — 242 пикч · архитектор мемного склада
+🥉 Михаил — 49 пикч · человек с подозрительной галереей
 
 📦 Остальные поставщики
-4. asobi_seksu
-📦 46 пикч · человек с подозрительной галереей
+
+4. asobi_seksu — 46 пикч · человек с подозрительной галереей
+5. fata11st — 1 пикч · первый вброс
+6. kcifekzhue — 1 пикч · первый вброс
 ```
 
 Stats example:
@@ -109,9 +110,8 @@ Stats example:
 • Мирных исходов: 8
 
 🧪 Реакции
-• 👍 Одобрений: 988
-• 💩 Какашек: 62
-• 🖕 Пальцев: 133
+• 🤙🏻 Одобрений: 988
+• 🖕🏻 Пальцев: 133
 ```
 
 ## Random Selection
@@ -169,7 +169,7 @@ There are `400` dedicated short duel phrases:
 
 ## Reactions And Jury Rule
 
-Each image has `👍`, `💩`, and `🖕`.
+Each image has `🤙🏻` and `🖕🏻`.
 
 Rules:
 
@@ -180,8 +180,8 @@ Rules:
 
 Jury rule:
 
-- `1 🖕` - no bot message
-- `2 🖕` - image is removed from the pool, and the removal notice replies to that image
+- `1 🖕🏻` - no bot message
+- `2 🖕🏻` - image is removed from the pool, and the removal notice replies to that image
 
 ## Achievements And Profile
 
@@ -233,7 +233,6 @@ Example:
       "shown_count": 3,
       "last_shown_at": "2026-04-25T13:10:00+00:00",
       "likes": 1,
-      "fires": 2,
       "dislikes": 0,
       "reactions_by_user": {
         "123456789": "like"

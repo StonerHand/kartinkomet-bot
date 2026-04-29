@@ -53,9 +53,8 @@ def new_duel() -> InlineKeyboardMarkup:
 def picture_actions(image_id: str) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text="👍", callback_data=f"react:like:{image_id}"),
-            InlineKeyboardButton(text="💩", callback_data=f"react:fire:{image_id}"),
-            InlineKeyboardButton(text="🖕", callback_data=f"react:dislike:{image_id}"),
+            InlineKeyboardButton(text="🤙🏻", callback_data=f"react:like:{image_id}"),
+            InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
         ],
         [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]
@@ -66,14 +65,12 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
 def picture_actions_with_counts(
     image_id: str,
     likes: int,
-    fires: int,
     dislikes: int,
 ) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text=f"👍 {likes}", callback_data=f"react:like:{image_id}"),
-            InlineKeyboardButton(text=f"💩 {fires}", callback_data=f"react:fire:{image_id}"),
-            InlineKeyboardButton(text=f"🖕 {dislikes}", callback_data=f"react:dislike:{image_id}"),
+            InlineKeyboardButton(text=f"🤙🏻 {likes}", callback_data=f"react:like:{image_id}"),
+            InlineKeyboardButton(text=f"🖕🏻 {dislikes}", callback_data=f"react:dislike:{image_id}"),
         ],
         [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]

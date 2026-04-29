@@ -44,6 +44,7 @@ class UploadSession(TypedDict):
     failed: int
     duplicates: int
     ack_sent: bool
+    announced_achievements: set[int]
 
 
 DuelStartResult = Literal["started", "active", "failed"]
@@ -224,7 +225,7 @@ def build_router(
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
-            achievement = achievement_for(message, image_pool)
+            achievement = achievement_for(message, image_pool, data["announced_achievements"])
             if achievement:
                 await message.answer(achievement, parse_mode="HTML")
             return
@@ -359,7 +360,6 @@ def build_router(
                     reply_markup=picture_actions_with_counts(
                         image_id=image.id,
                         likes=image.likes,
-                        fires=image.fires,
                         dislikes=image.dislikes,
                     )
                 )
@@ -817,7 +817,13 @@ def is_private_chat(message: Message) -> bool:
 
 
 def new_upload_session() -> UploadSession:
-    return {"added": 0, "failed": 0, "duplicates": 0, "ack_sent": False}
+    return {
+        "added": 0,
+        "failed": 0,
+        "duplicates": 0,
+        "ack_sent": False,
+        "announced_achievements": set(),
+    }
 
 
 def upload_data(message: Message) -> UploadSession:
@@ -878,9 +884,8 @@ def format_stats(image_pool: ImagePool) -> str:
         ),
         format_section(
             "🧪 Реакции",
-            format_metric("👍 Одобрений", stats.total_likes),
-            format_metric("💩 Какашек", stats.total_fires),
-            format_metric("🖕 Пальцев", stats.total_dislikes),
+            format_metric("🤙🏻 Одобрений", stats.total_likes),
+            format_metric("🖕🏻 Пальцев", stats.total_dislikes),
         ),
     ]
     return "\n\n".join(sections)
@@ -1048,9 +1053,8 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
         format_metric("Текущее достижение", current_achievement),
         "",
         "<b>📊 Реакции на ваши пикчи</b>",
-        format_metric("👍 Одобрений", reaction_stats.likes),
-        format_metric("💩 Какашек", reaction_stats.fires),
-        format_metric("🖕 Пальцев", reaction_stats.dislikes),
+        format_metric("🤙🏻 Одобрений", reaction_stats.likes),
+        format_metric("🖕🏻 Пальцев", reaction_stats.dislikes),
         format_metric("🎲 Показов", reaction_stats.shown),
         "",
         "<b>🎖 Статус</b>",
@@ -1076,10 +1080,7 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
 
 
 def format_top_entry(prefix: str, user_label: str, count: int, achievement: str) -> str:
-    return (
-        f"{prefix} <b>{escape(user_label)}</b>\n"
-        f"📦 <b>{count}</b> пикч · {escape(achievement)}"
-    )
+    return f"{prefix} <b>{escape(user_label)}</b> — <b>{count}</b> пикч · {escape(achievement)}"
 
 
 def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
@@ -1094,17 +1095,17 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
         if position == 1:
-            lines.append("<b>👑 Пьедестал</b>")
+            lines.append("<b>👑 Пьедестал:</b>")
+            lines.append("")
         if position == 4:
             lines.append("")
             lines.append("<b>📦 Остальные поставщики</b>")
+            lines.append("")
 
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
         achievement = current_achievement_for(count)
         user_label = image_pool.user_label(user_id)
         lines.append(format_top_entry(prefix, user_label, count, achievement))
-        if position != len(top_uploaders):
-            lines.append("")
 
     return "\n".join(lines)
 
@@ -1140,10 +1141,8 @@ def random_picture_caption() -> str:
 def quality_title(stats) -> str:
     if stats.uploaded == 0:
         return "кандидат в поставщики хаоса"
-    if stats.likes >= 50 and stats.likes >= stats.fires + stats.dislikes:
+    if stats.likes >= 50 and stats.likes >= stats.dislikes:
         return "поставщик годноты"
-    if stats.fires >= 50 and stats.fires > stats.likes:
-        return "магистр спорного контента"
     if stats.dislikes >= 10:
         return "любимец народного суда"
     if stats.uploaded >= 100 and stats.likes == 0:
@@ -1157,8 +1156,6 @@ def combo_achievements_for(stats) -> list[str]:
         combos.append("заливочный марафонец")
     if stats.likes >= 10:
         combos.append("пикчи собирают одобрение")
-    if stats.fires >= 10:
-        combos.append("контент вызывает вопросы")
     if stats.dislikes >= 5:
         combos.append("народный суд заметил")
     if stats.shown >= 50:
@@ -1227,7 +1224,11 @@ def random_duel_tie_phrase() -> str:
     return RANDOM.choice(DUEL_TIE_PHRASES)
 
 
-def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
+def achievement_for(
+    message: Message,
+    image_pool: ImagePool,
+    announced_achievements: set[int] | None = None,
+) -> str | None:
     if message.from_user is None:
         return None
 
@@ -1239,6 +1240,10 @@ def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
     )
     for threshold, achievement in ACHIEVEMENTS:
         if uploaded_count == threshold:
+            if announced_achievements is not None:
+                if threshold in announced_achievements:
+                    return None
+                announced_achievements.add(threshold)
             return (
                 f"<b>🏅 Достижение:</b> {achievement}\n"
                 f"{escape(uploader)} загрузил пикч: {uploaded_count}"

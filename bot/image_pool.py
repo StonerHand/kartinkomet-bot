@@ -11,7 +11,6 @@ from aiogram.types import Message, User
 
 REACTION_FIELDS = {
     "like": "likes",
-    "fire": "fires",
     "dislike": "dislikes",
 }
 STORAGE_VERSION = 3
@@ -32,7 +31,6 @@ class ImageRecord:
     id: str
     file_id: str
     likes: int = 0
-    fires: int = 0
     dislikes: int = 0
 
 
@@ -47,7 +45,6 @@ class PoolStats:
     total_images: int
     total_shows: int
     total_likes: int
-    total_fires: int
     total_dislikes: int
     total_duels: int
     duel_executions: int
@@ -58,7 +55,6 @@ class PoolStats:
 class UserReactionStats:
     uploaded: int
     likes: int
-    fires: int
     dislikes: int
     shown: int
 
@@ -179,7 +175,6 @@ class ImagePool:
             total_images=len(self._records),
             total_shows=sum(record["shown_count"] for record in self._records),
             total_likes=sum(record["likes"] for record in self._records),
-            total_fires=sum(record["fires"] for record in self._records),
             total_dislikes=sum(record["dislikes"] for record in self._records),
             total_duels=self._duel_stats["total"],
             duel_executions=self._duel_stats["executions"],
@@ -199,7 +194,6 @@ class ImagePool:
             record["shown_count"] = 0
             record["last_shown_at"] = None
             record["likes"] = 0
-            record["fires"] = 0
             record["dislikes"] = 0
             record["reactions_by_user"] = {}
 
@@ -215,7 +209,6 @@ class ImagePool:
         return UserReactionStats(
             uploaded=len(records),
             likes=sum(record["likes"] for record in records),
-            fires=sum(record["fires"] for record in records),
             dislikes=sum(record["dislikes"] for record in records),
             shown=sum(record["shown_count"] for record in records),
         )
@@ -395,7 +388,6 @@ class ImagePool:
             id=record["id"],
             file_id=record["file_id"],
             likes=record["likes"],
-            fires=record["fires"],
             dislikes=record["dislikes"],
         )
 
@@ -495,7 +487,6 @@ class ImagePool:
                 "shown_count": 0,
                 "last_shown_at": None,
                 "likes": 0,
-                "fires": 0,
                 "dislikes": 0,
                 "reactions_by_user": {},
             }
@@ -514,7 +505,6 @@ class ImagePool:
         else:
             reaction_totals = {
                 "likes": int(item.get("likes") or 0),
-                "fires": int(item.get("fires") or 0),
                 "dislikes": int(item.get("dislikes") or 0),
             }
 
@@ -527,7 +517,6 @@ class ImagePool:
             "shown_count": int(item.get("shown_count") or 0),
             "last_shown_at": item.get("last_shown_at"),
             "likes": reaction_totals["likes"],
-            "fires": reaction_totals["fires"],
             "dislikes": reaction_totals["dislikes"],
             "reactions_by_user": reactions_by_user,
         }
@@ -543,7 +532,7 @@ class ImagePool:
         }
 
     def _reaction_totals(self, reactions_by_user: dict[str, str]) -> dict[str, int]:
-        totals = {"likes": 0, "fires": 0, "dislikes": 0}
+        totals = {"likes": 0, "dislikes": 0}
         for reaction in reactions_by_user.values():
             totals[REACTION_FIELDS[reaction]] += 1
 

@@ -36,7 +36,7 @@ from bot.handlers import (
     register_active_duel,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import main_menu, upload_menu
+from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -169,6 +169,17 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(upload_buttons, ["✅ Закончить", "❌ Отмена"])
 
+    def test_picture_reactions_use_two_buttons_only(self) -> None:
+        buttons = [button.text for row in picture_actions("image-id").inline_keyboard for button in row]
+        counted_buttons = [
+            button.text
+            for row in picture_actions_with_counts("image-id", likes=2, dislikes=1).inline_keyboard
+            for button in row
+        ]
+
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё"])
+        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё"])
+
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
 
@@ -185,11 +196,13 @@ class BotContractTest(unittest.TestCase):
             pool.add_from_message(message)
 
             text = achievement_for(message, pool)
+            duplicate_text = achievement_for(message, pool, {1})
 
             self.assertIsNotNone(text)
             assert text is not None
             self.assertIn("artem загрузил пикч", text)
             self.assertNotIn("@artem", text)
+            self.assertIsNone(duplicate_text)
 
     def test_dislike_jury_thresholds_stay_intentional(self) -> None:
         self.assertEqual(AUTO_DELETE_DISLIKES, 2)
@@ -255,7 +268,7 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("stale-duel", duel_sessions)
 
     def test_quality_title_and_combos(self) -> None:
-        stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)
+        stats = SimpleNamespace(uploaded=100, likes=60, dislikes=0, shown=60)
 
         self.assertEqual(quality_title(stats), "поставщик годноты")
         self.assertIn("заливочный марафонец", combo_achievements_for(stats))
@@ -437,9 +450,11 @@ class ImagePoolTest(unittest.TestCase):
             pool.react(image.id, "like", user_id=1)
             switched = pool.react(image.id, "dislike", user_id=1)
             another_user = pool.react(image.id, "dislike", user_id=2)
+            ignored = pool.react(image.id, "poop", user_id=3)
 
             self.assertTrue(switched.changed)
             self.assertTrue(another_user.changed)
+            self.assertIsNone(ignored)
             stats = pool.stats()
             self.assertEqual(stats.total_likes, 0)
             self.assertEqual(stats.total_dislikes, 2)
@@ -461,13 +476,13 @@ class ImagePoolTest(unittest.TestCase):
             image = pool.random_image(chat_id=1)
             assert image is not None
             pool.react(image.id, "like", user_id=1)
-            pool.react(image.id, "fire", user_id=2)
+            pool.react(image.id, "dislike", user_id=2)
 
             stats = pool.reaction_stats_by_user(10)
 
             self.assertEqual(stats.uploaded, 1)
             self.assertEqual(stats.likes, 1)
-            self.assertEqual(stats.fires, 1)
+            self.assertEqual(stats.dislikes, 1)
             self.assertEqual(stats.shown, 1)
 
     def test_remembers_user_labels_for_top_uploaders(self) -> None:
@@ -478,8 +493,8 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.user_label(10), "artem")
             top_text = format_top_uploaders(pool)
-            self.assertIn("<b>👑 Пьедестал</b>", top_text)
-            self.assertIn("🥇 <b>artem</b>\n📦 <b>1</b> пикч", top_text)
+            self.assertIn("<b>👑 Пьедестал:</b>", top_text)
+            self.assertIn("🥇 <b>artem</b> — <b>1</b> пикч", top_text)
             self.assertNotIn("@artem", top_text)
 
     def test_top_uploaders_escapes_user_names_for_html(self) -> None:
@@ -560,7 +575,7 @@ class ImagePoolTest(unittest.TestCase):
             image = pool.random_image(chat_id=555)
             self.assertIsNotNone(image)
             assert image is not None
-            pool.react(image.id, "fire", user_id=1)
+            pool.react(image.id, "dislike", user_id=1)
             pool.record_duel_result(tied=False)
             pool.record_duel_result(tied=True)
 
@@ -568,7 +583,7 @@ class ImagePoolTest(unittest.TestCase):
 
             stats = pool.stats()
             self.assertEqual(stats.total_shows, 0)
-            self.assertEqual(stats.total_fires, 0)
+            self.assertEqual(stats.total_dislikes, 0)
             self.assertEqual(stats.total_duels, 0)
             self.assertEqual(stats.duel_executions, 0)
             self.assertEqual(stats.duel_ties, 0)
