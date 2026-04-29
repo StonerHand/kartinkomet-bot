@@ -10,6 +10,7 @@ from bot.config import parse_user_ids
 from bot.handlers import (
     active_duel_id_for_chat,
     active_duels_by_chat,
+    achievement_for,
     clear_active_duel,
     combo_achievements_for,
     current_achievement_for,
@@ -171,6 +172,20 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(current_achievement_for(0), "пока без медали, но путь начат")
         self.assertEqual(current_achievement_for(1), "первый вброс")
         self.assertEqual(next_achievement_for(1), (2, "двойной занос"))
+
+    def test_achievement_message_does_not_ping_username(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            message = fake_photo_message("file-a", "unique-a", user_id=10)
+            message.from_user.username = "artem"
+            pool.add_from_message(message)
+
+            text = achievement_for(message, pool)
+
+            self.assertIsNotNone(text)
+            assert text is not None
+            self.assertIn("artem загрузил пикч", text)
+            self.assertNotIn("@artem", text)
 
     def test_dislike_jury_thresholds_stay_intentional(self) -> None:
         self.assertEqual(AUTO_DELETE_DISLIKES, 2)
@@ -416,10 +431,11 @@ class ImagePoolTest(unittest.TestCase):
             pool.add_from_message(fake_photo_message("file-a", "unique-a", user_id=10))
             pool.remember_user(fake_user(10, username="artem"))
 
-            self.assertEqual(pool.user_label(10), "@artem")
+            self.assertEqual(pool.user_label(10), "artem")
             top_text = format_top_uploaders(pool)
             self.assertIn("<b>👑 Пьедестал</b>", top_text)
-            self.assertIn("🥇 <b>@artem</b>", top_text)
+            self.assertIn("🥇 <b>artem</b>", top_text)
+            self.assertNotIn("@artem", top_text)
 
     def test_top_uploaders_escapes_user_names_for_html(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1068,13 +1068,16 @@ def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
 
     uploaded_count = image_pool.count_by_user(message.from_user.id)
     uploader = (
-        f"@{message.from_user.username}"
+        message.from_user.username
         if message.from_user.username
         else (message.from_user.first_name or "кто-то")
     )
     for threshold, achievement in ACHIEVEMENTS:
         if uploaded_count == threshold:
-            return f"<b>🏅 Достижение:</b> {achievement}\n{uploader} загрузил пикч: {uploaded_count}"
+            return (
+                f"<b>🏅 Достижение:</b> {achievement}\n"
+                f"{escape(uploader)} загрузил пикч: {uploaded_count}"
+            )
 
     return None
 

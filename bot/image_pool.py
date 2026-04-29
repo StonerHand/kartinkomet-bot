@@ -283,7 +283,7 @@ class ImagePool:
 
         username = user.get("username")
         if username:
-            return f"@{username}"
+            return str(username).lstrip("@")
 
         full_name = " ".join(
             part
