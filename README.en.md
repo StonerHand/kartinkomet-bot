@@ -65,7 +65,14 @@ Large pools repeat much less often. Small pools can still repeat, but the bot tr
 
 `/duel` selects two random images, sends them as one album without captions under the photos, then opens a `60` second vote.
 
-Duels use `222` dedicated phrases across fight announcements and final verdicts, so battles feel less repetitive while photos stay clean.
+Duels use a compact card: title, live status, score, timer, and current leader. No `file_id`, no long text walls, and no captions under the photos.
+
+Duels have `400` short dedicated phrases:
+
+- `100` start titles
+- `100` live voting statuses
+- `100` winner phrases
+- `100` tie phrases
 
 Rules:
 
@@ -73,7 +80,7 @@ Rules:
 - the bot announces the result after the timer
 - the losing image is removed from the pool
 - ties keep both images alive
-- the result includes a `⚔️ Новая дуэль?` button
+- the result includes a `⚔️ Новая дуэль` button
 
 ## Uploading
 
@@ -141,6 +148,7 @@ Current counts:
 - `150` upload-finish phrases
 - `150` empty-pool phrases
 - `50` achievements
+- `400` short duel phrases
 - daily mood labels
 - jury threshold messages
 

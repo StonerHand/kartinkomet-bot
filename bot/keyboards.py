@@ -45,7 +45,7 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
 def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⚔️ Новая дуэль?", callback_data="duel_new")],
+            [InlineKeyboardButton(text="⚔️ Новая дуэль", callback_data="duel_new")],
         ]
     )
 

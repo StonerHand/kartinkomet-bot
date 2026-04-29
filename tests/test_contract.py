@@ -27,8 +27,10 @@ from bot.keyboards import main_menu, upload_menu
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
-    DUEL_ANNOUNCEMENTS,
-    DUEL_RESULT_PHRASES,
+    DUEL_START_PHRASES,
+    DUEL_STATUS_PHRASES,
+    DUEL_TIE_PHRASES,
+    DUEL_WIN_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
@@ -131,10 +133,14 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(len(ACHIEVEMENTS), 50)
 
     def test_duel_phrase_pools_have_expected_size(self) -> None:
-        self.assertEqual(len(DUEL_ANNOUNCEMENTS), 111)
-        self.assertEqual(len(DUEL_RESULT_PHRASES), 111)
-        self.assertEqual(len(DUEL_ANNOUNCEMENTS) + len(DUEL_RESULT_PHRASES), 222)
-        duel_phrases = "\n".join(DUEL_ANNOUNCEMENTS + DUEL_RESULT_PHRASES)
+        self.assertEqual(len(DUEL_START_PHRASES), 100)
+        self.assertEqual(len(DUEL_STATUS_PHRASES), 100)
+        self.assertEqual(len(DUEL_WIN_PHRASES), 100)
+        self.assertEqual(len(DUEL_TIE_PHRASES), 100)
+        duel_phrases = "\n".join(
+            DUEL_START_PHRASES + DUEL_STATUS_PHRASES + DUEL_WIN_PHRASES + DUEL_TIE_PHRASES
+        )
+        self.assertNotIn("file_id", duel_phrases)
         self.assertIsNone(re.search(r"\. [а-яё]", duel_phrases))
 
     def test_main_keyboard_keeps_structured_actions(self) -> None:
@@ -164,11 +170,16 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn(2, JURY_THRESHOLDS)
 
     def test_duel_score_format(self) -> None:
-        self.assertIn("⏱ <b>60 секунд</b>", format_duel_score(2, 1))
-        self.assertIn("🅰️ слева: <b>2</b>", format_duel_score(2, 1))
-        self.assertIn("🅱️ справа: <b>1</b>\n\n⏱", format_duel_score(2, 1))
-        self.assertIn("🅱️ проиграла и удалена из пула", format_duel_result(2, 1, "left"))
-        self.assertIn("Обе пикчи выжили", format_duel_result(1, 1, None))
+        score = format_duel_score(2, 1, title="Суд мемов", status="Чат держит паузу")
+
+        self.assertIn("<b>⚔️ Суд мемов</b>", score)
+        self.assertIn("Чат держит паузу", score)
+        self.assertIn("🅰️ Первая: <b>2</b>", score)
+        self.assertIn("🅱️ Вторая: <b>1</b>\n\n⏱", score)
+        self.assertIn("🔥 Лидирует: 🅰️ Первая", score)
+        self.assertIn("👑 Победила: <b>🅰️ Первая</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🗑 Удалена: <b>🅱️ Вторая</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("⚖️ Ничья. Обе пикчи выжили", format_duel_result(1, 1, None))
 
     def test_quality_title_and_combos(self) -> None:
         stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)

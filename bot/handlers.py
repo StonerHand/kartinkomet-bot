@@ -19,8 +19,10 @@ from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
     BOT_MOODS,
-    DUEL_ANNOUNCEMENTS,
-    DUEL_RESULT_PHRASES,
+    DUEL_START_PHRASES,
+    DUEL_STATUS_PHRASES,
+    DUEL_TIE_PHRASES,
+    DUEL_WIN_PHRASES,
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
@@ -388,7 +390,8 @@ def build_router(
                     format_duel_score(
                         left_votes,
                         right_votes,
-                        announcement=str(duel.get("announcement") or random_duel_announcement()),
+                        title=str(duel.get("title") or random_duel_start_phrase()),
+                        status=str(duel.get("status") or random_duel_status_phrase()),
                     ),
                     parse_mode="HTML",
                     reply_markup=duel_vote(duel_id, left_votes, right_votes),
@@ -502,16 +505,18 @@ async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
         )
 
     duel_id = uuid4().hex
-    announcement = random_duel_announcement()
+    title = random_duel_start_phrase()
+    status = random_duel_status_phrase()
     duel_sessions[duel_id] = {
         "left": left.id,
         "right": right.id,
         "votes": {},
         "active": True,
-        "announcement": announcement,
+        "title": title,
+        "status": status,
     }
     score_message = await message.answer(
-        format_duel_score(0, 0, announcement=announcement),
+        format_duel_score(0, 0, title=title, status=status),
         parse_mode="HTML",
         reply_markup=duel_vote(duel_id),
     )
@@ -906,44 +911,63 @@ def combo_achievements_for(stats) -> list[str]:
     return combos[:4]
 
 
-def format_duel_score(left_votes: int, right_votes: int, announcement: str | None = None) -> str:
+def format_duel_score(
+    left_votes: int,
+    right_votes: int,
+    title: str | None = None,
+    status: str | None = None,
+) -> str:
     if left_votes == right_votes:
-        verdict = "ничья, чат думает"
+        verdict = "⚖️ Пока ничья"
     elif left_votes > right_votes:
-        verdict = "🅰️ ведёт"
+        verdict = "🔥 Лидирует: 🅰️ Первая"
     else:
-        verdict = "🅱️ ведёт"
+        verdict = "🔥 Лидирует: 🅱️ Вторая"
 
     return (
-        f"<b>⚔️ {escape(announcement or random_duel_announcement())}</b>\n\n"
-        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
-        f"⏱ <b>{DUEL_SECONDS} секунд</b> · {verdict}"
+        f"<b>⚔️ {escape(title or random_duel_start_phrase())}</b>\n"
+        f"{escape(status or random_duel_status_phrase())}\n\n"
+        f"🅰️ Первая: <b>{left_votes}</b>\n"
+        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
+        f"⏱ <b>{DUEL_SECONDS} секунд</b>\n"
+        f"{verdict}"
     )
 
 
 def format_duel_result(left_votes: int, right_votes: int, winner: str | None) -> str:
     if winner is None:
-        verdict = "Ничья. Обе пикчи выжили, суд разошёлся без приговора"
+        phrase = random_duel_tie_phrase()
+        verdict = "⚖️ Ничья. Обе пикчи выжили"
     elif winner == "left":
-        verdict = "🅰️ победила. 🅱️ проиграла и удалена из пула"
+        phrase = random_duel_win_phrase()
+        verdict = "👑 Победила: <b>🅰️ Первая</b>\n🗑 Удалена: <b>🅱️ Вторая</b>"
     else:
-        verdict = "🅱️ победила. 🅰️ проиграла и удалена из пула"
+        phrase = random_duel_win_phrase()
+        verdict = "👑 Победила: <b>🅱️ Вторая</b>\n🗑 Удалена: <b>🅰️ Первая</b>"
 
     return (
-        "<b>⚔️ Дуэль завершена</b>\n\n"
-        f"{escape(random_duel_result_phrase())}\n\n"
+        "<b>🏁 Дуэль окончена</b>\n"
+        f"{escape(phrase)}\n\n"
         f"🅰️ Первая: <b>{left_votes}</b>\n"
         f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
-        f"🏁 {verdict}"
+        f"{verdict}"
     )
 
 
-def random_duel_announcement() -> str:
-    return RANDOM.choice(DUEL_ANNOUNCEMENTS)
+def random_duel_start_phrase() -> str:
+    return RANDOM.choice(DUEL_START_PHRASES)
 
 
-def random_duel_result_phrase() -> str:
-    return RANDOM.choice(DUEL_RESULT_PHRASES)
+def random_duel_status_phrase() -> str:
+    return RANDOM.choice(DUEL_STATUS_PHRASES)
+
+
+def random_duel_win_phrase() -> str:
+    return RANDOM.choice(DUEL_WIN_PHRASES)
+
+
+def random_duel_tie_phrase() -> str:
+    return RANDOM.choice(DUEL_TIE_PHRASES)
 
 
 def achievement_for(message: Message, image_pool: ImagePool) -> str | None:
