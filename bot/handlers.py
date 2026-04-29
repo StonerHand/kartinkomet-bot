@@ -15,7 +15,17 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import duel_vote, main_menu, new_duel, picture_actions, picture_actions_with_counts, upload_menu
+from bot.joke_pool import JokePool
+from bot.keyboards import (
+    duel_vote,
+    joke_actions,
+    joke_actions_with_counts,
+    main_menu,
+    new_duel,
+    picture_actions,
+    picture_actions_with_counts,
+    upload_menu,
+)
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -33,6 +43,7 @@ from bot.texts import (
 from bot.weather import format_weather_error, format_weather_report, get_mala_tokmachka_weather
 
 UPLOAD_COMMAND = "upload_pidor"
+JOKE_UPLOAD_COMMAND = "upload_joke"
 DUEL_SECONDS = 60
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
@@ -48,10 +59,18 @@ class UploadSession(TypedDict):
     announced_achievements: set[int]
 
 
+class JokeUploadSession(TypedDict):
+    added: int
+    failed: int
+    duplicates: int
+    ack_sent: bool
+
+
 DuelStartResult = Literal["started", "active", "failed"]
 
 
 active_uploads: dict[int, UploadSession] = {}
+active_joke_uploads: dict[int, JokeUploadSession] = {}
 duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, str] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
@@ -62,8 +81,13 @@ class AddPicture(StatesGroup):
     uploading = State()
 
 
+class AddJoke(StatesGroup):
+    uploading = State()
+
+
 def build_router(
     image_pool: ImagePool,
+    joke_pool: JokePool,
     target_channel_id: str | None = None,
     admin_user_ids: frozenset[int] = frozenset(),
 ) -> Router:
@@ -101,17 +125,28 @@ def build_router(
             answer_message=message,
         )
 
+    @router.message(Command("joke"))
+    @router.channel_post(Command("joke"))
+    async def send_random_joke(message: Message, bot: Bot) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_joke(
+            bot=bot,
+            chat_id=message.chat.id,
+            joke_pool=joke_pool,
+            answer_message=message,
+        )
+
     @router.message(Command("count"))
     @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(format_count(image_pool), parse_mode="HTML")
+        await message.answer(format_count(image_pool, joke_pool), parse_mode="HTML")
 
     @router.message(Command("stats"))
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(format_stats(image_pool), parse_mode="HTML")
+        await message.answer(format_stats(image_pool, joke_pool), parse_mode="HTML")
 
     @router.message(Command("me"))
     async def my_uploads_command(message: Message) -> None:
@@ -143,6 +178,7 @@ def build_router(
             return
 
         image_pool.reset_stats()
+        joke_pool.reset_stats()
         await message.answer(format_reset_stats_done(), parse_mode="HTML")
 
     @router.message(Command("dedupe_user"))
@@ -187,6 +223,12 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await activate_upload(message, state)
 
+    @router.message(Command(JOKE_UPLOAD_COMMAND))
+    @router.channel_post(Command(JOKE_UPLOAD_COMMAND))
+    async def start_joke_upload(message: Message, state: FSMContext) -> None:
+        image_pool.remember_user(message.from_user)
+        await activate_joke_upload(message, state)
+
     @router.message(Command("done"))
     @router.channel_post(Command("done"))
     async def done_upload(message: Message, state: FSMContext) -> None:
@@ -204,6 +246,11 @@ def build_router(
     async def save_picture(message: Message, state: FSMContext) -> None:
         image_pool.remember_user(message.from_user)
         if not is_upload_active(message):
+            if is_joke_upload_active(message):
+                data = joke_upload_data(message)
+                failed = int(data.get("failed", 0))
+                data["failed"] = failed + 1
+                await message.answer(format_invalid_joke())
             return
 
         data = upload_data(message)
@@ -265,13 +312,16 @@ def build_router(
     @router.callback_query(F.data == "count")
     async def count_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
-        await callback.answer(f"📦 В пуле пикч: {image_pool.count()}", show_alert=True)
+        await callback.answer(
+            f"📦 Пикч: {image_pool.count()} · 😂 Анекдотов: {joke_pool.count()}",
+            show_alert=True,
+        )
 
     @router.callback_query(F.data == "stats")
     async def stats_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await callback.message.answer(format_stats(image_pool), parse_mode="HTML")
+            await callback.message.answer(format_stats(image_pool, joke_pool), parse_mode="HTML")
         await callback.answer()
 
     @router.callback_query(F.data == "me")
@@ -298,6 +348,20 @@ def build_router(
             await send_weather(callback.message)
         await callback.answer()
 
+    @router.callback_query(F.data == "joke")
+    async def joke_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        await send_joke(
+            bot=bot,
+            chat_id=callback.message.chat.id,
+            joke_pool=joke_pool,
+        )
+        await callback.answer()
+
     @router.callback_query(F.data == "upload")
     async def upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
         image_pool.remember_user(callback.from_user)
@@ -316,7 +380,7 @@ def build_router(
             return
 
         current_state = await state.get_state()
-        if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
+        if not is_any_upload_active(callback.message, current_state):
             await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
@@ -331,7 +395,7 @@ def build_router(
             return
 
         current_state = await state.get_state()
-        if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
+        if not is_any_upload_active(callback.message, current_state):
             await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
@@ -383,6 +447,48 @@ def build_router(
                     await callback.message.reply(jury_message)
                 except TelegramAPIError:
                     LOGGER.warning("Failed to send jury warning", exc_info=True)
+
+        await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
+
+    @router.callback_query(F.data.startswith("joke_react:"))
+    async def joke_react_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.data is None:
+            await callback.answer()
+            return
+
+        _, reaction, joke_id = callback.data.split(":", 2)
+        reaction_update = joke_pool.react(joke_id, reaction, callback.from_user.id)
+        if reaction_update is None:
+            await callback.answer("Не нашёл этот анекдот", show_alert=True)
+            return
+
+        joke = reaction_update.joke
+        if callback.message:
+            if (
+                reaction_update.changed
+                and reaction == "dislike"
+                and joke.dislikes >= AUTO_DELETE_DISLIKES
+            ):
+                joke_pool.delete(joke.id)
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                    await callback.message.reply("Два средних пальца. Анекдот удалён из пула")
+                except TelegramAPIError:
+                    LOGGER.warning("Failed to mark auto-deleted joke message", exc_info=True)
+                await callback.answer("Народный суд сработал")
+                return
+
+            try:
+                await callback.message.edit_reply_markup(
+                    reply_markup=joke_actions_with_counts(
+                        joke_id=joke.id,
+                        likes=joke.likes,
+                        dislikes=joke.dislikes,
+                    )
+                )
+            except TelegramAPIError:
+                LOGGER.warning("Failed to update joke reaction buttons", exc_info=True)
 
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
@@ -452,6 +558,60 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await help_command(message)
 
+    @router.message(F.text)
+    async def save_joke(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        if is_upload_active(message):
+            data = upload_data(message)
+            failed = int(data.get("failed", 0))
+            data["failed"] = failed + 1
+            await message.answer(format_invalid_file())
+            return
+
+        if not is_joke_upload_active(message):
+            return
+
+        if (message.text or "").strip().startswith("/"):
+            data = joke_upload_data(message)
+            failed = int(data.get("failed", 0))
+            data["failed"] = failed + 1
+            await message.answer(format_invalid_joke_command(), parse_mode="HTML")
+            return
+
+        data = joke_upload_data(message)
+        added = int(data.get("added", 0))
+        failed = int(data.get("failed", 0))
+        duplicates = int(data.get("duplicates", 0))
+        ack_sent = bool(data.get("ack_sent", False))
+
+        result = joke_pool.add_from_message(message)
+        if result.added:
+            data.update(
+                {
+                    "added": added + 1,
+                    "failed": failed,
+                    "duplicates": duplicates,
+                    "ack_sent": True,
+                }
+            )
+            if not ack_sent:
+                await message.answer(
+                    "<b>✅ Анекдоты принимаю</b>\n\n"
+                    "Когда всё закинули — нажмите <code>✅ Закончить</code>\n"
+                    "Если передумали — нажмите <code>❌ Отмена</code>",
+                    parse_mode="HTML",
+                    reply_markup=upload_menu(),
+                )
+            return
+
+        if result.duplicate:
+            data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
+            await message.answer(format_duplicate_joke_skipped())
+            return
+
+        data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
+        await message.answer(format_invalid_joke())
+
     @router.message()
     @router.channel_post()
     async def fallback(message: Message) -> None:
@@ -461,6 +621,11 @@ def build_router(
             failed = int(data.get("failed", 0))
             data["failed"] = failed + 1
             await message.answer(format_invalid_file())
+        elif is_joke_upload_active(message):
+            data = joke_upload_data(message)
+            failed = int(data.get("failed", 0))
+            data["failed"] = failed + 1
+            await message.answer(format_invalid_joke())
 
     return router
 
@@ -498,6 +663,33 @@ async def send_picture(
         and str(answer_message.chat.id) != str(target_channel_id)
     ):
         await answer_message.answer("Пикча улетела в канал")
+
+
+async def send_joke(
+    bot: Bot,
+    chat_id: int,
+    joke_pool: JokePool,
+    answer_message: Message | None = None,
+    avoid_recent: bool = True,
+) -> None:
+    joke = joke_pool.random_joke(
+        avoid_recent=avoid_recent,
+        chat_id=chat_id,
+    )
+    if joke is None:
+        text = format_empty_joke_pool()
+        if answer_message:
+            await answer_message.answer(text, parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+        return
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=format_joke(joke.text),
+        parse_mode="HTML",
+        reply_markup=joke_actions(joke.id),
+    )
 
 
 async def send_duel(
@@ -770,6 +962,7 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
         return False
 
     await state.set_state(AddPicture.uploading)
+    active_joke_uploads.pop(message.chat.id, None)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
         f"<b>📥 {escape(RANDOM.choice(UPLOAD_START_PHRASES))}</b>\n\n"
@@ -783,8 +976,29 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
     return True
 
 
+async def activate_joke_upload(message: Message, state: FSMContext) -> bool:
+    if not is_private_chat(message):
+        await message.answer(format_joke_upload_private_only(), parse_mode="HTML")
+        return False
+
+    await state.set_state(AddJoke.uploading)
+    active_uploads.pop(message.chat.id, None)
+    active_joke_uploads[message.chat.id] = new_joke_upload_session()
+    await message.answer(
+        "<b>😂 Приём анекдотов открыт</b>\n\n"
+        "Отправляйте анекдоты текстом, по одному сообщению на штуку\n\n"
+        "После первого принятого анекдота появятся кнопки завершения",
+        parse_mode="HTML",
+    )
+    return True
+
+
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
+    if current_state == AddJoke.uploading.state or is_joke_upload_active(message):
+        await finish_joke_upload(message, state)
+        return
+
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
@@ -794,6 +1008,12 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
+    if current_state == AddJoke.uploading.state or is_joke_upload_active(message):
+        await state.clear()
+        active_joke_uploads.pop(message.chat.id, None)
+        await message.answer(format_joke_upload_cancelled(), parse_mode="HTML")
+        return
+
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
@@ -826,8 +1046,43 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
+async def finish_joke_upload(message: Message, state: FSMContext) -> None:
+    data = joke_upload_data(message)
+    added = int(data.get("added", 0))
+    failed = int(data.get("failed", 0))
+    duplicates = int(data.get("duplicates", 0))
+    await state.clear()
+    active_joke_uploads.pop(message.chat.id, None)
+
+    lines = [
+        "<b>✅ Загрузка анекдотов завершена</b>",
+        "Устный фонд пополнен, тамада нервно уважает",
+        "",
+        "<b>😂 Итог</b>",
+        format_metric("Добавлено анекдотов", added),
+    ]
+    if failed:
+        lines.append(format_metric("Не зашло", failed))
+    if duplicates:
+        lines.append(format_metric("Баянов пропущено", duplicates))
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
 def is_upload_active(message: Message) -> bool:
     return is_private_chat(message) and message.chat.id in active_uploads
+
+
+def is_joke_upload_active(message: Message) -> bool:
+    return is_private_chat(message) and message.chat.id in active_joke_uploads
+
+
+def is_any_upload_active(message: Message, current_state: str | None) -> bool:
+    return (
+        current_state in {AddPicture.uploading.state, AddJoke.uploading.state}
+        or is_upload_active(message)
+        or is_joke_upload_active(message)
+    )
 
 
 def is_private_chat(message: Message) -> bool:
@@ -844,10 +1099,26 @@ def new_upload_session() -> UploadSession:
     }
 
 
+def new_joke_upload_session() -> JokeUploadSession:
+    return {
+        "added": 0,
+        "failed": 0,
+        "duplicates": 0,
+        "ack_sent": False,
+    }
+
+
 def upload_data(message: Message) -> UploadSession:
     return active_uploads.setdefault(
         message.chat.id,
         new_upload_session(),
+    )
+
+
+def joke_upload_data(message: Message) -> JokeUploadSession:
+    return active_joke_uploads.setdefault(
+        message.chat.id,
+        new_joke_upload_session(),
     )
 
 
@@ -875,7 +1146,7 @@ async def show_menu(message: Message) -> None:
     await message.answer(
         "<b>🚨 Пульт от ядерки</b>\n\n"
         "<b>🎮 Быстрые кнопки</b>\n"
-        "🎲 рандом · ⚔️ дуэль\n\n"
+        "🎲 рандом · 😂 анекдот · ⚔️ дуэль\n\n"
         "<b>📊 Склад и люди</b>\n"
         "📊 сводка · 👤 мой вклад · 🏆 топ\n\n"
         "⬆️ загрузка работает в личке с ботом",
@@ -892,8 +1163,9 @@ def format_section(title: str, *lines: str) -> str:
     return "\n".join([f"<b>{title}</b>", *lines])
 
 
-def format_stats(image_pool: ImagePool) -> str:
+def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> str:
     stats = image_pool.stats()
+    joke_stats = joke_pool.stats() if joke_pool else None
     sections = [
         "<b>📊 Сводка kartinkomet</b>",
         format_section("📦 Пул", format_metric("Пикч внутри", stats.total_images)),
@@ -910,6 +1182,17 @@ def format_stats(image_pool: ImagePool) -> str:
             format_metric("🖕🏻 Пальцев", stats.total_dislikes),
         ),
     ]
+    if joke_stats is not None:
+        sections.insert(
+            2,
+            format_section(
+                "😂 Анекдоты",
+                format_metric("В блокноте", joke_stats.total_jokes),
+                format_metric("Рассказано", joke_stats.total_shows),
+                format_metric("🤙🏻 Одобрений", joke_stats.total_likes),
+                format_metric("🖕🏻 Пальцев", joke_stats.total_dislikes),
+            ),
+        )
     return "\n\n".join(sections)
 
 
@@ -920,6 +1203,7 @@ def format_start() -> str:
         f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
         "<b>🚀 Быстрый старт</b>\n"
         "• <code>🎲 Рандом</code> — получить пикчу\n"
+        "• <code>😂 Анекдот</code> — достать случайный текстовый баян\n"
         "• <code>⚔️ Дуэль</code> — устроить бой двух пикч\n"
         "• <code>⬆️ Загрузить пикчи</code> — пополнить пул в личке\n"
         "• <code>🌦 Погода</code> — узнать, что там в Малой Токмачке"
@@ -934,6 +1218,11 @@ def format_help() -> str:
             "<code>/pic</code> — выстрелить рандомной пикчей",
             "<code>/count</code> — размер общего пула",
             "<code>/menu</code> — открыть пульт от ядерки",
+        ),
+        format_section(
+            "😂 Анекдоты",
+            "<code>/joke</code> — случайный анекдот",
+            "<code>/upload_joke</code> — загрузить анекдоты в личке",
         ),
         format_section(
             "⚔️ Дуэли",
@@ -955,16 +1244,22 @@ def format_help() -> str:
         ),
         format_section(
             "🧹 Народный суд",
-            "2 средних пальца удаляют пикчу из пула",
+            "2 средних пальца удаляют пикчу или анекдот из пула",
         ),
     ]
     return "\n\n".join(sections)
 
 
-def format_count(image_pool: ImagePool) -> str:
+def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> str:
+    joke_line = (
+        f"\n{format_metric('Анекдотов в блокноте', joke_pool.count())}"
+        if joke_pool
+        else ""
+    )
     return (
         "<b>📦 Общий пул</b>\n\n"
         f"{format_metric('Пикч на складе', image_pool.count())}"
+        f"{joke_line}"
     )
 
 
@@ -1028,6 +1323,53 @@ def format_invalid_file() -> str:
     return "⚠️ Файл не зашёл. Отправьте изображение"
 
 
+def format_empty_joke_pool() -> str:
+    return (
+        "<b>😂 Анекдотов пока нет</b>\n\n"
+        f"Откройте личку с ботом и отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>"
+    )
+
+
+def format_joke(text: str) -> str:
+    return (
+        "<b>😂 Анекдот из общего блокнота</b>\n\n"
+        f"{escape(text)}"
+    )
+
+
+def format_duplicate_joke_skipped() -> str:
+    return "♻️ Баян уже был, пропускаю"
+
+
+def format_invalid_joke() -> str:
+    return "⚠️ Не похоже на анекдот. Отправьте обычный текст"
+
+
+def format_invalid_joke_command() -> str:
+    return (
+        "<b>⚠️ Это команда, а не анекдот</b>\n\n"
+        f"Для завершения используйте <code>/done</code>, для отмены — <code>/cancel</code>"
+    )
+
+
+def format_joke_upload_private_only() -> str:
+    return (
+        "<b>📬 Анекдоты принимаю только в личке</b>\n\n"
+        "В группе оставляем выдачу, статы и дуэли без текстового склада на полу\n\n"
+        "<b>Как загрузить</b>\n"
+        "1. Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
+        f"2. Отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>\n"
+        "3. Кидайте анекдоты текстом"
+    )
+
+
+def format_joke_upload_cancelled() -> str:
+    return (
+        "<b>❌ Загрузка анекдотов отменена</b>\n\n"
+        "Блокнот закрыт без итоговой сводки"
+    )
+
+
 def format_upload_cancelled() -> str:
     return (
         "<b>❌ Загрузка отменена</b>\n\n"
@@ -1038,7 +1380,8 @@ def format_upload_cancelled() -> str:
 def format_upload_not_active() -> str:
     return (
         "<b>⚠️ Загрузка не открыта</b>\n\n"
-        f"Откройте её в личке через <code>/{UPLOAD_COMMAND}</code>"
+        f"Пикчи: <code>/{UPLOAD_COMMAND}</code>\n"
+        f"Анекдоты: <code>/{JOKE_UPLOAD_COMMAND}</code>"
     )
 
 
@@ -1052,7 +1395,8 @@ def format_reset_stats_done() -> str:
         "• реакции обнулены\n"
         "• показы обнулены\n"
         "• дуэли обнулены\n"
-        "• память рандома очищена"
+        "• память рандома очищена\n"
+        "• анекдоты оставлены, но их реакции и показы обнулены"
     )
 
 

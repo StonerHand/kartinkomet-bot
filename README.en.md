@@ -1,12 +1,12 @@
 # kartinkomet
 
-Telegram bot for a shared image pool: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, and duplicate cleanup.
+Telegram bot for a shared pool of images and jokes: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, weather, and duplicate cleanup.
 
 [Русская версия](README.md)
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом` button or `/pic`, runs two-image duels, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs two-image duels, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -15,11 +15,13 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - groups are for random images, duels, stats, and leaderboards
 - uploads happen only in private chat with the bot, so Telegram Privacy Mode cannot break file intake
 - the pool is shared: upload in private chat, use in groups
+- jokes live separately from images in `jokes.json`
 - exact duplicates are rejected through `file_unique_id`
+- text duplicates are rejected through normalized joke text
 - visual duplicates can be cleaned with a separate `dHash` script
 - one user can add up to `100` new images per hour
 - one user can cast one reaction per image, but can switch it
-- `2 🖕🏻` remove an image from the pool
+- `2 🖕🏻` remove an image or joke from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
 - duels are self-healing: timer refreshes and stale duel state is cleared
 
@@ -28,20 +30,22 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | Command | Action |
 | --- | --- |
 | `/pic` | Send a random image |
+| `/joke` | Send a random joke |
 | `/duel` | Start a duel between two random images |
 | `/weather` | Show weather for Mala Tokmachka |
 | `/menu` | Open the main control panel |
 | `/upload_pidor` | Start upload mode in private chat |
+| `/upload_joke` | Start joke upload mode in private chat |
 | `/done` | Finish upload mode |
 | `/cancel` | Cancel upload mode |
 | `/stats` | Show pool, random, duel, and reaction stats |
 | `/me` | Show your contribution and achievements |
 | `/top` | Show the upload leaderboard |
-| `/count` | Show pool size |
+| `/count` | Show image and joke counts |
 | `/mood` | Show today's bot mood |
 | `/help` | Show help |
 
-There is intentionally no `/upload` command. The only slash upload command is `/upload_pidor`.
+There is intentionally no `/upload` command. Upload commands are explicit: `/upload_pidor` for images and `/upload_joke` for jokes.
 
 Hidden maintenance commands:
 
@@ -54,9 +58,10 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
-🎲 Рандом    ⚔️ Дуэль
-📊 Сводка    🌦 Погода
-👤 Мой вклад 🏆 Топ
+🎲 Рандом    😂 Анекдот
+⚔️ Дуэль     📊 Сводка
+🌦 Погода    👤 Мой вклад
+🏆 Топ
 ⬆️ Загрузить пикчи
 ```
 
@@ -65,6 +70,13 @@ Under a random image:
 ```text
 🤙🏻  🖕🏻
 🎲 Ещё
+```
+
+Under a joke:
+
+```text
+🤙🏻  🖕🏻
+😂 Ещё анекдот
 ```
 
 During private upload:
@@ -106,6 +118,12 @@ Stats example:
 🎲 Рандом
 • Выдано пикч: 2410
 
+😂 Анекдоты
+• В блокноте: 128
+• Рассказано: 54
+• 🤙🏻 Одобрений: 19
+• 🖕🏻 Пальцев: 3
+
 ⚔️ Дуэли
 • Боев: 37
 • Удалений после боя: 29
@@ -127,6 +145,8 @@ The picker is not a plain list shuffle. It:
 
 Large pools repeat much less often. Small pools can still repeat, but the bot avoids sending the same image immediately.
 
+Jokes follow the same idea: the bot keeps per-chat delivery history, prefers less-shown entries, and avoids sending the same text twice in a row when there are alternatives.
+
 ## Weather
 
 `/weather` and the `🌦 Погода` button show weather only for Mala Tokmachka.
@@ -134,6 +154,27 @@ Large pools repeat much less often. Small pools can still repeat, but the bot av
 The forecast comes from Open-Meteo without an API key. Users do not pick or type a city.
 
 The response is a clean card with temperature, feels-like value, sky state, daily range, precipitation, and wind. Weather is cached for `10` minutes so repeated button taps do not hit the external API every time.
+
+## Jokes
+
+`/joke` and the `😂 Анекдот` button send a random text from the separate joke pool.
+
+Upload flow:
+
+1. Open private chat with `@kartinkomet_bot`.
+2. Send `/upload_joke`.
+3. Send jokes as text, one joke per message.
+4. Finish with `/done` or cancel with `/cancel`.
+
+Rules:
+
+- jokes are stored separately in `jokes.json`
+- images and jokes never mix
+- empty messages and slash commands are not added
+- duplicate jokes are rejected through normalized text
+- one user can cast one reaction per joke, but can switch it
+- `2 🖕🏻` remove the joke from the pool
+- `/reset_stats` resets reactions, views, and random memory, but does not delete jokes
 
 ## Uploads
 
@@ -181,7 +222,7 @@ There are `400` dedicated short duel phrases:
 
 ## Reactions And Jury Rule
 
-Each image has `🤙🏻` and `🖕🏻`.
+Each image and joke has `🤙🏻` and `🖕🏻`.
 
 Rules:
 
@@ -193,7 +234,7 @@ Rules:
 Jury rule:
 
 - `1 🖕🏻` - no bot message
-- `2 🖕🏻` - image is removed from the pool, and the removal notice replies to that image
+- `2 🖕🏻` - image or joke is removed from the pool, and the removal notice replies to the original message
 
 ## Achievements And Profile
 
@@ -228,7 +269,9 @@ Image captions are clean, without mood prefixes.
 
 ## Storage
 
-The pool is stored as JSON and automatically migrates older plain `file_id` lists to the versioned format.
+Images and jokes are stored in separate JSON files.
+
+Images live in `image_pool.json`. It automatically migrates older plain `file_id` lists to the versioned format.
 
 Example:
 
@@ -259,6 +302,33 @@ Example:
     "total": 37,
     "executions": 29,
     "ties": 8
+  }
+}
+```
+
+Jokes live in `jokes.json`:
+
+```json
+{
+  "version": 1,
+  "jokes": [
+    {
+      "id": "j1",
+      "text": "A one-line or multi-line joke",
+      "normalized_text": "a one-line or multi-line joke",
+      "added_by": 123456789,
+      "added_at": "2026-04-29T13:00:00+00:00",
+      "shown_count": 2,
+      "last_shown_at": "2026-04-29T13:10:00+00:00",
+      "likes": 1,
+      "dislikes": 0,
+      "reactions_by_user": {
+        "123456789": "like"
+      }
+    }
+  ],
+  "chat_history": {
+    "-1001234567890": ["j1"]
   }
 }
 ```
@@ -313,6 +383,7 @@ cp .env.example .env
 ```env
 BOT_TOKEN=123456:your-token
 IMAGE_POOL_PATH=data/image_pool.json
+JOKE_POOL_PATH=data/jokes.json
 TARGET_CHANNEL_ID=
 ADMIN_USER_IDS=
 ```
@@ -355,6 +426,7 @@ When `RAILWAY_VOLUME_MOUNT_PATH` exists, the bot stores the pool here:
 
 ```text
 /data/image_pool.json
+/data/jokes.json
 ```
 
 ## Project Structure
@@ -364,6 +436,7 @@ bot/__main__.py    # aiogram polling and command menu
 bot/config.py      # environment variables and paths
 bot/handlers.py    # commands, callbacks, and bot workflows
 bot/image_pool.py  # JSON storage, random picker, reactions, indexes
+bot/joke_pool.py   # separate JSON joke pool
 bot/keyboards.py   # inline keyboards
 bot/texts.py       # phrases, mood labels, achievements, jury rule
 scripts/           # one-off maintenance scripts

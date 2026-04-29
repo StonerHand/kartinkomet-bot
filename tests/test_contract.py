@@ -18,10 +18,13 @@ from bot.handlers import (
     duel_remaining_seconds,
     duel_sessions,
     duel_tasks,
+    format_count,
     format_duel_already_active,
     format_duel_score,
     format_duel_result,
+    format_empty_joke_pool,
     format_help,
+    format_joke,
     format_mood,
     format_start,
     format_stats,
@@ -36,7 +39,15 @@ from bot.handlers import (
     register_active_duel,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.keyboards import main_menu, picture_actions, picture_actions_with_counts, upload_menu
+from bot.joke_pool import JokePool, normalize_joke_text
+from bot.keyboards import (
+    joke_actions,
+    joke_actions_with_counts,
+    main_menu,
+    picture_actions,
+    picture_actions_with_counts,
+    upload_menu,
+)
 from bot.texts import (
     ACHIEVEMENTS,
     AUTO_DELETE_DISLIKES,
@@ -67,6 +78,18 @@ def fake_photo_message(file_id: str, file_unique_id: str, user_id: int = 1) -> S
     )
 
 
+def fake_text_message(text: str, user_id: int = 1) -> SimpleNamespace:
+    return SimpleNamespace(
+        text=text,
+        from_user=SimpleNamespace(
+            id=user_id,
+            username=None,
+            first_name=f"User {user_id}",
+            last_name=None,
+        ),
+    )
+
+
 def fake_user(
     user_id: int,
     username: str | None = None,
@@ -82,17 +105,19 @@ def fake_user(
 
 
 class BotContractTest(unittest.TestCase):
-    def test_upload_pidor_is_the_only_slash_upload_command(self) -> None:
+    def test_public_command_order_stays_intentional(self) -> None:
         commands = [command.command for command in BOT_COMMANDS]
 
         self.assertEqual(
             commands,
             [
                 "pic",
+                "joke",
                 "duel",
                 "weather",
                 "menu",
                 "upload_pidor",
+                "upload_joke",
                 "done",
                 "cancel",
                 "stats",
@@ -104,6 +129,8 @@ class BotContractTest(unittest.TestCase):
             ],
         )
         self.assertIn("upload_pidor", commands)
+        self.assertIn("upload_joke", commands)
+        self.assertIn("joke", commands)
         self.assertIn("me", commands)
         self.assertIn("top", commands)
         self.assertIn("duel", commands)
@@ -165,6 +192,7 @@ class BotContractTest(unittest.TestCase):
             main_buttons,
             [
                 "🎲 Рандом",
+                "😂 Анекдот",
                 "⚔️ Дуэль",
                 "📊 Сводка",
                 "🌦 Погода",
@@ -189,6 +217,17 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё"])
         self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё"])
+
+    def test_joke_reactions_match_picture_reactions(self) -> None:
+        buttons = [button.text for row in joke_actions("joke-id").inline_keyboard for button in row]
+        counted_buttons = [
+            button.text
+            for row in joke_actions_with_counts("joke-id", likes=2, dislikes=1).inline_keyboard
+            for button in row
+        ]
+
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё анекдот"])
+        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "😂 Ещё анекдот"])
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
@@ -297,9 +336,12 @@ class BotContractTest(unittest.TestCase):
 
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
+        self.assertIn("😂 Анекдот", format_start())
         self.assertIn("⚔️ Дуэль", format_start())
         self.assertIn("🌦 Погода", format_start())
         self.assertIn("<b>⬆️ Загрузка</b>", format_help())
+        self.assertIn("<b>😂 Анекдоты</b>", format_help())
+        self.assertIn("/upload_joke", format_help())
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
         self.assertIn("/weather", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
@@ -307,6 +349,9 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>100 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
+        self.assertIn("/upload_joke", format_upload_not_active())
+        self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
+        self.assertIn("A &lt; B", format_joke("A < B"))
 
     def test_weather_report_format(self) -> None:
         report = WeatherReport(
@@ -349,6 +394,85 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(report.place, "Малая Токмачка")
         self.assertEqual(report.weather_code, 3)
         self.assertEqual(report.precipitation_probability, 42)
+
+
+class JokePoolTest(unittest.TestCase):
+    def test_normalizes_text_and_rejects_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+
+            first = pool.add_from_message(fake_text_message("  Первая строка\n\n\nВторая строка  "))
+            duplicate = pool.add_from_message(fake_text_message("первая строка\nвторая строка"))
+
+            self.assertTrue(first.added)
+            self.assertFalse(duplicate.added)
+            self.assertTrue(duplicate.duplicate)
+            self.assertEqual(pool.count(), 1)
+            self.assertEqual(normalize_joke_text("a\n\n\nb"), "a\n\nb")
+
+    def test_random_joke_avoids_immediate_repeat_per_chat(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            pool.add_from_message(fake_text_message("Анекдот один"))
+            pool.add_from_message(fake_text_message("Анекдот два"))
+
+            first = pool.random_joke(chat_id=123)
+            second = pool.random_joke(chat_id=123)
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            assert first is not None
+            assert second is not None
+            self.assertNotEqual(first.id, second.id)
+
+    def test_joke_reactions_accumulate_and_can_be_switched(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            pool.add_from_message(fake_text_message("Анекдот"))
+            joke = pool.random_joke(chat_id=1)
+            self.assertIsNotNone(joke)
+            assert joke is not None
+
+            pool.react(joke.id, "like", user_id=1)
+            switched = pool.react(joke.id, "dislike", user_id=1)
+            another_user = pool.react(joke.id, "dislike", user_id=2)
+            ignored = pool.react(joke.id, "poop", user_id=3)
+
+            self.assertTrue(switched.changed)
+            self.assertTrue(another_user.changed)
+            self.assertIsNone(ignored)
+            stats = pool.stats()
+            self.assertEqual(stats.total_likes, 0)
+            self.assertEqual(stats.total_dislikes, 2)
+
+    def test_joke_delete_and_reset_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "jokes.json"
+            pool = JokePool(str(storage_path))
+            pool.add_from_message(fake_text_message("Анекдот"))
+            joke = pool.random_joke(chat_id=555)
+            self.assertIsNotNone(joke)
+            assert joke is not None
+
+            pool.react(joke.id, "dislike", user_id=1)
+            pool.reset_stats()
+            stats = pool.stats()
+            self.assertEqual(stats.total_shows, 0)
+            self.assertEqual(stats.total_dislikes, 0)
+            payload = json.loads(storage_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["chat_history"], {})
+
+            self.assertTrue(pool.delete(joke.id))
+            self.assertEqual(pool.count(), 0)
+
+    def test_stats_and_count_include_jokes_when_pool_is_passed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            joke_pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            joke_pool.add_from_message(fake_text_message("Анекдот"))
+
+            self.assertIn("<b>😂 Анекдоты</b>", format_stats(image_pool, joke_pool))
+            self.assertIn("Анекдотов в блокноте: <b>1</b>", format_count(image_pool, joke_pool))
 
 
 class ImagePoolTest(unittest.TestCase):

@@ -5,14 +5,17 @@ def main_menu() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+        ],
+        [
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
-        ],
-        [
             InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
+            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
             InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+        ],
+        [
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
@@ -88,6 +91,40 @@ def picture_actions_with_counts(
             ),
         ],
         [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
+    ]
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def joke_actions(joke_id: str) -> InlineKeyboardMarkup:
+    keyboard = [
+        [
+            InlineKeyboardButton(text="🤙🏻", callback_data=f"joke_react:like:{joke_id}"),
+            InlineKeyboardButton(text="🖕🏻", callback_data=f"joke_react:dislike:{joke_id}"),
+        ],
+        [InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke")],
+    ]
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def joke_actions_with_counts(
+    joke_id: str,
+    likes: int,
+    dislikes: int,
+) -> InlineKeyboardMarkup:
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=f"🤙🏻 {likes}",
+                callback_data=f"joke_react:like:{joke_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"🖕🏻 {dislikes}",
+                callback_data=f"joke_react:dislike:{joke_id}",
+            ),
+        ],
+        [InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
