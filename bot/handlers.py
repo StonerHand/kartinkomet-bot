@@ -577,12 +577,15 @@ async def finalize_duel(
     right_votes = sum(1 for vote in votes.values() if vote == "right")
 
     if left_votes == right_votes:
+        image_pool.record_duel_result(tied=True)
         result_text = format_duel_result(left_votes, right_votes, winner=None)
     elif left_votes > right_votes:
         image_pool.delete(duel["right"])
+        image_pool.record_duel_result(tied=False)
         result_text = format_duel_result(left_votes, right_votes, winner="left")
     else:
         image_pool.delete(duel["left"])
+        image_pool.record_duel_result(tied=False)
         result_text = format_duel_result(left_votes, right_votes, winner="right")
 
     try:
@@ -745,6 +748,10 @@ def format_stats(image_pool: ImagePool) -> str:
         f"Пикч внутри: <b>{stats.total_images}</b>\n\n"
         "<b>🎲 Рандом</b>\n"
         f"Выстрелов: <b>{stats.total_shows}</b>\n\n"
+        "<b>⚔️ Дуэли</b>\n"
+        f"Боев: <b>{stats.total_duels}</b>\n"
+        f"Казней: <b>{stats.duel_executions}</b>\n"
+        f"Мирных исходов: <b>{stats.duel_ties}</b>\n\n"
         "<b>🧪 Реакции</b>\n"
         f"👍 Одобрений: <b>{stats.total_likes}</b>\n"
         f"💩 Какашек: <b>{stats.total_fires}</b>\n"
@@ -851,7 +858,7 @@ def format_admin_only(action: str) -> str:
 def format_reset_stats_done() -> str:
     return (
         "<b>♻️ Статистика сброшена</b>\n\n"
-        "Реакции, показы и память рандома обнулены"
+        "Реакции, показы, дуэли и память рандома обнулены"
     )
 
 

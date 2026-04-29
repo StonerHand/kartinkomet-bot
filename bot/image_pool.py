@@ -14,7 +14,7 @@ REACTION_FIELDS = {
     "fire": "fires",
     "dislike": "dislikes",
 }
-STORAGE_VERSION = 2
+STORAGE_VERSION = 3
 MAX_CHAT_HISTORY = 500
 UPLOAD_LIMIT_PER_HOUR = 100
 RANDOM = random.SystemRandom()
@@ -49,6 +49,9 @@ class PoolStats:
     total_likes: int
     total_fires: int
     total_dislikes: int
+    total_duels: int
+    duel_executions: int
+    duel_ties: int
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,7 @@ class ImagePool:
     def __init__(self, storage_path: str) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._records, self._chat_history, self._users = self._load()
+        self._records, self._chat_history, self._users, self._duel_stats = self._load()
         self._rebuild_indexes()
 
     def count(self) -> int:
@@ -161,7 +164,18 @@ class ImagePool:
             total_likes=sum(record["likes"] for record in self._records),
             total_fires=sum(record["fires"] for record in self._records),
             total_dislikes=sum(record["dislikes"] for record in self._records),
+            total_duels=self._duel_stats["total"],
+            duel_executions=self._duel_stats["executions"],
+            duel_ties=self._duel_stats["ties"],
         )
+
+    def record_duel_result(self, *, tied: bool) -> None:
+        self._duel_stats["total"] += 1
+        if tied:
+            self._duel_stats["ties"] += 1
+        else:
+            self._duel_stats["executions"] += 1
+        self._write()
 
     def reset_stats(self) -> None:
         for record in self._records:
@@ -173,6 +187,7 @@ class ImagePool:
             record["reactions_by_user"] = {}
 
         self._chat_history.clear()
+        self._duel_stats = self._normalize_duel_stats({})
         self._write()
 
     def count_by_user(self, user_id: int) -> int:
@@ -392,10 +407,11 @@ class ImagePool:
 
         return None
 
-    def _load(self) -> tuple[list[dict], dict[str, list[str]], dict[str, dict]]:
+    def _load(self) -> tuple[list[dict], dict[str, list[str]], dict[str, dict], dict[str, int]]:
         if not self.storage_path.exists():
-            self._atomic_write([], {}, {})
-            return [], {}, {}
+            duel_stats = self._normalize_duel_stats({})
+            self._atomic_write([], {}, {}, duel_stats)
+            return [], {}, {}, duel_stats
 
         with self.storage_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
@@ -405,11 +421,13 @@ class ImagePool:
             raw_records = data
             raw_chat_history = {}
             raw_users = {}
+            raw_duel_stats = {}
             needs_write = True
         elif isinstance(data, dict):
             raw_records = data.get("images")
             raw_chat_history = data.get("chat_history", {})
             raw_users = data.get("users", {})
+            raw_duel_stats = data.get("duel_stats", {})
             needs_write = data.get("version") != STORAGE_VERSION
         else:
             raise RuntimeError(f"{self.storage_path} must contain a JSON list or object.")
@@ -440,10 +458,14 @@ class ImagePool:
         if users != raw_users:
             needs_write = True
 
-        if needs_write:
-            self._atomic_write(records, chat_history, users)
+        duel_stats = self._normalize_duel_stats(raw_duel_stats)
+        if duel_stats != raw_duel_stats:
+            needs_write = True
 
-        return records, chat_history, users
+        if needs_write:
+            self._atomic_write(records, chat_history, users, duel_stats)
+
+        return records, chat_history, users, duel_stats
 
     def _normalize_record(self, item: object) -> dict:
         if isinstance(item, str):
@@ -511,7 +533,7 @@ class ImagePool:
         return totals
 
     def _write(self) -> None:
-        self._atomic_write(self._records, self._chat_history, self._users)
+        self._atomic_write(self._records, self._chat_history, self._users, self._duel_stats)
 
     def _rebuild_indexes(self) -> None:
         self._record_by_id: dict[str, dict] = {}
@@ -592,11 +614,30 @@ class ImagePool:
 
         return users
 
+    def _normalize_duel_stats(self, item: object) -> dict[str, int]:
+        if not isinstance(item, dict):
+            item = {}
+
+        def normalized_count(key: str) -> int:
+            try:
+                return max(0, int(item.get(key) or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        stats = {
+            "total": normalized_count("total"),
+            "executions": normalized_count("executions"),
+            "ties": normalized_count("ties"),
+        }
+        stats["total"] = max(stats["total"], stats["executions"] + stats["ties"])
+        return stats
+
     def _atomic_write(
         self,
         records: list[dict],
         chat_history: dict[str, list[str]],
         users: dict[str, dict],
+        duel_stats: dict[str, int],
     ) -> None:
         temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         payload = {
@@ -604,6 +645,7 @@ class ImagePool:
             "images": records,
             "chat_history": chat_history,
             "users": users,
+            "duel_stats": duel_stats,
         }
         with temp_path.open("w", encoding="utf-8") as file:
             json.dump(payload, file, ensure_ascii=False, separators=(",", ":"))

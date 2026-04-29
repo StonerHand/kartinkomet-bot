@@ -40,7 +40,7 @@ The bot does not store image files on the server. It stores only Telegram `file_
 | `⬆️ Загрузка`, `/upload_pidor` | Starts upload mode in private chat, shows a hint in groups |
 | `👤 Мой вклад`, `/me` | Shows your uploads and achievements |
 | `🏆 Топ`, `/top` | Shows the upload leaderboard |
-| `📊 Статы`, `/stats` | Shows pool, random output, and reactions by section |
+| `📊 Статы`, `/stats` | Shows pool, random output, duels, and reactions by section |
 | `✅ Закончить`, `/done` | Finishes upload mode and shows a summary |
 | `❌ Отмена`, `/cancel` | Cancels the active upload |
 | `/count` | Shows the pool size |
@@ -162,9 +162,18 @@ Image captions are clean. Old mood prefixes were removed from card captions.
 
 `/top` shows the upload leaderboard. If the bot has already seen a user, it shows their `@username` or Telegram name. Older records without a saved profile fall back to Telegram user ID until the user presses any command or button again.
 
+## Statistics
+
+`/stats` shows:
+
+- `📦 Пул`: how many images are in the shared pool
+- `🎲 Рандом`: how many random shots were sent
+- `⚔️ Дуэли`: total battles, executions, and peaceful outcomes
+- `🧪 Реакции`: total `👍`, `💩`, and `🖕` reactions
+
 ## Maintenance
 
-`/reset_stats` resets reactions, view counters, and random memory. It is hidden from the public command menu and works only for users listed in `ADMIN_USER_IDS`.
+`/reset_stats` resets reactions, view counters, duel counters, and random memory. It is hidden from the public command menu and works only for users listed in `ADMIN_USER_IDS`.
 
 Use `/id` in a private chat with the bot to get your Telegram user ID.
 

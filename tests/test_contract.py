@@ -20,6 +20,7 @@ from bot.handlers import (
     format_help,
     format_mood,
     format_start,
+    format_stats,
     format_user_progress,
     format_top_uploaders,
     format_upload_limit,
@@ -251,9 +252,10 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.count(), 2)
             payload = json.loads(storage_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["version"], 2)
+            self.assertEqual(payload["version"], 3)
             self.assertEqual(len(payload["images"]), 2)
             self.assertEqual(payload["users"], {})
+            self.assertEqual(payload["duel_stats"], {"total": 0, "executions": 0, "ties": 0})
 
     def test_rejects_duplicate_file_unique_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -306,6 +308,24 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertTrue(deleted)
             self.assertTrue(added_after_delete.added)
+
+    def test_duel_stats_are_persisted_and_shown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "pool.json"
+            pool = ImagePool(str(storage_path))
+
+            pool.record_duel_result(tied=False)
+            pool.record_duel_result(tied=True)
+
+            stats = pool.stats()
+            self.assertEqual(stats.total_duels, 2)
+            self.assertEqual(stats.duel_executions, 1)
+            self.assertEqual(stats.duel_ties, 1)
+            self.assertIn("<b>⚔️ Дуэли</b>", format_stats(pool))
+            self.assertIn("Казней: <b>1</b>", format_stats(pool))
+
+            reloaded_pool = ImagePool(str(storage_path))
+            self.assertEqual(reloaded_pool.stats().total_duels, 2)
 
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -480,14 +500,20 @@ class ImagePoolTest(unittest.TestCase):
             self.assertIsNotNone(image)
             assert image is not None
             pool.react(image.id, "fire", user_id=1)
+            pool.record_duel_result(tied=False)
+            pool.record_duel_result(tied=True)
 
             pool.reset_stats()
 
             stats = pool.stats()
             self.assertEqual(stats.total_shows, 0)
             self.assertEqual(stats.total_fires, 0)
+            self.assertEqual(stats.total_duels, 0)
+            self.assertEqual(stats.duel_executions, 0)
+            self.assertEqual(stats.duel_ties, 0)
             payload = json.loads(storage_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["chat_history"], {})
+            self.assertEqual(payload["duel_stats"], {"total": 0, "executions": 0, "ties": 0})
 
 
 if __name__ == "__main__":
