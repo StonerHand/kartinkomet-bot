@@ -8,8 +8,13 @@ from types import SimpleNamespace
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
 from bot.handlers import (
+    active_duel_id_for_chat,
+    active_duels_by_chat,
+    clear_active_duel,
     combo_achievements_for,
     current_achievement_for,
+    duel_sessions,
+    format_duel_already_active,
     format_duel_score,
     format_duel_result,
     format_help,
@@ -21,6 +26,7 @@ from bot.handlers import (
     next_achievement_for,
     parse_user_id_argument,
     quality_title,
+    register_active_duel,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import main_menu, upload_menu
@@ -180,6 +186,29 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("👑 Победила: <b>🅰️ Первая</b>", format_duel_result(2, 1, "left"))
         self.assertIn("🗑 Удалена: <b>🅱️ Вторая</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи выжили", format_duel_result(1, 1, None))
+
+    def test_one_active_duel_per_chat_guard(self) -> None:
+        duel_sessions.clear()
+        active_duels_by_chat.clear()
+
+        duel_sessions["duel-1"] = {"active": True}
+        register_active_duel(123, "duel-1")
+
+        self.assertEqual(active_duel_id_for_chat(123), "duel-1")
+
+        duel_sessions["duel-1"]["active"] = False
+
+        self.assertIsNone(active_duel_id_for_chat(123))
+        self.assertNotIn(123, active_duels_by_chat)
+        self.assertIn("Дуэль уже идёт", format_duel_already_active())
+
+        duel_sessions["duel-2"] = {"active": True}
+        register_active_duel(123, "duel-2")
+        clear_active_duel(123, "other-duel")
+        self.assertEqual(active_duel_id_for_chat(123), "duel-2")
+        clear_active_duel(123, "duel-2")
+        self.assertIsNone(active_duel_id_for_chat(123))
+        duel_sessions.clear()
 
     def test_quality_title_and_combos(self) -> None:
         stats = SimpleNamespace(uploaded=100, likes=60, fires=1, dislikes=0, shown=60)

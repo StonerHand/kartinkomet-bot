@@ -3,7 +3,7 @@ import logging
 import random
 from datetime import date
 from html import escape
-from typing import TypedDict
+from typing import Literal, TypedDict
 from uuid import uuid4
 
 from aiogram import Bot, F, Router
@@ -43,8 +43,13 @@ class UploadSession(TypedDict):
     ack_sent: bool
 
 
+DuelStartResult = Literal["started", "active", "failed"]
+
+
 active_uploads: dict[int, UploadSession] = {}
 duel_sessions: dict[str, dict] = {}
+active_duels_by_chat: dict[int, str] = {}
+duel_locks: dict[int, asyncio.Lock] = {}
 
 
 class AddPicture(StatesGroup):
@@ -407,8 +412,18 @@ def build_router(
             await callback.answer()
             return
 
-        await send_duel(bot=bot, message=callback.message, image_pool=image_pool)
-        await callback.answer("Запускаю новую дуэль")
+        duel_result = await send_duel(
+            bot=bot,
+            message=callback.message,
+            image_pool=image_pool,
+            silent_if_active=True,
+        )
+        if duel_result == "started":
+            await callback.answer("Запускаю новую дуэль")
+        elif duel_result == "active":
+            await callback.answer("Дуэль уже идёт")
+        else:
+            await callback.answer("Дуэль не запустилась")
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
@@ -463,64 +478,85 @@ async def send_picture(
         await answer_message.answer("Пикча улетела в канал")
 
 
-async def send_duel(bot: Bot, message: Message, image_pool: ImagePool) -> None:
-    if image_pool.count() < 2:
-        await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
-        return
+async def send_duel(
+    bot: Bot,
+    message: Message,
+    image_pool: ImagePool,
+    silent_if_active: bool = False,
+) -> DuelStartResult:
+    chat_id = message.chat.id
+    async with duel_lock_for(chat_id):
+        if active_duel_id_for_chat(chat_id):
+            if not silent_if_active:
+                await message.answer(format_duel_already_active(), parse_mode="HTML")
+            return "active"
 
-    left = image_pool.random_image(chat_id=f"duel:{message.chat.id}:left")
-    right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right")
-    if left is None or right is None:
-        await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
-        return
+        if image_pool.count() < 2:
+            await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
+            return "failed"
 
-    attempts = 0
-    while right.id == left.id and attempts < 5:
-        right = image_pool.random_image(chat_id=f"duel:{message.chat.id}:right:{attempts}")
-        attempts += 1
-        if right is None:
-            break
+        left = image_pool.random_image(chat_id=f"duel:{chat_id}:left")
+        right = image_pool.random_image(chat_id=f"duel:{chat_id}:right")
+        if left is None or right is None:
+            await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
+            return "failed"
 
-    if right is None or right.id == left.id:
-        await message.answer("⚔️ Дуэль не собралась. Рандом принёс одну и ту же пикчу")
-        return
+        attempts = 0
+        while right.id == left.id and attempts < 5:
+            right = image_pool.random_image(chat_id=f"duel:{chat_id}:right:{attempts}")
+            attempts += 1
+            if right is None:
+                break
 
-    try:
-        await bot.send_media_group(
-            chat_id=message.chat.id,
-            media=[
-                InputMediaPhoto(media=left.file_id),
-                InputMediaPhoto(media=right.file_id),
-            ],
-        )
-    except TelegramAPIError:
-        LOGGER.warning("Failed to send duel media group, falling back to separate photos", exc_info=True)
-        await bot.send_photo(
-            chat_id=message.chat.id,
-            photo=left.file_id,
-        )
-        await bot.send_photo(
-            chat_id=message.chat.id,
-            photo=right.file_id,
-        )
+        if right is None or right.id == left.id:
+            await message.answer("⚔️ Дуэль не собралась. Рандом принёс одну и ту же пикчу")
+            return "failed"
 
-    duel_id = uuid4().hex
-    title = random_duel_start_phrase()
-    status = random_duel_status_phrase()
-    duel_sessions[duel_id] = {
-        "left": left.id,
-        "right": right.id,
-        "votes": {},
-        "active": True,
-        "title": title,
-        "status": status,
-    }
-    score_message = await message.answer(
-        format_duel_score(0, 0, title=title, status=status),
-        parse_mode="HTML",
-        reply_markup=duel_vote(duel_id),
-    )
-    asyncio.create_task(finalize_duel(duel_id, bot, image_pool, message.chat.id, score_message.message_id))
+        try:
+            await bot.send_media_group(
+                chat_id=chat_id,
+                media=[
+                    InputMediaPhoto(media=left.file_id),
+                    InputMediaPhoto(media=right.file_id),
+                ],
+            )
+        except TelegramAPIError:
+            LOGGER.warning("Failed to send duel media group, falling back to separate photos", exc_info=True)
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=left.file_id,
+            )
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=right.file_id,
+            )
+
+        duel_id = uuid4().hex
+        title = random_duel_start_phrase()
+        status = random_duel_status_phrase()
+        duel_sessions[duel_id] = {
+            "chat_id": chat_id,
+            "left": left.id,
+            "right": right.id,
+            "votes": {},
+            "active": True,
+            "title": title,
+            "status": status,
+        }
+        try:
+            score_message = await message.answer(
+                format_duel_score(0, 0, title=title, status=status),
+                parse_mode="HTML",
+                reply_markup=duel_vote(duel_id),
+            )
+        except TelegramAPIError:
+            duel_sessions.pop(duel_id, None)
+            LOGGER.warning("Failed to send duel vote message", exc_info=True)
+            return "failed"
+
+        register_active_duel(chat_id, duel_id)
+        asyncio.create_task(finalize_duel(duel_id, bot, image_pool, chat_id, score_message.message_id))
+        return "started"
 
 
 async def finalize_duel(
@@ -560,7 +596,38 @@ async def finalize_duel(
     except TelegramAPIError:
         LOGGER.warning("Failed to edit completed duel message", exc_info=True)
     finally:
+        clear_active_duel(chat_id, duel_id)
         duel_sessions.pop(duel_id, None)
+
+
+def duel_lock_for(chat_id: int) -> asyncio.Lock:
+    lock = duel_locks.get(chat_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        duel_locks[chat_id] = lock
+    return lock
+
+
+def active_duel_id_for_chat(chat_id: int) -> str | None:
+    duel_id = active_duels_by_chat.get(chat_id)
+    if duel_id is None:
+        return None
+
+    duel = duel_sessions.get(duel_id)
+    if duel and duel.get("active", False):
+        return duel_id
+
+    active_duels_by_chat.pop(chat_id, None)
+    return None
+
+
+def register_active_duel(chat_id: int, duel_id: str) -> None:
+    active_duels_by_chat[chat_id] = duel_id
+
+
+def clear_active_duel(chat_id: int, duel_id: str) -> None:
+    if active_duels_by_chat.get(chat_id) == duel_id:
+        active_duels_by_chat.pop(chat_id, None)
 
 
 async def activate_upload(message: Message, state: FSMContext) -> None:
@@ -729,6 +796,13 @@ def format_mood() -> str:
     return (
         "<b>🧠 Режим дня</b>\n\n"
         f"{daily_mood()}"
+    )
+
+
+def format_duel_already_active() -> str:
+    return (
+        "<b>⚔️ Дуэль уже идёт</b>\n\n"
+        "Дождитесь финального свистка, потом запускайте новую"
     )
 
 

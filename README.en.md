@@ -76,6 +76,7 @@ Duels have `400` short dedicated phrases:
 
 Rules:
 
+- only one active duel can run in the same chat
 - each user gets one vote but can switch sides
 - the bot announces the result after the timer
 - the losing image is removed from the pool
