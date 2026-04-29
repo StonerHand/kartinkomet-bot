@@ -90,15 +90,15 @@ class BotContractTest(unittest.TestCase):
             [
                 "pic",
                 "duel",
+                "weather",
                 "menu",
                 "upload_pidor",
                 "done",
                 "cancel",
-                "count",
                 "stats",
-                "weather",
                 "me",
                 "top",
+                "count",
                 "mood",
                 "help",
             ],
@@ -163,7 +163,15 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(
             main_buttons,
-            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "🌦 Погода", "👤 Мой вклад", "🏆 Топ", "📊 Сводка"],
+            [
+                "🎲 Рандом",
+                "⚔️ Дуэль",
+                "📊 Сводка",
+                "🌦 Погода",
+                "👤 Мой вклад",
+                "🏆 Топ",
+                "⬆️ Загрузить пикчи",
+            ],
         )
 
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
@@ -222,13 +230,12 @@ class BotContractTest(unittest.TestCase):
 
         self.assertIn("<b>⚔️ Суд мемов</b>", score)
         self.assertIn("Чат держит паузу", score)
-        self.assertIn("🅰️ Первая: <b>2</b>", score)
-        self.assertIn("🅱️ Вторая: <b>1</b>\n\n⏱", score)
-        self.assertIn("Осталось: <b>45 секунд</b>", score)
-        self.assertIn("🔥 Лидирует: 🅰️ Первая", score)
-        self.assertIn("👑 Победила: <b>🅰️ Первая</b>", format_duel_result(2, 1, "left"))
-        self.assertIn("🗑 Удалена: <b>🅱️ Вторая</b>", format_duel_result(2, 1, "left"))
-        self.assertIn("⚖️ Ничья. Обе пикчи выжили", format_duel_result(1, 1, None))
+        self.assertIn("🅰️ слева: <b>2</b> · 🅱️ справа: <b>1</b>\n\n⏱", score)
+        self.assertIn("<b>45 секунд</b>", score)
+        self.assertIn("🔥 🅰️ ведёт", score)
+        self.assertIn("👑 Выжила: <b>🅰️ слева</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🗑 Улетела из пула: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
 
     def test_one_active_duel_per_chat_guard(self) -> None:
         duel_sessions.clear()
@@ -296,7 +303,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
         self.assertIn("/weather", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
-        self.assertIn("Загрузка только в личке", format_upload_private_only())
+        self.assertIn("Загрузка уехала в личку", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>100 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
@@ -316,7 +323,7 @@ class BotContractTest(unittest.TestCase):
 
         text = format_weather_report(report)
 
-        self.assertIn("<b>🌦 Погода: Малая Токмачка</b>", text)
+        self.assertIn("<b>☁️ Малая Токмачка</b>", text)
         self.assertIn("пасмурно", text)
         self.assertIn("+12°C", text)
         self.assertIn("42%", text)
@@ -424,7 +431,7 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.duel_executions, 1)
             self.assertEqual(stats.duel_ties, 1)
             self.assertIn("<b>⚔️ Дуэли</b>", format_stats(pool))
-            self.assertIn("Казней: <b>1</b>", format_stats(pool))
+            self.assertIn("Удалений после боя: <b>1</b>", format_stats(pool))
 
             reloaded_pool = ImagePool(str(storage_path))
             self.assertEqual(reloaded_pool.stats().total_duels, 2)

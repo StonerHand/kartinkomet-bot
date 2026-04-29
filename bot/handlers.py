@@ -30,7 +30,7 @@ from bot.texts import (
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
 )
-from bot.weather import fetch_mala_tokmachka_weather, format_weather_error, format_weather_report
+from bot.weather import format_weather_error, format_weather_report, get_mala_tokmachka_weather
 
 UPLOAD_COMMAND = "upload_pidor"
 DUEL_SECONDS = 60
@@ -225,10 +225,8 @@ def build_router(
             if not ack_sent:
                 await message.answer(
                     "<b>✅ Пикчи принимаю</b>\n\n"
-                    "<b>Когда всё закинули</b>\n"
-                    "Нажмите <code>✅ Закончить</code>\n\n"
-                    "<b>Если передумали</b>\n"
-                    "Нажмите <code>❌ Отмена</code>",
+                    "Когда всё закинули — нажмите <code>✅ Закончить</code>\n"
+                    "Если передумали — нажмите <code>❌ Отмена</code>",
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
@@ -405,7 +403,12 @@ def build_router(
             return
 
         votes = duel["votes"]
-        votes[str(callback.from_user.id)] = side
+        user_key = str(callback.from_user.id)
+        if votes.get(user_key) == side:
+            await callback.answer("Уже стоит")
+            return
+
+        votes[user_key] = side
         left_votes, right_votes = duel_vote_counts(duel)
         if callback.message:
             try:
@@ -769,8 +772,9 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
     await state.set_state(AddPicture.uploading)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
-        f"📥 <b>{escape(RANDOM.choice(UPLOAD_START_PHRASES))}</b>\n\n"
-        "🖼 Кидайте одну пикчу, пачку, альбом или пересланные изображения"
+        f"<b>📥 {escape(RANDOM.choice(UPLOAD_START_PHRASES))}</b>\n\n"
+        "🖼 Кидайте одну пикчу, пачку, альбом или пересланные изображения\n\n"
+        "После первой принятой пикчи появятся кнопки завершения"
     )
     await message.answer(
         upload_text,
@@ -870,7 +874,11 @@ def parse_user_id_argument(message: Message) -> int | None:
 async def show_menu(message: Message) -> None:
     await message.answer(
         "<b>🚨 Пульт от ядерки</b>\n\n"
-        "Выберите действие ниже",
+        "<b>🎮 Быстрые кнопки</b>\n"
+        "🎲 рандом · ⚔️ дуэль\n\n"
+        "<b>📊 Склад и люди</b>\n"
+        "📊 сводка · 👤 мой вклад · 🏆 топ\n\n"
+        "⬆️ загрузка работает в личке с ботом",
         parse_mode="HTML",
         reply_markup=main_menu(),
     )
@@ -889,12 +897,12 @@ def format_stats(image_pool: ImagePool) -> str:
     sections = [
         "<b>📊 Сводка kartinkomet</b>",
         format_section("📦 Пул", format_metric("Пикч внутри", stats.total_images)),
-        format_section("🎲 Рандом", format_metric("Выстрелов", stats.total_shows)),
+        format_section("🎲 Рандом", format_metric("Выдано пикч", stats.total_shows)),
         format_section(
             "⚔️ Дуэли",
             format_metric("Боев", stats.total_duels),
-            format_metric("Казней", stats.duel_executions),
-            format_metric("Мирных исходов", stats.duel_ties),
+            format_metric("Удалений после боя", stats.duel_executions),
+            format_metric("Ничьих без удаления", stats.duel_ties),
         ),
         format_section(
             "🧪 Реакции",
@@ -907,14 +915,13 @@ def format_stats(image_pool: ImagePool) -> str:
 
 def format_start() -> str:
     return (
-        "<b>👋 Я @kartinkomet_bot</b>\n\n"
-        "Раздаю случайные пикчи из общего пула, принимаю пачки в личке, "
-        "устраиваю дуэли и считаю вклад каждого поставщика хаоса\n\n"
+        "<b>👋 Я @kartinkomet_bot</b>\n"
+        "Общий склад пикч, рандом, дуэли и статистика без лишней бюрократии\n\n"
         f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
         "<b>🚀 Быстрый старт</b>\n"
         "• <code>🎲 Рандом</code> — получить пикчу\n"
         "• <code>⚔️ Дуэль</code> — устроить бой двух пикч\n"
-        "• <code>⬆️ Загрузка</code> — пополнить пул в личке\n"
+        "• <code>⬆️ Загрузить пикчи</code> — пополнить пул в личке\n"
         "• <code>🌦 Погода</code> — узнать, что там в Малой Токмачке"
     )
 
@@ -957,7 +964,7 @@ def format_help() -> str:
 def format_count(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Общий пул</b>\n\n"
-        f"{format_metric('Пикч внутри', image_pool.count())}"
+        f"{format_metric('Пикч на складе', image_pool.count())}"
     )
 
 
@@ -970,7 +977,7 @@ def format_mood() -> str:
 
 async def send_weather(message: Message) -> None:
     try:
-        report = await fetch_mala_tokmachka_weather()
+        report = await get_mala_tokmachka_weather()
     except Exception:
         LOGGER.warning("Failed to fetch weather", exc_info=True)
         await message.answer(format_weather_error(), parse_mode="HTML")
@@ -981,12 +988,12 @@ async def send_weather(message: Message) -> None:
 
 def format_upload_private_only() -> str:
     return (
-        "<b>📬 Загрузка только в личке</b>\n\n"
-        "В группе бот раздаёт пикчи, запускает дуэли и показывает статы\n\n"
+        "<b>📬 Загрузка уехала в личку</b>\n\n"
+        "В группе бот не ловит файлы стабильно из-за Telegram Privacy Mode\n\n"
         "<b>Как пополнить пул</b>\n"
         "1. Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"2. Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
-        "3. Кидайте картинки туда"
+        "3. Кидайте пикчи туда"
     )
 
 
@@ -1073,16 +1080,16 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     next_achievement = next_achievement_for(uploaded_count)
     combo_achievements = combo_achievements_for(reaction_stats)
     lines = [
-        "<b>👤 Ваш вклад в общий хаос</b>",
+        "<b>👤 Ваш вклад в общий склад</b>",
         "",
         "<b>📦 Загрузка</b>",
         format_metric("Загружено пикч", uploaded_count),
-        format_metric("Текущее достижение", current_achievement),
+        format_metric("Достижение", current_achievement),
         "",
         "<b>📊 Реакции на ваши пикчи</b>",
         format_metric("🤙🏻 Одобрений", reaction_stats.likes),
         format_metric("🖕🏻 Пальцев", reaction_stats.dislikes),
-        format_metric("🎲 Показов", reaction_stats.shown),
+        format_metric("🎲 Выдано рандомом", reaction_stats.shown),
         "",
         "<b>🎖 Статус</b>",
         format_metric("Титул качества", quality_title(reaction_stats)),
@@ -1102,7 +1109,7 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     threshold, achievement = next_achievement
     remaining = threshold - uploaded_count
     lines.append(format_metric("До следующего", remaining))
-    lines.append(format_metric("Следующее достижение", f"{achievement} на {threshold} пикч"))
+    lines.append(format_metric("Следующее", f"{achievement} на {threshold} пикч"))
     return "\n".join(lines)
 
 
@@ -1198,19 +1205,18 @@ def format_duel_score(
     remaining_seconds: int | None = None,
 ) -> str:
     if left_votes == right_votes:
-        verdict = "⚖️ Пока ничья"
+        verdict = "⚖️ пока ничья"
     elif left_votes > right_votes:
-        verdict = "🔥 Лидирует: 🅰️ Первая"
+        verdict = "🔥 🅰️ ведёт"
     else:
-        verdict = "🔥 Лидирует: 🅱️ Вторая"
+        verdict = "🔥 🅱️ ведёт"
 
     seconds_left = DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
         f"<b>⚔️ {escape(title or random_duel_start_phrase())}</b>\n"
         f"{escape(status or random_duel_status_phrase())}\n\n"
-        f"🅰️ Первая: <b>{left_votes}</b>\n"
-        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
-        f"⏱ Осталось: <b>{seconds_left} секунд</b>\n"
+        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
+        f"⏱ <b>{seconds_left} секунд</b> · "
         f"{verdict}"
     )
 
@@ -1218,19 +1224,18 @@ def format_duel_score(
 def format_duel_result(left_votes: int, right_votes: int, winner: str | None) -> str:
     if winner is None:
         phrase = random_duel_tie_phrase()
-        verdict = "⚖️ Ничья. Обе пикчи выжили"
+        verdict = "⚖️ Ничья. Обе пикчи остаются в пуле"
     elif winner == "left":
         phrase = random_duel_win_phrase()
-        verdict = "👑 Победила: <b>🅰️ Первая</b>\n🗑 Удалена: <b>🅱️ Вторая</b>"
+        verdict = "👑 Выжила: <b>🅰️ слева</b>\n🗑 Улетела из пула: <b>🅱️ справа</b>"
     else:
         phrase = random_duel_win_phrase()
-        verdict = "👑 Победила: <b>🅱️ Вторая</b>\n🗑 Удалена: <b>🅰️ Первая</b>"
+        verdict = "👑 Выжила: <b>🅱️ справа</b>\n🗑 Улетела из пула: <b>🅰️ слева</b>"
 
     return (
-        "<b>🏁 Дуэль окончена</b>\n"
+        "<b>🏁 Дуэль завершена</b>\n"
         f"{escape(phrase)}\n\n"
-        f"🅰️ Первая: <b>{left_votes}</b>\n"
-        f"🅱️ Вторая: <b>{right_votes}</b>\n\n"
+        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
         f"{verdict}"
     )
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from html import escape
 from typing import Any
 
@@ -10,6 +10,8 @@ import aiohttp
 MALA_TOKMACHKA_LATITUDE = 47.53563
 MALA_TOKMACHKA_LONGITUDE = 35.89293
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+WEATHER_CACHE_TTL = timedelta(minutes=10)
+HTTP_TIMEOUT_SECONDS = 6
 
 WEATHER_CODES = {
     0: "ясно",
@@ -41,6 +43,36 @@ WEATHER_CODES = {
     96: "гроза с градом",
     99: "сильная гроза с градом",
 }
+WEATHER_EMOJIS = {
+    0: "☀️",
+    1: "🌤",
+    2: "⛅️",
+    3: "☁️",
+    45: "🌫",
+    48: "🌫",
+    51: "🌦",
+    53: "🌦",
+    55: "🌧",
+    56: "🌧",
+    57: "🌧",
+    61: "🌦",
+    63: "🌧",
+    65: "🌧",
+    66: "🌧",
+    67: "🌧",
+    71: "🌨",
+    73: "🌨",
+    75: "❄️",
+    77: "🌨",
+    80: "🌦",
+    81: "🌧",
+    82: "⛈",
+    85: "🌨",
+    86: "❄️",
+    95: "⛈",
+    96: "⛈",
+    99: "⛈",
+}
 
 
 @dataclass(frozen=True)
@@ -54,6 +86,23 @@ class WeatherReport:
     daily_max: float
     precipitation_probability: int | None
     fetched_at: str
+
+
+_cached_weather: tuple[WeatherReport, datetime] | None = None
+
+
+async def get_mala_tokmachka_weather() -> WeatherReport:
+    global _cached_weather
+
+    now = datetime.now(UTC)
+    if _cached_weather is not None:
+        report, cached_at = _cached_weather
+        if now - cached_at < WEATHER_CACHE_TTL:
+            return report
+
+    report = await fetch_mala_tokmachka_weather()
+    _cached_weather = (report, now)
+    return report
 
 
 async def fetch_mala_tokmachka_weather() -> WeatherReport:
@@ -78,7 +127,7 @@ async def fetch_mala_tokmachka_weather() -> WeatherReport:
         "timezone": "auto",
         "forecast_days": 1,
     }
-    timeout = aiohttp.ClientTimeout(total=8)
+    timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(OPEN_METEO_URL, params=params) as response:
             response.raise_for_status()
@@ -95,32 +144,37 @@ def parse_weather_report(payload: dict[str, Any]) -> WeatherReport:
 
     return WeatherReport(
         place="Малая Токмачка",
-        temperature=float(current["temperature_2m"]),
-        apparent_temperature=float(current["apparent_temperature"]),
-        wind_speed=float(current["wind_speed_10m"]),
-        weather_code=int(current["weather_code"]),
-        daily_min=float(daily["temperature_2m_min"][0]),
-        daily_max=float(daily["temperature_2m_max"][0]),
+        temperature=_float_field(current, "temperature_2m"),
+        apparent_temperature=_float_field(current, "apparent_temperature"),
+        wind_speed=_float_field(current, "wind_speed_10m"),
+        weather_code=int(_float_field(current, "weather_code")),
+        daily_min=_first_float(daily, "temperature_2m_min"),
+        daily_max=_first_float(daily, "temperature_2m_max"),
         precipitation_probability=_optional_int(daily.get("precipitation_probability_max")),
-        fetched_at=str(current.get("time") or datetime.now().isoformat(timespec="minutes")),
+        fetched_at=str(current.get("time") or datetime.now(UTC).isoformat(timespec="minutes")),
     )
 
 
 def format_weather_report(report: WeatherReport) -> str:
     condition = WEATHER_CODES.get(report.weather_code, f"код погоды {report.weather_code}")
+    emoji = WEATHER_EMOJIS.get(report.weather_code, "🌦")
     rain_line = (
         "• Осадки: <b>нет данных</b>"
         if report.precipitation_probability is None
         else f"• Осадки: <b>{report.precipitation_probability}%</b>"
     )
     return (
-        f"<b>🌦 Погода: {escape(report.place)}</b>\n\n"
-        f"• Сейчас: <b>{format_degrees(report.temperature)}</b>, {escape(condition)}\n"
-        f"• Ощущается как: <b>{format_degrees(report.apparent_temperature)}</b>\n"
-        f"• День: <b>{format_degrees(report.daily_min)}</b> / <b>{format_degrees(report.daily_max)}</b>\n"
-        f"• Ветер: <b>{report.wind_speed:.0f} км/ч</b>\n"
-        f"{rain_line}\n\n"
-        "<i>Малая Токмачка</i>"
+        f"<b>{emoji} {escape(report.place)}</b>\n"
+        "<i>погодный доклад без лишней бюрократии</i>\n\n"
+        "<b>🌡 Сейчас</b>\n"
+        f"• Температура: <b>{format_degrees(report.temperature)}</b>\n"
+        f"• Ощущается: <b>{format_degrees(report.apparent_temperature)}</b>\n"
+        f"• Небо: <b>{escape(condition)}</b>\n\n"
+        "<b>📍 Сегодня</b>\n"
+        f"• Коридор: <b>{format_degrees(report.daily_min)}</b> → "
+        f"<b>{format_degrees(report.daily_max)}</b>\n"
+        f"{rain_line}\n"
+        f"• Ветер: <b>{report.wind_speed:.0f} км/ч</b>"
     )
 
 
@@ -143,3 +197,21 @@ def _optional_int(values: object) -> int | None:
         return int(values[0])
     except (TypeError, ValueError):
         return None
+
+
+def _float_field(data: dict[str, Any], field: str) -> float:
+    try:
+        return float(data[field])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"Open-Meteo payload misses {field}") from error
+
+
+def _first_float(data: dict[str, Any], field: str) -> float:
+    values = data.get(field)
+    if not isinstance(values, list) or not values:
+        raise ValueError(f"Open-Meteo payload misses {field}")
+
+    try:
+        return float(values[0])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Open-Meteo payload has invalid {field}") from error

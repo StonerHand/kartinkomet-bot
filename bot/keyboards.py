@@ -8,7 +8,7 @@ def main_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
         ],
         [
-            InlineKeyboardButton(text="⬆️ Загрузка", callback_data="upload"),
+            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
             InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
@@ -16,7 +16,7 @@ def main_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
-            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
+            InlineKeyboardButton(text="⬆️ Загрузить пикчи", callback_data="upload"),
         ],
     ]
 
@@ -38,8 +38,14 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=f"🅰️ За первую · {left_votes}", callback_data=f"duel:{duel_id}:left"),
-                InlineKeyboardButton(text=f"🅱️ За вторую · {right_votes}", callback_data=f"duel:{duel_id}:right"),
+                InlineKeyboardButton(
+                    text=f"🅰️ Слева · {left_votes}",
+                    callback_data=f"duel:{duel_id}:left",
+                ),
+                InlineKeyboardButton(
+                    text=f"🅱️ Справа · {right_votes}",
+                    callback_data=f"duel:{duel_id}:right",
+                ),
             ],
         ]
     )
@@ -72,8 +78,14 @@ def picture_actions_with_counts(
 ) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text=f"🤙🏻 {likes}", callback_data=f"react:like:{image_id}"),
-            InlineKeyboardButton(text=f"🖕🏻 {dislikes}", callback_data=f"react:dislike:{image_id}"),
+            InlineKeyboardButton(
+                text=f"🤙🏻 {likes}",
+                callback_data=f"react:like:{image_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"🖕🏻 {dislikes}",
+                callback_data=f"react:dislike:{image_id}",
+            ),
         ],
         [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
     ]

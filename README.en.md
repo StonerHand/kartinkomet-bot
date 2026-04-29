@@ -29,14 +29,14 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | --- | --- |
 | `/pic` | Send a random image |
 | `/duel` | Start a duel between two random images |
+| `/weather` | Show weather for Mala Tokmachka |
 | `/menu` | Open the main control panel |
 | `/upload_pidor` | Start upload mode in private chat |
 | `/done` | Finish upload mode |
 | `/cancel` | Cancel upload mode |
+| `/stats` | Show pool, random, duel, and reaction stats |
 | `/me` | Show your contribution and achievements |
 | `/top` | Show the upload leaderboard |
-| `/stats` | Show pool, random, duel, and reaction stats |
-| `/weather` | Show weather for Mala Tokmachka |
 | `/count` | Show pool size |
 | `/mood` | Show today's bot mood |
 | `/help` | Show help |
@@ -55,9 +55,9 @@ Main panel:
 
 ```text
 🎲 Рандом    ⚔️ Дуэль
-⬆️ Загрузка 🌦 Погода
+📊 Сводка    🌦 Погода
 👤 Мой вклад 🏆 Топ
-📊 Сводка
+⬆️ Загрузить пикчи
 ```
 
 Under a random image:
@@ -104,12 +104,12 @@ Stats example:
 • Пикч внутри: 3823
 
 🎲 Рандом
-• Выстрелов: 2410
+• Выдано пикч: 2410
 
 ⚔️ Дуэли
 • Боев: 37
-• Казней: 29
-• Мирных исходов: 8
+• Удалений после боя: 29
+• Ничьих без удаления: 8
 
 🧪 Реакции
 • 🤙🏻 Одобрений: 988
@@ -133,16 +133,18 @@ Large pools repeat much less often. Small pools can still repeat, but the bot av
 
 The forecast comes from Open-Meteo without an API key. Users do not pick or type a city.
 
+The response is a clean card with temperature, feels-like value, sky state, daily range, precipitation, and wind. Weather is cached for `10` minutes so repeated button taps do not hit the external API every time.
+
 ## Uploads
 
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `⬆️ Загрузка` or send `/upload_pidor`.
+2. Press `⬆️ Загрузить пикчи` or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `⬆️ Загрузка` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `⬆️ Загрузить пикчи` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. After the first accepted image it sends one compact instruction with finish and cancel buttons.
 
@@ -167,6 +169,8 @@ Rules:
 - ties keep both images alive
 - final result includes a `⚔️ Новая дуэль` button
 - if Telegram/API stumbles, stale duel state is cleared instead of locking the chat
+
+The duel card stays compact: title, status, one-line score, then a separate timer line. Duel images are sent as an album without captions so the chat does not turn into a wall of text.
 
 There are `400` dedicated short duel phrases:
 

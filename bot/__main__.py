@@ -13,15 +13,15 @@ from bot.image_pool import ImagePool
 BOT_COMMANDS = [
     BotCommand(command="pic", description="рандомная пикча"),
     BotCommand(command="duel", description="дуэль двух пикч"),
+    BotCommand(command="weather", description="погода в Малой Токмачке"),
     BotCommand(command="menu", description="пульт управления"),
     BotCommand(command="upload_pidor", description="загрузка пикч в личке"),
     BotCommand(command="done", description="закончить загрузку"),
     BotCommand(command="cancel", description="отменить загрузку"),
-    BotCommand(command="count", description="сколько пикч в пуле"),
     BotCommand(command="stats", description="общая сводка"),
-    BotCommand(command="weather", description="погода в Малой Токмачке"),
     BotCommand(command="me", description="мой вклад и достижения"),
     BotCommand(command="top", description="топ загрузчиков"),
+    BotCommand(command="count", description="сколько пикч в пуле"),
     BotCommand(command="mood", description="режим дня"),
     BotCommand(command="help", description="справка"),
 ]
