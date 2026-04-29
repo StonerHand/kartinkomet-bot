@@ -28,6 +28,7 @@ from bot.handlers import (
     format_user_progress,
     format_top_uploaders,
     format_upload_limit,
+    format_upload_not_active,
     format_upload_private_only,
     next_achievement_for,
     parse_user_id_argument,
@@ -92,10 +93,10 @@ class BotContractTest(unittest.TestCase):
                 "upload_pidor",
                 "done",
                 "cancel",
+                "count",
+                "stats",
                 "me",
                 "top",
-                "stats",
-                "count",
                 "mood",
                 "help",
             ],
@@ -160,7 +161,7 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(
             main_buttons,
-            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "👤 Мой вклад", "🏆 Топ", "📊 Статы"],
+            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "👤 Мой вклад", "🏆 Топ", "📊 Сводка"],
         )
 
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
@@ -273,14 +274,15 @@ class BotContractTest(unittest.TestCase):
             self.assertIn("<b>🎯 Следующий рубеж</b>", text)
 
     def test_core_command_texts_are_grouped(self) -> None:
-        self.assertIn("<b>Я @kartinkomet_bot</b>", format_start())
+        self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
         self.assertIn("⚔️ Дуэль", format_start())
         self.assertIn("<b>⬆️ Загрузка</b>", format_help())
-        self.assertIn("<b>⚔️ Игры</b>", format_help())
+        self.assertIn("<b>⚔️ Дуэли</b>", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
-        self.assertIn("Загрузка теперь в личке", format_upload_private_only())
+        self.assertIn("Загрузка только в личке", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
-        self.assertIn("100</b> новых пикч в час", format_upload_limit())
+        self.assertIn("Лимит: <b>100 новых пикч в час</b>", format_upload_limit())
+        self.assertIn("Загрузка не открыта", format_upload_not_active())
 
 
 class ImagePoolTest(unittest.TestCase):
@@ -367,6 +369,23 @@ class ImagePoolTest(unittest.TestCase):
 
             reloaded_pool = ImagePool(str(storage_path))
             self.assertEqual(reloaded_pool.stats().total_duels, 2)
+
+    def test_finish_duel_removes_loser_and_records_stats_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "pool.json"
+            pool = ImagePool(str(storage_path))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a"))
+            pool.add_from_message(fake_photo_message("file-b", "unique-b"))
+            loser_id = pool._records[0]["id"]
+
+            removed = pool.finish_duel(loser_id=loser_id)
+
+            self.assertTrue(removed)
+            self.assertEqual(pool.count(), 1)
+            stats = pool.stats()
+            self.assertEqual(stats.total_duels, 1)
+            self.assertEqual(stats.duel_executions, 1)
+            self.assertEqual(stats.duel_ties, 0)
 
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -460,7 +479,7 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(pool.user_label(10), "artem")
             top_text = format_top_uploaders(pool)
             self.assertIn("<b>👑 Пьедестал</b>", top_text)
-            self.assertIn("🥇 <b>artem</b>", top_text)
+            self.assertIn("🥇 <b>artem</b>\n📦 <b>1</b> пикч", top_text)
             self.assertNotIn("@artem", top_text)
 
     def test_top_uploaders_escapes_user_names_for_html(self) -> None:

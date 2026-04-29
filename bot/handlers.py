@@ -85,7 +85,6 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer("Пульт обновлён", reply_markup=ReplyKeyboardRemove())
         await show_menu(message)
 
     @router.message(Command("pic"))
@@ -218,8 +217,10 @@ def build_router(
             if not ack_sent:
                 await message.answer(
                     "<b>✅ Пикчи принимаю</b>\n\n"
-                    "Когда всё закинули — нажми <code>✅ Закончить</code>\n"
-                    "Если передумали — <code>❌ Отмена</code>",
+                    "<b>Когда всё закинули</b>\n"
+                    "Нажмите <code>✅ Закончить</code>\n\n"
+                    "<b>Если передумали</b>\n"
+                    "Нажмите <code>❌ Отмена</code>",
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
@@ -303,7 +304,7 @@ def build_router(
 
         current_state = await state.get_state()
         if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
-            await callback.answer("Загрузка уже закрыта", show_alert=False)
+            await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
         await finish_upload_or_warn(callback.message, state)
@@ -318,7 +319,7 @@ def build_router(
 
         current_state = await state.get_state()
         if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
-            await callback.answer("Загрузка уже закрыта", show_alert=False)
+            await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
         await cancel_upload(callback.message, state)
@@ -605,15 +606,13 @@ async def finalize_duel(
         left_votes, right_votes = duel_vote_counts(duel)
 
         if left_votes == right_votes:
-            image_pool.record_duel_result(tied=True)
+            image_pool.finish_duel(loser_id=None)
             result_text = format_duel_result(left_votes, right_votes, winner=None)
         elif left_votes > right_votes:
-            image_pool.delete(duel["right"])
-            image_pool.record_duel_result(tied=False)
+            image_pool.finish_duel(loser_id=duel["right"])
             result_text = format_duel_result(left_votes, right_votes, winner="left")
         else:
-            image_pool.delete(duel["left"])
-            image_pool.record_duel_result(tied=False)
+            image_pool.finish_duel(loser_id=duel["left"])
             result_text = format_duel_result(left_votes, right_votes, winner="right")
 
         try:
@@ -769,7 +768,7 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer("⚠️ Загрузка уже закрыта")
+        await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
 
     await finish_upload(message, state)
@@ -778,7 +777,7 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer("⚠️ Загрузка уже закрыта")
+        await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
 
     await state.clear()
@@ -795,15 +794,16 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     active_uploads.pop(message.chat.id, None)
 
     lines = [
-        f"<b>✅ {escape(RANDOM.choice(UPLOAD_FINISH_PHRASES))}</b>",
+        "<b>✅ Загрузка завершена</b>",
+        escape(RANDOM.choice(UPLOAD_FINISH_PHRASES)),
         "",
-        "<b>📦 Итог загрузки</b>",
-        f"Добавлено пикч: <b>{added}</b>",
+        "<b>📦 Итог</b>",
+        format_metric("Добавлено пикч", added),
     ]
     if failed:
-        lines.append(f"Не зашло: <b>{failed}</b>")
+        lines.append(format_metric("Не зашло", failed))
     if duplicates:
-        lines.append(f"Дубликатов пропущено: <b>{duplicates}</b>")
+        lines.append(format_metric("Дубликатов пропущено", duplicates))
 
     await message.answer("\n".join(lines), parse_mode="HTML")
 
@@ -849,69 +849,94 @@ def parse_user_id_argument(message: Message) -> int | None:
 
 async def show_menu(message: Message) -> None:
     await message.answer(
-        "<b>Пульт от ядерки 🚨</b>",
+        "<b>🚨 Пульт от ядерки</b>\n\n"
+        "Выберите действие ниже",
         parse_mode="HTML",
         reply_markup=main_menu(),
     )
 
 
+def format_metric(label: str, value: int | str) -> str:
+    return f"• {label}: <b>{value}</b>"
+
+
+def format_section(title: str, *lines: str) -> str:
+    return "\n".join([f"<b>{title}</b>", *lines])
+
+
 def format_stats(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
-    return (
-        "<b>📊 Сводка kartinkomet</b>\n\n"
-        "<b>📦 Пул</b>\n"
-        f"Пикч внутри: <b>{stats.total_images}</b>\n\n"
-        "<b>🎲 Рандом</b>\n"
-        f"Выстрелов: <b>{stats.total_shows}</b>\n\n"
-        "<b>⚔️ Дуэли</b>\n"
-        f"Боев: <b>{stats.total_duels}</b>\n"
-        f"Казней: <b>{stats.duel_executions}</b>\n"
-        f"Мирных исходов: <b>{stats.duel_ties}</b>\n\n"
-        "<b>🧪 Реакции</b>\n"
-        f"👍 Одобрений: <b>{stats.total_likes}</b>\n"
-        f"💩 Какашек: <b>{stats.total_fires}</b>\n"
-        f"🖕 Пальцев: <b>{stats.total_dislikes}</b>"
-    )
+    sections = [
+        "<b>📊 Сводка kartinkomet</b>",
+        format_section("📦 Пул", format_metric("Пикч внутри", stats.total_images)),
+        format_section("🎲 Рандом", format_metric("Выстрелов", stats.total_shows)),
+        format_section(
+            "⚔️ Дуэли",
+            format_metric("Боев", stats.total_duels),
+            format_metric("Казней", stats.duel_executions),
+            format_metric("Мирных исходов", stats.duel_ties),
+        ),
+        format_section(
+            "🧪 Реакции",
+            format_metric("👍 Одобрений", stats.total_likes),
+            format_metric("💩 Какашек", stats.total_fires),
+            format_metric("🖕 Пальцев", stats.total_dislikes),
+        ),
+    ]
+    return "\n\n".join(sections)
 
 
 def format_start() -> str:
     return (
-        "<b>Я @kartinkomet_bot</b>\n\n"
-        "Раздаю случайные пикчи из общего пула, принимаю новые пачками, "
-        "устраиваю мемные дуэли и считаю вклад каждого поставщика хаоса\n\n"
-        f"<b>🧠 Режим дня:</b> {daily_mood()}\n\n"
-        "Жмите <code>🎲 Рандом</code>, запускайте <code>⚔️ Дуэль</code> "
-        "или закидывайте пикчи в личке через <code>⬆️ Загрузка</code>"
+        "<b>👋 Я @kartinkomet_bot</b>\n\n"
+        "Раздаю случайные пикчи из общего пула, принимаю пачки в личке, "
+        "устраиваю дуэли и считаю вклад каждого поставщика хаоса\n\n"
+        f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
+        "<b>🚀 Быстрый старт</b>\n"
+        "• <code>🎲 Рандом</code> — получить пикчу\n"
+        "• <code>⚔️ Дуэль</code> — устроить бой двух пикч\n"
+        "• <code>⬆️ Загрузка</code> — пополнить пул в личке"
     )
 
 
 def format_help() -> str:
-    return (
-        "<b>Пульт управления хаосом</b>\n\n"
-        "<b>🎲 Картинки</b>\n"
-        "<code>/pic</code> — выстрелить рандомной пикчей\n"
-        "<code>/count</code> — размер общего пула\n"
-        "<code>/menu</code> — открыть пульт от ядерки\n\n"
-        "<b>⬆️ Загрузка</b>\n"
-        "<code>/upload_pidor</code> — открыть загрузку пикч в личке\n"
-        "<code>/done</code> — закрыть загрузку в личке\n"
-        "<code>/cancel</code> — отменить загрузку в личке\n\n"
-        "<b>📊 Статистика</b>\n"
-        "<code>/stats</code> — общие реакции и показы\n"
-        "<code>/me</code> — ваш вклад, титулы и комбо\n"
-        "<code>/top</code> — топ загрузчиков\n\n"
-        "<b>⚔️ Игры</b>\n"
-        "<code>/duel</code> — битва двух случайных пикч\n"
-        "<code>/mood</code> — режим бота на сегодня\n\n"
-        "<b>🧹 Народный суд</b>\n"
-        "2 средних пальца удаляют пикчу из пула"
-    )
+    sections = [
+        "<b>🧭 Пульт управления хаосом</b>",
+        format_section(
+            "🎲 Картинки",
+            "<code>/pic</code> — выстрелить рандомной пикчей",
+            "<code>/count</code> — размер общего пула",
+            "<code>/menu</code> — открыть пульт от ядерки",
+        ),
+        format_section(
+            "⚔️ Дуэли",
+            "<code>/duel</code> — битва двух случайных пикч",
+            "<code>/mood</code> — режим бота на сегодня",
+        ),
+        format_section(
+            "⬆️ Загрузка",
+            "<code>/upload_pidor</code> — открыть загрузку в личке",
+            "<code>/done</code> — закрыть загрузку",
+            "<code>/cancel</code> — отменить загрузку",
+        ),
+        format_section(
+            "📊 Статистика",
+            "<code>/stats</code> — общая сводка",
+            "<code>/me</code> — ваш вклад, титулы и комбо",
+            "<code>/top</code> — топ загрузчиков",
+        ),
+        format_section(
+            "🧹 Народный суд",
+            "2 средних пальца удаляют пикчу из пула",
+        ),
+    ]
+    return "\n\n".join(sections)
 
 
 def format_count(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Общий пул</b>\n\n"
-        f"Сейчас внутри: <b>{image_pool.count()}</b> пикч"
+        f"{format_metric('Пикч внутри', image_pool.count())}"
     )
 
 
@@ -924,18 +949,20 @@ def format_mood() -> str:
 
 def format_upload_private_only() -> str:
     return (
-        "<b>📬 Загрузка теперь в личке</b>\n\n"
-        "В группе бот только раздаёт пикчи, показывает статы и запускает дуэли\n\n"
-        "Чтобы пополнить общий пул, откройте "
-        '<a href="https://t.me/kartinkomet_bot">@kartinkomet_bot</a>, '
-        f"отправьте <code>/{UPLOAD_COMMAND}</code> и кидайте картинки туда"
+        "<b>📬 Загрузка только в личке</b>\n\n"
+        "В группе бот раздаёт пикчи, запускает дуэли и показывает статы\n\n"
+        "<b>Как пополнить пул</b>\n"
+        "1. Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
+        f"2. Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
+        "3. Кидайте картинки туда"
     )
 
 
 def format_duel_already_active() -> str:
     return (
         "<b>⚔️ Дуэль уже идёт</b>\n\n"
-        "Дождитесь финального свистка, потом запускайте новую"
+        "Дождитесь финального свистка\n"
+        "После итогов можно запускать новую"
     )
 
 
@@ -949,7 +976,7 @@ def format_user_id(user_id: int) -> str:
 def format_upload_limit() -> str:
     return (
         "<b>🧯 Стоп-кран сработал</b>\n\n"
-        f"Можно <b>{UPLOAD_LIMIT_PER_HOUR}</b> новых пикч в час\n"
+        f"{format_metric('Лимит', f'{UPLOAD_LIMIT_PER_HOUR} новых пикч в час')}\n"
         "Пауза, склад перегрелся"
     )
 
@@ -963,7 +990,17 @@ def format_invalid_file() -> str:
 
 
 def format_upload_cancelled() -> str:
-    return "<b>❌ Загрузка отменена</b>"
+    return (
+        "<b>❌ Загрузка отменена</b>\n\n"
+        "Пакет закрыт без итоговой сводки"
+    )
+
+
+def format_upload_not_active() -> str:
+    return (
+        "<b>⚠️ Загрузка не открыта</b>\n\n"
+        f"Откройте её в личке через <code>/{UPLOAD_COMMAND}</code>"
+    )
 
 
 def format_admin_only(action: str) -> str:
@@ -973,7 +1010,10 @@ def format_admin_only(action: str) -> str:
 def format_reset_stats_done() -> str:
     return (
         "<b>♻️ Статистика сброшена</b>\n\n"
-        "Реакции, показы, дуэли и память рандома обнулены"
+        "• реакции обнулены\n"
+        "• показы обнулены\n"
+        "• дуэли обнулены\n"
+        "• память рандома очищена"
     )
 
 
@@ -987,10 +1027,10 @@ def format_dedupe_usage() -> str:
 def format_dedupe_result(result) -> str:
     return (
         "<b>🧹 Чистка дублей завершена</b>\n\n"
-        f"👤 Пользователь: <code>{result.user_id}</code>\n"
-        f"🔎 Проверено его пикч: <b>{result.scanned}</b>\n"
-        f"🧹 Убрано дублей: <b>{result.removed}</b>\n"
-        f"📦 Осталось его пикч: <b>{result.remaining}</b>"
+        f"{format_metric('👤 Пользователь', f'<code>{result.user_id}</code>')}\n"
+        f"{format_metric('🔎 Проверено его пикч', result.scanned)}\n"
+        f"{format_metric('🧹 Убрано дублей', result.removed)}\n"
+        f"{format_metric('📦 Осталось его пикч', result.remaining)}"
     )
 
 
@@ -1001,37 +1041,45 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     next_achievement = next_achievement_for(uploaded_count)
     combo_achievements = combo_achievements_for(reaction_stats)
     lines = [
-        "<b>Ваш вклад в общий хаос</b>",
+        "<b>👤 Ваш вклад в общий хаос</b>",
         "",
         "<b>📦 Загрузка</b>",
-        f"Загружено пикч: <b>{uploaded_count}</b>",
-        f"Текущее достижение: <b>{current_achievement}</b>",
+        format_metric("Загружено пикч", uploaded_count),
+        format_metric("Текущее достижение", current_achievement),
         "",
         "<b>📊 Реакции на ваши пикчи</b>",
-        f"👍 Одобрений: <b>{reaction_stats.likes}</b>",
-        f"💩 Какашек: <b>{reaction_stats.fires}</b>",
-        f"🖕 Пальцев: <b>{reaction_stats.dislikes}</b>",
-        f"🎲 Показов: <b>{reaction_stats.shown}</b>",
+        format_metric("👍 Одобрений", reaction_stats.likes),
+        format_metric("💩 Какашек", reaction_stats.fires),
+        format_metric("🖕 Пальцев", reaction_stats.dislikes),
+        format_metric("🎲 Показов", reaction_stats.shown),
         "",
         "<b>🎖 Статус</b>",
-        f"Титул качества: <b>{quality_title(reaction_stats)}</b>",
+        format_metric("Титул качества", quality_title(reaction_stats)),
     ]
     if combo_achievements:
-        lines.append("Комбо:")
+        lines.append("")
+        lines.append("<b>🧩 Комбо</b>")
         lines.extend(f"• <b>{item}</b>" for item in combo_achievements)
 
     lines.append("")
     lines.append("<b>🎯 Следующий рубеж</b>")
 
     if next_achievement is None:
-        lines.append("Лимиты здравого смысла закончились")
+        lines.append("• Лимиты здравого смысла закончились")
         return "\n".join(lines)
 
     threshold, achievement = next_achievement
     remaining = threshold - uploaded_count
-    lines.append(f"До следующего: <b>{remaining}</b>")
-    lines.append(f"Следующее достижение: <b>{achievement}</b> на {threshold} пикч")
+    lines.append(format_metric("До следующего", remaining))
+    lines.append(format_metric("Следующее достижение", f"{achievement} на {threshold} пикч"))
     return "\n".join(lines)
+
+
+def format_top_entry(prefix: str, user_label: str, count: int, achievement: str) -> str:
+    return (
+        f"{prefix} <b>{escape(user_label)}</b>\n"
+        f"📦 <b>{count}</b> пикч · {escape(achievement)}"
+    )
 
 
 def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
@@ -1053,10 +1101,10 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
 
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
         achievement = current_achievement_for(count)
-        user_label = escape(image_pool.user_label(user_id))
-        lines.append(
-            f"{prefix} <b>{user_label}</b> — <b>{count}</b> пикч · {achievement}"
-        )
+        user_label = image_pool.user_label(user_id)
+        lines.append(format_top_entry(prefix, user_label, count, achievement))
+        if position != len(top_uploaders):
+            lines.append("")
 
     return "\n".join(lines)
 

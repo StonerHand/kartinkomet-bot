@@ -157,6 +157,23 @@ class ImagePool:
         self._write()
         return True
 
+    def finish_duel(self, loser_id: str | None) -> bool:
+        removed = False
+        if loser_id is None:
+            self._duel_stats["ties"] += 1
+        else:
+            record = self._find(loser_id)
+            if record is not None:
+                self._records.remove(record)
+                self._remove_from_chat_history({loser_id})
+                self._rebuild_indexes()
+                removed = True
+            self._duel_stats["executions"] += 1
+
+        self._duel_stats["total"] += 1
+        self._write()
+        return removed
+
     def stats(self) -> PoolStats:
         return PoolStats(
             total_images=len(self._records),
@@ -194,7 +211,7 @@ class ImagePool:
         return self._uploads_by_user.get(user_id, 0)
 
     def reaction_stats_by_user(self, user_id: int) -> UserReactionStats:
-        records = [record for record in self._records if record.get("added_by") == user_id]
+        records = self._records_by_user.get(user_id, [])
         return UserReactionStats(
             uploaded=len(records),
             likes=sum(record["likes"] for record in records),
@@ -539,6 +556,7 @@ class ImagePool:
         self._record_by_id: dict[str, dict] = {}
         self._unique_ids: set[str] = set()
         self._uploads_by_user: dict[int, int] = {}
+        self._records_by_user: dict[int, list[dict]] = {}
         self._upload_times_by_user: dict[int, list[datetime]] = {}
         for record in self._records:
             self._index_record(record, keep_upload_times_sorted=False)
@@ -552,6 +570,7 @@ class ImagePool:
             self._uploads_by_user[record["added_by"]] = (
                 self._uploads_by_user.get(record["added_by"], 0) + 1
             )
+            self._records_by_user.setdefault(record["added_by"], []).append(record)
             added_at = self._added_at_datetime(record)
             if added_at is not None:
                 upload_times = self._upload_times_by_user.setdefault(record["added_by"], [])

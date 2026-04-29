@@ -13,7 +13,7 @@ def main_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
-            InlineKeyboardButton(text="📊 Статы", callback_data="stats"),
+            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
         ],
     ]
 
