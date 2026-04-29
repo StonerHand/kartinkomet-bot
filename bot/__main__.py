@@ -19,6 +19,7 @@ BOT_COMMANDS = [
     BotCommand(command="cancel", description="отменить загрузку"),
     BotCommand(command="count", description="сколько пикч в пуле"),
     BotCommand(command="stats", description="общая сводка"),
+    BotCommand(command="weather", description="погода в Малой Токмачке"),
     BotCommand(command="me", description="мой вклад и достижения"),
     BotCommand(command="top", description="топ загрузчиков"),
     BotCommand(command="mood", description="режим дня"),

@@ -50,6 +50,7 @@ from bot.texts import (
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
 )
+from bot.weather import WeatherReport, format_weather_report, parse_weather_report
 from scripts.visual_dedupe import HashResult, clean_chat_history, find_duplicates, hamming_distance
 
 
@@ -95,6 +96,7 @@ class BotContractTest(unittest.TestCase):
                 "cancel",
                 "count",
                 "stats",
+                "weather",
                 "me",
                 "top",
                 "mood",
@@ -161,7 +163,7 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(
             main_buttons,
-            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "👤 Мой вклад", "🏆 Топ", "📊 Сводка"],
+            ["🎲 Рандом", "⚔️ Дуэль", "⬆️ Загрузка", "🌦 Погода", "👤 Мой вклад", "🏆 Топ", "📊 Сводка"],
         )
 
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
@@ -289,13 +291,57 @@ class BotContractTest(unittest.TestCase):
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
         self.assertIn("⚔️ Дуэль", format_start())
+        self.assertIn("🌦 Погода", format_start())
         self.assertIn("<b>⬆️ Загрузка</b>", format_help())
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
+        self.assertIn("/weather", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
         self.assertIn("Загрузка только в личке", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>100 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
+
+    def test_weather_report_format(self) -> None:
+        report = WeatherReport(
+            place="Малая Токмачка",
+            temperature=12.4,
+            apparent_temperature=10.2,
+            wind_speed=18.1,
+            weather_code=3,
+            daily_min=7.1,
+            daily_max=15.8,
+            precipitation_probability=42,
+            fetched_at="2026-04-29T10:00",
+        )
+
+        text = format_weather_report(report)
+
+        self.assertIn("<b>🌦 Погода: Малая Токмачка</b>", text)
+        self.assertIn("пасмурно", text)
+        self.assertIn("+12°C", text)
+        self.assertIn("42%", text)
+
+    def test_weather_payload_parser(self) -> None:
+        payload = {
+            "current": {
+                "time": "2026-04-29T10:00",
+                "temperature_2m": 12.4,
+                "apparent_temperature": 10.2,
+                "weather_code": 3,
+                "wind_speed_10m": 18.1,
+            },
+            "daily": {
+                "temperature_2m_min": [7.1],
+                "temperature_2m_max": [15.8],
+                "precipitation_probability_max": [42],
+            },
+        }
+
+        report = parse_weather_report(payload)
+
+        self.assertEqual(report.place, "Малая Токмачка")
+        self.assertEqual(report.weather_code, 3)
+        self.assertEqual(report.precipitation_probability, 42)
 
 
 class ImagePoolTest(unittest.TestCase):

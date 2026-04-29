@@ -36,6 +36,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | `/me` | Show your contribution and achievements |
 | `/top` | Show the upload leaderboard |
 | `/stats` | Show pool, random, duel, and reaction stats |
+| `/weather` | Show weather for Mala Tokmachka |
 | `/count` | Show pool size |
 | `/mood` | Show today's bot mood |
 | `/help` | Show help |
@@ -54,8 +55,9 @@ Main panel:
 
 ```text
 🎲 Рандом    ⚔️ Дуэль
-⬆️ Загрузка 👤 Мой вклад
-🏆 Топ       📊 Сводка
+⬆️ Загрузка 🌦 Погода
+👤 Мой вклад 🏆 Топ
+📊 Сводка
 ```
 
 Under a random image:
@@ -124,6 +126,12 @@ The picker is not a plain list shuffle. It:
 4. Uses `SystemRandom` for the final choice.
 
 Large pools repeat much less often. Small pools can still repeat, but the bot avoids sending the same image immediately.
+
+## Weather
+
+`/weather` and the `🌦 Погода` button show weather only for Mala Tokmachka.
+
+The forecast comes from Open-Meteo without an API key. Users do not pick or type a city.
 
 ## Uploads
 

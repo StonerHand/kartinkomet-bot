@@ -9,10 +9,13 @@ def main_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="⬆️ Загрузка", callback_data="upload"),
-            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
+            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
+        ],
+        [
             InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
         ],
     ]

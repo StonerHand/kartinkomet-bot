@@ -30,6 +30,7 @@ from bot.texts import (
     UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
 )
+from bot.weather import fetch_mala_tokmachka_weather, format_weather_error, format_weather_report
 
 UPLOAD_COMMAND = "upload_pidor"
 DUEL_SECONDS = 60
@@ -165,6 +166,12 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await message.answer(format_mood(), parse_mode="HTML")
 
+    @router.message(Command("weather"))
+    @router.channel_post(Command("weather"))
+    async def weather_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_weather(message)
+
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
         if message.from_user is None:
@@ -284,6 +291,13 @@ def build_router(
         image_pool.remember_user(callback.from_user)
         if callback.message:
             await callback.message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
+        await callback.answer()
+
+    @router.callback_query(F.data == "weather")
+    async def weather_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await send_weather(callback.message)
         await callback.answer()
 
     @router.callback_query(F.data == "upload")
@@ -900,7 +914,8 @@ def format_start() -> str:
         "<b>🚀 Быстрый старт</b>\n"
         "• <code>🎲 Рандом</code> — получить пикчу\n"
         "• <code>⚔️ Дуэль</code> — устроить бой двух пикч\n"
-        "• <code>⬆️ Загрузка</code> — пополнить пул в личке"
+        "• <code>⬆️ Загрузка</code> — пополнить пул в личке\n"
+        "• <code>🌦 Погода</code> — узнать, что там в Малой Токмачке"
     )
 
 
@@ -917,6 +932,7 @@ def format_help() -> str:
             "⚔️ Дуэли",
             "<code>/duel</code> — битва двух случайных пикч",
             "<code>/mood</code> — режим бота на сегодня",
+            "<code>/weather</code> — погода в Малой Токмачке",
         ),
         format_section(
             "⬆️ Загрузка",
@@ -950,6 +966,17 @@ def format_mood() -> str:
         "<b>🧠 Режим дня</b>\n\n"
         f"{daily_mood()}"
     )
+
+
+async def send_weather(message: Message) -> None:
+    try:
+        report = await fetch_mala_tokmachka_weather()
+    except Exception:
+        LOGGER.warning("Failed to fetch weather", exc_info=True)
+        await message.answer(format_weather_error(), parse_mode="HTML")
+        return
+
+    await message.answer(format_weather_report(report), parse_mode="HTML")
 
 
 def format_upload_private_only() -> str:
