@@ -74,7 +74,7 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer("Убираю лишние кнопки", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Пульт обновлён", reply_markup=ReplyKeyboardRemove())
         await show_menu(message)
 
     @router.message(Command("pic"))
@@ -290,6 +290,11 @@ def build_router(
             await callback.answer()
             return
 
+        current_state = await state.get_state()
+        if current_state != AddPicture.uploading.state and not is_upload_active(callback.message):
+            await callback.answer("Загрузка уже закрыта", show_alert=False)
+            return
+
         await finish_upload_or_warn(callback.message, state)
         await callback.answer()
 
@@ -329,22 +334,31 @@ def build_router(
                 and image.dislikes >= AUTO_DELETE_DISLIKES
             ):
                 image_pool.delete(image.id)
-                await callback.message.edit_reply_markup(reply_markup=None)
-                await callback.message.reply("Два средних пальца. Пикча удалена из пула")
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                    await callback.message.reply("Два средних пальца. Пикча удалена из пула")
+                except TelegramAPIError:
+                    LOGGER.warning("Failed to mark auto-deleted image message", exc_info=True)
                 await callback.answer("Народный суд сработал")
                 return
 
-            await callback.message.edit_reply_markup(
-                reply_markup=picture_actions_with_counts(
-                    image_id=image.id,
-                    likes=image.likes,
-                    fires=image.fires,
-                    dislikes=image.dislikes,
+            try:
+                await callback.message.edit_reply_markup(
+                    reply_markup=picture_actions_with_counts(
+                        image_id=image.id,
+                        likes=image.likes,
+                        fires=image.fires,
+                        dislikes=image.dislikes,
+                    )
                 )
-            )
+            except TelegramAPIError:
+                LOGGER.warning("Failed to update reaction buttons", exc_info=True)
             jury_message = jury_verdict(image.dislikes)
             if reaction_update.changed and reaction == "dislike" and jury_message:
-                await callback.message.reply(jury_message)
+                try:
+                    await callback.message.reply(jury_message)
+                except TelegramAPIError:
+                    LOGGER.warning("Failed to send jury warning", exc_info=True)
 
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
@@ -369,15 +383,18 @@ def build_router(
         left_votes = sum(1 for vote in votes.values() if vote == "left")
         right_votes = sum(1 for vote in votes.values() if vote == "right")
         if callback.message:
-            await callback.message.edit_text(
-                format_duel_score(
-                    left_votes,
-                    right_votes,
-                    announcement=str(duel.get("announcement") or random_duel_announcement()),
-                ),
-                parse_mode="HTML",
-                reply_markup=duel_vote(duel_id, left_votes, right_votes),
-            )
+            try:
+                await callback.message.edit_text(
+                    format_duel_score(
+                        left_votes,
+                        right_votes,
+                        announcement=str(duel.get("announcement") or random_duel_announcement()),
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=duel_vote(duel_id, left_votes, right_votes),
+                )
+            except TelegramAPIError:
+                LOGGER.warning("Failed to update duel vote message", exc_info=True)
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data == "duel_new")
@@ -565,7 +582,7 @@ async def activate_upload(message: Message, state: FSMContext) -> None:
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
-        await message.answer(format_upload_not_active("Закрывать нечего"))
+        await message.answer("⚠️ Загрузка уже закрыта")
         return
 
     await finish_upload(message, state)
@@ -731,10 +748,6 @@ def format_duplicate_skipped() -> str:
 
 def format_invalid_file() -> str:
     return "⚠️ Файл не зашёл. Отправьте изображение"
-
-
-def format_upload_not_active(reason: str) -> str:
-    return f"⚠️ {reason}. Загрузка сейчас не открыта"
 
 
 def format_upload_cancelled() -> str:

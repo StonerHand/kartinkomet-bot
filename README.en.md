@@ -83,6 +83,8 @@ Rules:
 
 The bot confirms batch upload only once after the first accepted image and shows `✅ Закончить` and `❌ Отмена` buttons.
 
+If someone presses an old upload button after upload mode has already closed, the bot does not spam the chat with duplicate summaries. It answers with a short Telegram UI notification instead.
+
 Non-image files are rejected. Duplicate images are skipped.
 
 Script-flood protection: one Telegram user ID can add up to `100` new images per hour. Duplicates and failed files do not spend the limit.
@@ -189,7 +191,7 @@ Performance notes:
 - JSON writes are atomic and compact to reduce Railway Volume I/O
 - anti-repeat selection avoids full sorting of the whole pool
 - image deletion rebuilds indexes so `/top`, limits, and counters stay consistent
-- duel state is cleaned after completion, and Telegram API edit errors do not crash polling
+- duel state is cleaned after completion, and Telegram API errors from stale buttons do not crash polling
 - large text pools are built at import time and then used as normal lists
 
 ## Local Run
