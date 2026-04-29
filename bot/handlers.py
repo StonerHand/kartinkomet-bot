@@ -1333,7 +1333,7 @@ def format_empty_joke_pool() -> str:
 def format_joke(text: str) -> str:
     return (
         "<b>😂 Анекдот из общего блокнота</b>\n\n"
-        f"{escape(text)}"
+        f"<blockquote>{escape(text)}</blockquote>"
     )
 
 

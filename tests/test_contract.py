@@ -351,7 +351,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("Загрузка не открыта", format_upload_not_active())
         self.assertIn("/upload_joke", format_upload_not_active())
         self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
-        self.assertIn("A &lt; B", format_joke("A < B"))
+        self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
 
     def test_weather_report_format(self) -> None:
         report = WeatherReport(
