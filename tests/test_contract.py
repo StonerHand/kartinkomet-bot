@@ -200,14 +200,14 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(
             main_buttons,
             [
-                "🎲 Рандом",
+                "🎲 Пикча",
                 "😂 Анекдот",
-                "⚔️ Пикчи",
-                "😂 Дуэль",
-                "🌦 Погода",
+                "⚔️ Дуэль пикч",
+                "😂 Дуэль шуток",
                 "📊 Сводка",
-                "👤 Мой вклад",
                 "🏆 Топ",
+                "👤 Мой вклад",
+                "🌦 Погода",
                 "📥 Пикчи",
                 "📝 Анекдоты",
             ],
@@ -291,11 +291,12 @@ class BotContractTest(unittest.TestCase):
             remaining_seconds=45,
         )
 
-        self.assertIn("<b>⚔️ Суд мемов</b>", score)
+        self.assertIn("<b>⚔️ Арена пикч</b>", score)
+        self.assertIn("Суд мемов", score)
         self.assertIn("Чат держит паузу", score)
-        self.assertIn("🅰️ слева: <b>2</b> · 🅱️ справа: <b>1</b>\n\n⏱", score)
+        self.assertIn("🅰️ Слева: <b>2</b> · 🅱️ Справа: <b>1</b>\n\n⏱", score)
         self.assertIn("<b>45 секунд</b>", score)
-        self.assertIn("🔥 🅰️ ведёт", score)
+        self.assertIn("🔥 🅰️ Ведёт", score)
         self.assertIn("👑 Выжила: <b>🅰️ слева</b>", format_duel_result(2, 1, "left"))
         self.assertIn("🗑 Улетела из пула: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
@@ -355,17 +356,16 @@ class BotContractTest(unittest.TestCase):
 
             text = format_user_progress(10, pool)
 
-            self.assertIn("<b>📦 Загрузка</b>", text)
+            self.assertIn("<b>📥 Поставки</b>", text)
             self.assertIn("<b>📊 Реакции на ваши пикчи</b>", text)
-            self.assertIn("<b>🎖 Статус</b>", text)
+            self.assertIn("<b>🎖 Качество</b>", text)
             self.assertIn("<b>🎯 Следующий рубеж</b>", text)
 
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
         self.assertIn("😂 Анекдот", format_start())
-        self.assertIn("⚔️ Пикчи", format_start())
-        self.assertIn("😂 Дуэль", format_start())
-        self.assertIn("🌦 Погода", format_start())
+        self.assertIn("⚔️ Дуэль пикч", format_start())
+        self.assertIn("😂 Дуэль шуток", format_start())
         self.assertIn("📝 Анекдоты", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>😂 Анекдоты</b>", format_help())
@@ -393,9 +393,10 @@ class BotContractTest(unittest.TestCase):
         )
 
         self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", entry)
-        self.assertIn("<b>😂⚔️ Суд шуток</b>", score)
-        self.assertIn("🅰️ первый: <b>1</b> · 🅱️ второй: <b>2</b>\n\n⏱", score)
-        self.assertIn("🔥 🅱️ ведёт", score)
+        self.assertIn("<b>😂⚔️ Арена анекдотов</b>", score)
+        self.assertIn("Суд шуток", score)
+        self.assertIn("🅰️ Первый: <b>1</b> · 🅱️ Второй: <b>2</b>\n\n⏱", score)
+        self.assertIn("🔥 🅱️ Ведёт", score)
         self.assertIn("🗑 Улетел из блокнота: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
         self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
 
@@ -408,7 +409,7 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual("".join(chunks), long_text)
         self.assertGreater(len(chunks), 1)
         self.assertIn("<b>120 секунд</b>", score)
-        self.assertIn("бой двух анекдотов на 2 минуты", format_start())
+        self.assertIn("бой анекдотов на 2 минуты", format_start())
 
     def test_joke_duel_split_respects_escaped_html_size(self) -> None:
         text = "<&>" * 3000
@@ -503,6 +504,23 @@ class JokePoolTest(unittest.TestCase):
             self.assertNotEqual(left.id, right.id)
             self.assertEqual(pool.stats().total_shows, 2)
 
+    def test_joke_duel_random_uses_shared_chat_history(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            for index in range(4):
+                pool.add_from_message(fake_text_message(f"Анекдот {index}"))
+
+            first_pair = pool.random_duel_pair(chat_id=123)
+            second_pair = pool.random_duel_pair(chat_id=123)
+
+            self.assertIsNotNone(first_pair)
+            self.assertIsNotNone(second_pair)
+            assert first_pair is not None
+            assert second_pair is not None
+            first_ids = {record.id for record in first_pair}
+            second_ids = {record.id for record in second_pair}
+            self.assertTrue(first_ids.isdisjoint(second_ids))
+
     def test_joke_reactions_accumulate_and_can_be_switched(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             pool = JokePool(str(Path(temp_dir) / "jokes.json"))
@@ -549,7 +567,7 @@ class JokePoolTest(unittest.TestCase):
             joke_pool = JokePool(str(Path(temp_dir) / "jokes.json"))
             joke_pool.add_from_message(fake_text_message("Анекдот"))
 
-            self.assertIn("<b>😂 Анекдоты</b>", format_stats(image_pool, joke_pool))
+            self.assertIn("Анекдотов в блокноте: <b>1</b>", format_stats(image_pool, joke_pool))
             self.assertIn("Анекдотов в блокноте: <b>1</b>", format_count(image_pool, joke_pool))
 
 
@@ -668,6 +686,23 @@ class ImagePoolTest(unittest.TestCase):
             left, right = pair
             self.assertNotEqual(left.id, right.id)
             self.assertEqual(pool.stats().total_shows, 2)
+
+    def test_image_duel_random_uses_shared_chat_history(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            for index in range(4):
+                pool.add_from_message(fake_photo_message(f"file-{index}", f"unique-{index}"))
+
+            first_pair = pool.random_duel_pair(chat_id=123)
+            second_pair = pool.random_duel_pair(chat_id=123)
+
+            self.assertIsNotNone(first_pair)
+            self.assertIsNotNone(second_pair)
+            assert first_pair is not None
+            assert second_pair is not None
+            first_ids = {record.id for record in first_pair}
+            second_ids = {record.id for record in second_pair}
+            self.assertTrue(first_ids.isdisjoint(second_ids))
 
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

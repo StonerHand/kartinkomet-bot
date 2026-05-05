@@ -4,20 +4,20 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 def main_menu() -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
             InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
         ],
         [
-            InlineKeyboardButton(text="⚔️ Пикчи", callback_data="duel_new"),
-            InlineKeyboardButton(text="😂 Дуэль", callback_data="joke_duel_new"),
+            InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
+            InlineKeyboardButton(text="😂 Дуэль шуток", callback_data="joke_duel_new"),
         ],
         [
-            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
             InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
+            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
             InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
-            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
+            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
             InlineKeyboardButton(text="📥 Пикчи", callback_data="upload"),

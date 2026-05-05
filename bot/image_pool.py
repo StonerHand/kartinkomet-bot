@@ -3,7 +3,7 @@ import random
 from bisect import bisect_left, insort
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from heapq import nlargest
+from heapq import nlargest, nsmallest
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,6 +16,7 @@ REACTION_FIELDS = {
 STORAGE_VERSION = 3
 MAX_CHAT_HISTORY = 500
 UPLOAD_LIMIT_PER_HOUR = 1000
+RANDOM_CANDIDATE_LIMIT = 50
 RANDOM = random.SystemRandom()
 
 
@@ -98,29 +99,20 @@ class ImagePool:
         if len(self._records) < 2:
             return None
 
-        left_records = self._selectable_records(
+        duel_chat_id = f"duel:{chat_id}"
+        records = self._selectable_records(
             avoid_recent=avoid_recent,
-            chat_id=f"duel:{chat_id}:left",
+            chat_id=duel_chat_id,
+            minimum_candidates=2,
         )
-        left_record = RANDOM.choice(left_records)
-        right_records = [
-            record
-            for record in self._selectable_records(
-                avoid_recent=avoid_recent,
-                chat_id=f"duel:{chat_id}:right",
-            )
-            if record["id"] != left_record["id"]
-        ]
-        if not right_records:
-            right_records = [
-                record for record in self._records if record["id"] != left_record["id"]
-            ]
+        if len(records) < 2:
+            records = self._records
 
-        right_record = RANDOM.choice(right_records)
+        left_record, right_record = RANDOM.sample(records, 2)
         self._mark_shown_many(
             [
-                (left_record, f"duel:{chat_id}:left"),
-                (right_record, f"duel:{chat_id}:right"),
+                (left_record, duel_chat_id),
+                (right_record, duel_chat_id),
             ]
         )
         return self._to_image_record(left_record), self._to_image_record(right_record)
@@ -341,6 +333,7 @@ class ImagePool:
         self,
         avoid_recent: bool,
         chat_id: int | str | None,
+        minimum_candidates: int = 1,
     ) -> list[dict]:
         if not avoid_recent or len(self._records) == 1:
             return self._records
@@ -350,11 +343,11 @@ class ImagePool:
         if chat_records:
             records = chat_records
 
-        shown_records = [record for record in self._records if record.get("last_shown_at")]
+        shown_records = [record for record in records if record.get("last_shown_at")]
         recent_limit = min(
-            max(1, len(self._records) // 2),
+            max(1, len(records) // 2),
             25,
-            len(self._records) - 1,
+            max(0, len(records) - minimum_candidates),
             len(shown_records),
         )
         recent_ids = {
@@ -366,12 +359,29 @@ class ImagePool:
             )
         }
         fresh_records = [record for record in records if record["id"] not in recent_ids]
-        records = fresh_records or records
-        lowest_shown_count = min(record["shown_count"] for record in records)
-        least_shown_records = [
-            record for record in records if record["shown_count"] == lowest_shown_count
-        ]
-        return least_shown_records or records
+        if len(fresh_records) >= minimum_candidates:
+            records = fresh_records
+
+        return self._least_shown_window(records, minimum_candidates)
+
+    def _least_shown_window(
+        self,
+        records: list[dict],
+        minimum_candidates: int,
+    ) -> list[dict]:
+        if len(records) <= minimum_candidates:
+            return records
+
+        window_size = min(
+            len(records),
+            max(
+                minimum_candidates,
+                min(RANDOM_CANDIDATE_LIMIT, max(8, len(records) // 8)),
+            ),
+        )
+        least_shown = nsmallest(window_size, records, key=lambda record: record["shown_count"])
+        shown_threshold = least_shown[-1]["shown_count"]
+        return [record for record in records if record["shown_count"] <= shown_threshold]
 
     def _chat_fresh_records(self, chat_id: int | str | None) -> list[dict]:
         if chat_id is None:

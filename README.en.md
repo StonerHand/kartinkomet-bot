@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs image and joke duels, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs image and joke duels, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -60,10 +60,10 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
-🎲 Рандом    😂 Анекдот
-⚔️ Пикчи     😂 Дуэль
-🌦 Погода    📊 Сводка
-👤 Мой вклад 🏆 Топ
+🎲 Пикча        😂 Анекдот
+⚔️ Дуэль пикч   😂 Дуэль шуток
+📊 Сводка       🏆 Топ
+👤 Мой вклад    🌦 Погода
 📥 Пикчи     📝 Анекдоты
 ```
 
@@ -114,17 +114,13 @@ Stats example:
 ```text
 📊 Сводка kartinkomet
 
-📦 Пул
+📦 Склад
 • Пикч в запасе: 3823
+• Анекдотов в блокноте: 128
 
-🎲 Рандом
+🎲 Выдача
 • Выстрелов пикчами: 2410
-
-😂 Анекдоты
-• В блокноте: 128
-• Рассказано: 54
-• 🤙🏻 Одобрений: 19
-• 🖕🏻 Пальцев: 3
+• Рассказано анекдотов: 54
 
 ⚔️ Дуэли
 • Боев: 37
@@ -132,8 +128,10 @@ Stats example:
 • Мирных исходов: 8
 
 🧪 Реакции
-• 🤙🏻 Одобрений: 988
-• 🖕🏻 Пальцев: 133
+• Пикчи 🤙🏻: 988
+• Пикчи 🖕🏻: 133
+• Анекдоты 🤙🏻: 19
+• Анекдоты 🖕🏻: 3
 ```
 
 ## Random Selection
@@ -142,12 +140,14 @@ The picker is not a plain list shuffle. It:
 
 1. Avoids images recently shown in the current chat.
 2. Avoids globally recent images.
-3. Prefers images with fewer views.
+3. Prefers a window of least-shown records instead of one rigid minimum.
 4. Uses `SystemRandom` for the final choice.
 
 Large pools repeat much less often. Small pools can still repeat, but the bot avoids sending the same image immediately.
 
-Jokes follow the same idea: the bot keeps per-chat delivery history, prefers less-shown entries, and avoids sending the same text twice in a row when there are alternatives.
+Duels use a separate arena history: the two images from the just-played pair should not immediately form the next pair again.
+
+Jokes follow the same idea: the bot keeps per-chat delivery history, chooses from a less-shown candidate window, and avoids sending the same text twice in a row when there are alternatives.
 
 ## Weather
 
@@ -180,7 +180,7 @@ Rules:
 
 ## Joke Duels
 
-`/jokeduel` and the `😂 Дуэль` button pick two random jokes and open a `2` minute vote.
+`/jokeduel` and the `😂 Дуэль шуток` button pick two random jokes and open a `2` minute vote.
 
 Rules mirror the image arena:
 
@@ -356,6 +356,8 @@ Jokes live in `jokes.json`:
 - the pool is loaded into memory once at startup
 - image lookup by `id` uses an index
 - duplicate checks use a `file_unique_id` set
+- random selection picks from a least-shown candidate window through a heap, without sorting the full pool
+- duels use shared arena history so a fresh pair does not repeat immediately
 - user upload counters use an index
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index

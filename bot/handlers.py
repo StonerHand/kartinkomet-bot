@@ -331,8 +331,10 @@ def build_router(
             if not ack_sent:
                 await message.answer(
                     "<b>✅ Пикчи принимаю</b>\n\n"
-                    "Когда всё закинули — нажмите <code>✅ Закончить</code>\n"
-                    "Если передумали — нажмите <code>❌ Отмена</code>",
+                    "<b>Когда всё закинули</b>\n"
+                    "Нажмите <code>✅ Закончить</code>\n\n"
+                    "<b>Если передумали</b>\n"
+                    "Нажмите <code>❌ Отмена</code>",
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
@@ -729,8 +731,10 @@ def build_router(
             if not ack_sent:
                 await message.answer(
                     "<b>✅ Анекдоты принимаю</b>\n\n"
-                    "Когда всё закинули — нажмите <code>✅ Закончить</code>\n"
-                    "Если передумали — нажмите <code>❌ Отмена</code>",
+                    "<b>Когда всё закинули</b>\n"
+                    "Нажмите <code>✅ Закончить</code>\n\n"
+                    "<b>Если передумали</b>\n"
+                    "Нажмите <code>❌ Отмена</code>",
                     parse_mode="HTML",
                     reply_markup=upload_menu(),
                 )
@@ -1277,9 +1281,11 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
     active_joke_uploads.pop(message.chat.id, None)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = (
-        f"<b>📥 {escape(RANDOM.choice(UPLOAD_START_PHRASES))}</b>\n\n"
+        "<b>📥 Загрузка пикч открыта</b>\n\n"
+        f"{escape(RANDOM.choice(UPLOAD_START_PHRASES))}\n\n"
         "🖼 Кидайте одну пикчу, пачку, альбом или пересланные изображения\n\n"
-        "После первой принятой пикчи появятся кнопки завершения"
+        "<b>Дальше</b>\n"
+        "После первой принятой пикчи покажу кнопки завершения"
     )
     await message.answer(
         upload_text,
@@ -1297,9 +1303,10 @@ async def activate_joke_upload(message: Message, state: FSMContext) -> bool:
     active_uploads.pop(message.chat.id, None)
     active_joke_uploads[message.chat.id] = new_joke_upload_session()
     await message.answer(
-        "<b>😂 Приём анекдотов открыт</b>\n\n"
-        "Отправляйте анекдоты текстом, по одному сообщению на штуку\n\n"
-        "После первого принятого анекдота появятся кнопки завершения",
+        "<b>😂 Загрузка анекдотов открыта</b>\n\n"
+        "📝 Отправляйте анекдоты текстом, по одному сообщению на штуку\n\n"
+        "<b>Дальше</b>\n"
+        "После первого принятого анекдота покажу кнопки завершения",
         parse_mode="HTML",
     )
     return True
@@ -1456,11 +1463,15 @@ def parse_user_id_argument(message: Message) -> int | None:
 
 async def show_menu(message: Message) -> None:
     await message.answer(
-        "<b>🚨 Пульт kartinkomet</b>\n\n"
-        "🎲 <b>Выдача</b> — пикчи и анекдоты\n"
-        "⚔️ <b>Арена</b> — дуэли пикч и анекдотов\n"
-        "📊 <b>Склад</b> — сводка, вклад и топ\n"
-        "📥 <b>Загрузка</b> — пикчи и анекдоты в личке",
+        "<b>🚨 Пульт от ядерки</b>\n\n"
+        "🎲 <b>Выдача</b>\n"
+        "Пикчи и анекдоты из общего склада\n\n"
+        "⚔️ <b>Арена</b>\n"
+        "Дуэли пикч и шуток без лишней мишуры\n\n"
+        "📊 <b>Склад</b>\n"
+        "Сводка, вклад, топ и погода\n\n"
+        "📥 <b>Загрузка</b>\n"
+        "Пополнение только в личке с ботом",
         parse_mode="HTML",
         reply_markup=main_menu(),
     )
@@ -1477,48 +1488,49 @@ def format_section(title: str, *lines: str) -> str:
 def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> str:
     stats = image_pool.stats()
     joke_stats = joke_pool.stats() if joke_pool else None
+    pool_lines = [format_metric("Пикч в запасе", stats.total_images)]
+    random_lines = [format_metric("Выстрелов пикчами", stats.total_shows)]
+    reaction_lines = [
+        format_metric("Пикчи 🤙🏻", stats.total_likes),
+        format_metric("Пикчи 🖕🏻", stats.total_dislikes),
+    ]
+    if joke_stats is not None:
+        pool_lines.append(format_metric("Анекдотов в блокноте", joke_stats.total_jokes))
+        random_lines.append(format_metric("Рассказано анекдотов", joke_stats.total_shows))
+        reaction_lines.extend(
+            [
+                format_metric("Анекдоты 🤙🏻", joke_stats.total_likes),
+                format_metric("Анекдоты 🖕🏻", joke_stats.total_dislikes),
+            ]
+        )
+
     sections = [
         "<b>📊 Сводка kartinkomet</b>",
-        format_section("📦 Пул", format_metric("Пикч в запасе", stats.total_images)),
-        format_section("🎲 Рандом", format_metric("Выстрелов пикчами", stats.total_shows)),
+        format_section("📦 Склад", *pool_lines),
+        format_section("🎲 Выдача", *random_lines),
         format_section(
             "⚔️ Дуэли",
             format_metric("Боев", stats.total_duels),
             format_metric("Казней", stats.duel_executions),
             format_metric("Мирных исходов", stats.duel_ties),
         ),
-        format_section(
-            "🧪 Реакции",
-            format_metric("🤙🏻 Одобрений", stats.total_likes),
-            format_metric("🖕🏻 Пальцев", stats.total_dislikes),
-        ),
+        format_section("🧪 Реакции", *reaction_lines),
     ]
-    if joke_stats is not None:
-        sections.insert(
-            2,
-            format_section(
-                "😂 Анекдоты",
-                format_metric("В блокноте", joke_stats.total_jokes),
-                format_metric("Рассказано раз", joke_stats.total_shows),
-                format_metric("🤙🏻 Одобрений", joke_stats.total_likes),
-                format_metric("🖕🏻 Пальцев", joke_stats.total_dislikes),
-            ),
-        )
     return "\n\n".join(sections)
 
 
 def format_start() -> str:
     return (
-        "<b>👋 Я @kartinkomet_bot</b>\n"
-        "Общий склад пикч и анекдотов: рандом, дуэли, реакции, топы и достижения\n\n"
+        "<b>👋 Я @kartinkomet_bot</b>\n\n"
+        "Общий склад пикч и анекдотов. Выдаю рандом, запускаю дуэли, считаю вклад "
+        "и тихо веду бухгалтерию хаоса\n\n"
         f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
         "<b>🚀 Быстрый старт</b>\n"
-        "• <code>🎲 Рандом</code> — пикча из общего пула\n"
+        "• <code>🎲 Пикча</code> — рандом из общего пула\n"
         "• <code>😂 Анекдот</code> — случайный текст из блокнота\n"
-        "• <code>⚔️ Пикчи</code> — бой двух пикч на 60 секунд\n"
-        "• <code>😂 Дуэль</code> — бой двух анекдотов на 2 минуты\n"
-        "• <code>📥 Пикчи</code> / <code>📝 Анекдоты</code> — пополнение в личке\n"
-        "• <code>🌦 Погода</code> — Малая Токмачка"
+        "• <code>⚔️ Дуэль пикч</code> — арена на 60 секунд\n"
+        "• <code>😂 Дуэль шуток</code> — бой анекдотов на 2 минуты\n"
+        "• <code>📥 Пикчи</code> и <code>📝 Анекдоты</code> — загрузка в личке"
     )
 
 
@@ -1744,18 +1756,18 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     next_achievement = next_achievement_for(uploaded_count)
     combo_achievements = combo_achievements_for(reaction_stats)
     lines = [
-        "<b>👤 Ваш вклад в общий склад</b>",
+        "<b>👤 Личный профиль</b>",
         "",
-        "<b>📦 Загрузка</b>",
+        "<b>📥 Поставки</b>",
         format_metric("Загружено пикч", uploaded_count),
-        format_metric("Достижение", current_achievement),
+        format_metric("Текущее достижение", current_achievement),
         "",
         "<b>📊 Реакции на ваши пикчи</b>",
         format_metric("🤙🏻 Одобрений", reaction_stats.likes),
         format_metric("🖕🏻 Пальцев", reaction_stats.dislikes),
         format_metric("🎲 Выдано рандомом", reaction_stats.shown),
         "",
-        "<b>🎖 Статус</b>",
+        "<b>🎖 Качество</b>",
         format_metric("Титул качества", quality_title(reaction_stats)),
     ]
     if combo_achievements:
@@ -1869,18 +1881,19 @@ def format_duel_score(
     remaining_seconds: int | None = None,
 ) -> str:
     if left_votes == right_votes:
-        verdict = "⚖️ пока ничья"
+        verdict = "⚖️ Пока ничья"
     elif left_votes > right_votes:
-        verdict = "🔥 🅰️ ведёт"
+        verdict = "🔥 🅰️ Ведёт"
     else:
-        verdict = "🔥 🅱️ ведёт"
+        verdict = "🔥 🅱️ Ведёт"
 
     seconds_left = DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
-        f"<b>⚔️ {escape(title or random_duel_start_phrase())}</b>\n"
+        "<b>⚔️ Арена пикч</b>\n\n"
+        f"{escape(title or random_duel_start_phrase())}\n"
         f"{escape(status or random_duel_status_phrase())}\n\n"
-        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
-        f"⏱ <b>{seconds_left} секунд</b> · "
+        f"🅰️ Слева: <b>{left_votes}</b> · 🅱️ Справа: <b>{right_votes}</b>\n\n"
+        f"⏱ Осталось: <b>{seconds_left} секунд</b>\n"
         f"{verdict}"
     )
 
@@ -1897,9 +1910,12 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
         verdict = "👑 Выжила: <b>🅱️ справа</b>\n🗑 Улетела из пула: <b>🅰️ слева</b>"
 
     return (
-        "<b>🏁 Дуэль завершена</b>\n"
+        "<b>🏁 Дуэль завершена</b>\n\n"
         f"{escape(phrase)}\n\n"
-        f"🅰️ слева: <b>{left_votes}</b> · 🅱️ справа: <b>{right_votes}</b>\n\n"
+        "<b>Счёт</b>\n"
+        f"🅰️ Слева: <b>{left_votes}</b>\n"
+        f"🅱️ Справа: <b>{right_votes}</b>\n\n"
+        "<b>Вердикт</b>\n"
         f"{verdict}"
     )
 
@@ -1912,18 +1928,20 @@ def format_joke_duel_score(
     remaining_seconds: int | None = None,
 ) -> str:
     if left_votes == right_votes:
-        verdict = "⚖️ пока ничья"
+        verdict = "⚖️ Пока ничья"
     elif left_votes > right_votes:
-        verdict = "🔥 🅰️ ведёт"
+        verdict = "🔥 🅰️ Ведёт"
     else:
-        verdict = "🔥 🅱️ ведёт"
+        verdict = "🔥 🅱️ Ведёт"
 
     seconds_left = JOKE_DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
-        f"<b>😂⚔️ {escape(title or random_joke_duel_start_phrase())}</b>\n"
+        "<b>😂⚔️ Арена анекдотов</b>\n\n"
+        f"{escape(title or random_joke_duel_start_phrase())}\n"
         f"{escape(status or random_joke_duel_status_phrase())}\n\n"
-        f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
-        f"⏱ <b>{seconds_left} секунд</b> · {verdict}"
+        f"🅰️ Первый: <b>{left_votes}</b> · 🅱️ Второй: <b>{right_votes}</b>\n\n"
+        f"⏱ Осталось: <b>{seconds_left} секунд</b>\n"
+        f"{verdict}"
     )
 
 
@@ -1943,9 +1961,12 @@ def format_joke_duel_result(
         verdict = "👑 Выжил: <b>🅱️ второй</b>\n🗑 Улетел из блокнота: <b>🅰️ первый</b>"
 
     return (
-        "<b>🏁 Дуэль анекдотов завершена</b>\n"
+        "<b>🏁 Дуэль анекдотов завершена</b>\n\n"
         f"{escape(phrase)}\n\n"
-        f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
+        "<b>Счёт</b>\n"
+        f"🅰️ Первый: <b>{left_votes}</b>\n"
+        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
+        "<b>Вердикт</b>\n"
         f"{verdict}"
     )
 
