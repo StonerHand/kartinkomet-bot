@@ -20,7 +20,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - text duplicates are rejected through normalized joke text
 - visual duplicates can be cleaned with a separate `dHash` script
 - heavy visual-cleanup dependencies live in a separate maintenance file
-- one user can add up to `100` new images per hour
+- one user can add up to `1000` new images per hour
 - one user can cast one reaction per image, but can switch it
 - `2 🖕🏻` remove an image or joke from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
@@ -210,7 +210,7 @@ Tracked upload outcomes:
 - successfully added images
 - duplicates
 - invalid files
-- `100` new images per hour per user limit
+- `1000` new images per hour per user limit
 
 ## Duels
 

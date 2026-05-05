@@ -337,7 +337,7 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("stale-duel", duel_sessions)
 
     def test_quality_title_and_combos(self) -> None:
-        stats = SimpleNamespace(uploaded=100, likes=60, dislikes=0, shown=60)
+        stats = SimpleNamespace(uploaded=1000, likes=60, dislikes=0, shown=60)
 
         self.assertEqual(quality_title(stats), "поставщик годноты")
         self.assertIn("заливочный марафонец", combo_achievements_for(stats))
@@ -371,7 +371,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
         self.assertIn("Загрузка уехала в личку", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
-        self.assertIn("Лимит: <b>100 новых пикч в час</b>", format_upload_limit())
+        self.assertIn("Лимит: <b>1000 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
         self.assertIn("/upload_joke", format_upload_not_active())
         self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
