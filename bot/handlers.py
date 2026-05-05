@@ -47,9 +47,10 @@ from bot.weather import format_weather_error, format_weather_report, get_mala_to
 UPLOAD_COMMAND = "upload_pidor"
 JOKE_UPLOAD_COMMAND = "upload_joke"
 DUEL_SECONDS = 60
+JOKE_DUEL_SECONDS = 120
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
-JOKE_DUEL_TEXT_LIMIT = 900
+TELEGRAM_TEXT_CHUNK_SIZE = 3500
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
 
@@ -630,8 +631,6 @@ def build_router(
             try:
                 await callback.message.edit_text(
                     format_joke_duel_score(
-                        str(duel["left_text"]),
-                        str(duel["right_text"]),
                         left_votes,
                         right_votes,
                         title=str(duel.get("title") or random_joke_duel_start_phrase()),
@@ -824,6 +823,17 @@ async def send_joke(
     )
 
 
+async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
+    chunks = split_text_for_telegram(text.strip())
+    total_chunks = len(chunks)
+    for index, chunk in enumerate(chunks, start=1):
+        chunk_title = title
+        if total_chunks > 1:
+            chunk_title = f"{title} · часть {index}/{total_chunks}"
+
+        await message.answer(format_joke_duel_entry(chunk_title, chunk), parse_mode="HTML")
+
+
 async def send_duel(
     bot: Bot,
     message: Message,
@@ -918,6 +928,13 @@ async def send_joke_duel(
             return "failed"
         left, right = duel_pair
 
+        try:
+            await send_joke_duel_entry(message, "🅰️ Первый анекдот", left.text)
+            await send_joke_duel_entry(message, "🅱️ Второй анекдот", right.text)
+        except TelegramAPIError:
+            LOGGER.warning("Failed to send joke duel text messages", exc_info=True)
+            return "failed"
+
         duel_id = uuid4().hex
         title = random_joke_duel_start_phrase()
         status = random_joke_duel_status_phrase()
@@ -932,11 +949,11 @@ async def send_joke_duel(
             "active": True,
             "title": title,
             "status": status,
-            "expires_at": monotonic() + DUEL_SECONDS,
+            "expires_at": monotonic() + JOKE_DUEL_SECONDS,
         }
         try:
             score_message = await message.answer(
-                format_joke_duel_score(left.text, right.text, 0, 0, title=title, status=status),
+                format_joke_duel_score(0, 0, title=title, status=status),
                 parse_mode="HTML",
                 reply_markup=joke_duel_vote(duel_id),
             )
@@ -1060,8 +1077,6 @@ async def finalize_joke_duel(
 
         if left_votes == right_votes:
             result_text = format_joke_duel_result(
-                str(duel["left_text"]),
-                str(duel["right_text"]),
                 left_votes,
                 right_votes,
                 winner=None,
@@ -1069,8 +1084,6 @@ async def finalize_joke_duel(
         elif left_votes > right_votes:
             joke_pool.delete(str(duel["right"]))
             result_text = format_joke_duel_result(
-                str(duel["left_text"]),
-                str(duel["right_text"]),
                 left_votes,
                 right_votes,
                 winner="left",
@@ -1078,8 +1091,6 @@ async def finalize_joke_duel(
         else:
             joke_pool.delete(str(duel["left"]))
             result_text = format_joke_duel_result(
-                str(duel["left_text"]),
-                str(duel["right_text"]),
                 left_votes,
                 right_votes,
                 winner="right",
@@ -1182,8 +1193,6 @@ async def update_joke_duel_score_message(
             chat_id=chat_id,
             message_id=message_id,
             text=format_joke_duel_score(
-                str(duel["left_text"]),
-                str(duel["right_text"]),
                 left_votes,
                 right_votes,
                 title=str(duel.get("title") or random_joke_duel_start_phrase()),
@@ -1508,7 +1517,7 @@ def format_start() -> str:
         "• <code>🎲 Рандом</code> — пикча из общего пула\n"
         "• <code>😂 Анекдот</code> — случайный текст из блокнота\n"
         "• <code>⚔️ Пикчи</code> — бой двух пикч на 60 секунд\n"
-        "• <code>😂 Дуэль</code> — бой двух анекдотов на 60 секунд\n"
+        "• <code>😂 Дуэль</code> — бой двух анекдотов на 2 минуты\n"
         "• <code>📥 Пикчи</code> / <code>📝 Анекдоты</code> — пополнение в личке\n"
         "• <code>🌦 Погода</code> — Малая Токмачка"
     )
@@ -1638,6 +1647,13 @@ def format_empty_joke_pool() -> str:
 def format_joke(text: str) -> str:
     return (
         "<b>😂 Анекдот из общего блокнота</b>\n\n"
+        f"<blockquote>{escape(text)}</blockquote>"
+    )
+
+
+def format_joke_duel_entry(title: str, text: str) -> str:
+    return (
+        f"<b>{escape(title)}</b>\n\n"
         f"<blockquote>{escape(text)}</blockquote>"
     )
 
@@ -1890,8 +1906,6 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
 
 
 def format_joke_duel_score(
-    left_text: str,
-    right_text: str,
     left_votes: int,
     right_votes: int,
     title: str | None = None,
@@ -1905,22 +1919,16 @@ def format_joke_duel_score(
     else:
         verdict = "🔥 🅱️ ведёт"
 
-    seconds_left = DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
+    seconds_left = JOKE_DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
         f"<b>😂⚔️ {escape(title or random_joke_duel_start_phrase())}</b>\n"
         f"{escape(status or random_joke_duel_status_phrase())}\n\n"
-        f"<b>🅰️ Первый</b>\n"
-        f"<blockquote>{escape(trim_joke_duel_text(left_text))}</blockquote>\n\n"
-        f"<b>🅱️ Второй</b>\n"
-        f"<blockquote>{escape(trim_joke_duel_text(right_text))}</blockquote>\n\n"
         f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
         f"⏱ <b>{seconds_left} секунд</b> · {verdict}"
     )
 
 
 def format_joke_duel_result(
-    left_text: str,
-    right_text: str,
     left_votes: int,
     right_votes: int,
     winner: str | None,
@@ -1938,21 +1946,35 @@ def format_joke_duel_result(
     return (
         "<b>🏁 Дуэль анекдотов завершена</b>\n"
         f"{escape(phrase)}\n\n"
-        f"<b>🅰️ Первый</b>\n"
-        f"<blockquote>{escape(trim_joke_duel_text(left_text, limit=700))}</blockquote>\n\n"
-        f"<b>🅱️ Второй</b>\n"
-        f"<blockquote>{escape(trim_joke_duel_text(right_text, limit=700))}</blockquote>\n\n"
         f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
         f"{verdict}"
     )
 
 
-def trim_joke_duel_text(text: str, limit: int = JOKE_DUEL_TEXT_LIMIT) -> str:
-    normalized = text.strip()
-    if len(normalized) <= limit:
-        return normalized
+def split_text_for_telegram(
+    text: str,
+    chunk_size: int = TELEGRAM_TEXT_CHUNK_SIZE,
+) -> list[str]:
+    if not text:
+        return [""]
 
-    return normalized[: max(0, limit - 2)].rstrip() + "\n…"
+    chunks = []
+    current = []
+    current_size = 0
+    for char in text:
+        escaped_size = len(escape(char))
+        if current and current_size + escaped_size > chunk_size:
+            chunks.append("".join(current))
+            current = []
+            current_size = 0
+
+        current.append(char)
+        current_size += escaped_size
+
+    if current:
+        chunks.append("".join(current))
+
+    return chunks
 
 
 def random_duel_start_phrase() -> str:

@@ -180,13 +180,14 @@ Rules:
 
 ## Joke Duels
 
-`/jokeduel` and the `😂 Дуэль` button pick two random jokes and open a `60` second vote.
+`/jokeduel` and the `😂 Дуэль` button pick two random jokes and open a `2` minute vote.
 
 Rules mirror the image arena:
 
 - only one active duel of any type can run in a chat
 - each user votes once but can switch sides
-- joke texts are rendered as quotes, so the duel card stays readable
+- joke texts are sent as separate quotes before the vote card
+- jokes are not trimmed: long text is split into several messages but kept in full
 - winner stays in `jokes.json`
 - loser is removed from the joke pool
 - ties keep both jokes alive

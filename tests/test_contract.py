@@ -25,6 +25,7 @@ from bot.handlers import (
     format_empty_joke_pool,
     format_help,
     format_joke,
+    format_joke_duel_entry,
     format_joke_duel_result,
     format_joke_duel_score,
     format_mood,
@@ -39,6 +40,7 @@ from bot.handlers import (
     parse_user_id_argument,
     quality_title,
     register_active_duel,
+    split_text_for_telegram,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool, normalize_joke_text
@@ -378,9 +380,8 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
 
     def test_joke_duel_score_and_result_are_quoted(self) -> None:
+        entry = format_joke_duel_entry("🅰️ Первый анекдот", "Первый <текст>")
         score = format_joke_duel_score(
-            "Первый <текст>",
-            "Второй текст",
             1,
             2,
             title="Суд шуток",
@@ -388,12 +389,22 @@ class BotContractTest(unittest.TestCase):
             remaining_seconds=30,
         )
 
+        self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", entry)
         self.assertIn("<b>😂⚔️ Суд шуток</b>", score)
-        self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", score)
         self.assertIn("🅰️ первый: <b>1</b> · 🅱️ второй: <b>2</b>\n\n⏱", score)
         self.assertIn("🔥 🅱️ ведёт", score)
-        self.assertIn("🗑 Улетел из блокнота: <b>🅰️ первый</b>", format_joke_duel_result("a", "b", 1, 2, "right"))
-        self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result("a", "b", 1, 1, None))
+        self.assertIn("🗑 Улетел из блокнота: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
+        self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
+
+    def test_joke_duel_defaults_to_two_minutes_and_does_not_trim_text(self) -> None:
+        long_text = "а" * 8000
+
+        chunks = split_text_for_telegram(long_text)
+        score = format_joke_duel_score(0, 0, title="Суд шуток", status="Чат слушает")
+
+        self.assertEqual("".join(chunks), long_text)
+        self.assertGreater(len(chunks), 1)
+        self.assertIn("<b>120 секунд</b>", score)
 
     def test_weather_report_format(self) -> None:
         report = WeatherReport(
