@@ -194,11 +194,12 @@ class BotContractTest(unittest.TestCase):
                 "🎲 Рандом",
                 "😂 Анекдот",
                 "⚔️ Дуэль",
-                "📊 Сводка",
                 "🌦 Погода",
+                "📊 Сводка",
                 "👤 Мой вклад",
                 "🏆 Топ",
-                "⬆️ Загрузить пикчи",
+                "📥 Пикчи",
+                "📝 Анекдоты",
             ],
         )
 
@@ -339,7 +340,8 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("😂 Анекдот", format_start())
         self.assertIn("⚔️ Дуэль", format_start())
         self.assertIn("🌦 Погода", format_start())
-        self.assertIn("<b>⬆️ Загрузка</b>", format_help())
+        self.assertIn("📝 Анекдоты", format_start())
+        self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>😂 Анекдоты</b>", format_help())
         self.assertIn("/upload_joke", format_help())
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
@@ -555,7 +557,7 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.duel_executions, 1)
             self.assertEqual(stats.duel_ties, 1)
             self.assertIn("<b>⚔️ Дуэли</b>", format_stats(pool))
-            self.assertIn("Удалений после боя: <b>1</b>", format_stats(pool))
+            self.assertIn("Казней: <b>1</b>", format_stats(pool))
 
             reloaded_pool = ImagePool(str(storage_path))
             self.assertEqual(reloaded_pool.stats().total_duels, 2)
@@ -576,6 +578,20 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.total_duels, 1)
             self.assertEqual(stats.duel_executions, 1)
             self.assertEqual(stats.duel_ties, 0)
+
+    def test_random_duel_pair_marks_two_distinct_images_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a"))
+            pool.add_from_message(fake_photo_message("file-b", "unique-b"))
+
+            pair = pool.random_duel_pair(chat_id=123)
+
+            self.assertIsNotNone(pair)
+            assert pair is not None
+            left, right = pair
+            self.assertNotEqual(left.id, right.id)
+            self.assertEqual(pool.stats().total_shows, 2)
 
     def test_deduplicates_existing_records_by_file_unique_id_on_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

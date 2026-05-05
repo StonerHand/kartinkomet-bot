@@ -372,6 +372,18 @@ def build_router(
         activated = await activate_upload(callback.message, state)
         await callback.answer("Загрузка открыта" if activated else "Открой личку с ботом")
 
+    @router.callback_query(F.data == "upload_joke")
+    async def upload_joke_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        activated = await activate_joke_upload(callback.message, state)
+        await callback.answer(
+            "Загрузка анекдотов открыта" if activated else "Открой личку с ботом"
+        )
+
     @router.callback_query(F.data == "done")
     async def done_callback(callback: CallbackQuery, state: FSMContext) -> None:
         image_pool.remember_user(callback.from_user)
@@ -709,22 +721,11 @@ async def send_duel(
             await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
             return "failed"
 
-        left = image_pool.random_image(chat_id=f"duel:{chat_id}:left")
-        right = image_pool.random_image(chat_id=f"duel:{chat_id}:right")
-        if left is None or right is None:
+        duel_pair = image_pool.random_duel_pair(chat_id=chat_id)
+        if duel_pair is None:
             await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
             return "failed"
-
-        attempts = 0
-        while right.id == left.id and attempts < 5:
-            right = image_pool.random_image(chat_id=f"duel:{chat_id}:right:{attempts}")
-            attempts += 1
-            if right is None:
-                break
-
-        if right is None or right.id == left.id:
-            await message.answer("⚔️ Дуэль не собралась. Рандом принёс одну и ту же пикчу")
-            return "failed"
+        left, right = duel_pair
 
         try:
             await bot.send_media_group(
@@ -1144,12 +1145,11 @@ def parse_user_id_argument(message: Message) -> int | None:
 
 async def show_menu(message: Message) -> None:
     await message.answer(
-        "<b>🚨 Пульт от ядерки</b>\n\n"
-        "<b>🎮 Быстрые кнопки</b>\n"
-        "🎲 рандом · 😂 анекдот · ⚔️ дуэль\n\n"
-        "<b>📊 Склад и люди</b>\n"
-        "📊 сводка · 👤 мой вклад · 🏆 топ\n\n"
-        "⬆️ загрузка работает в личке с ботом",
+        "<b>🚨 Пульт kartinkomet</b>\n\n"
+        "🎲 <b>Выдача</b> — пикчи и анекдоты\n"
+        "⚔️ <b>Арена</b> — дуэль двух пикч\n"
+        "📊 <b>Склад</b> — сводка, вклад и топ\n"
+        "📥 <b>Загрузка</b> — пикчи и анекдоты в личке",
         parse_mode="HTML",
         reply_markup=main_menu(),
     )
@@ -1168,13 +1168,13 @@ def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
     joke_stats = joke_pool.stats() if joke_pool else None
     sections = [
         "<b>📊 Сводка kartinkomet</b>",
-        format_section("📦 Пул", format_metric("Пикч внутри", stats.total_images)),
-        format_section("🎲 Рандом", format_metric("Выдано пикч", stats.total_shows)),
+        format_section("📦 Пул", format_metric("Пикч в запасе", stats.total_images)),
+        format_section("🎲 Рандом", format_metric("Выстрелов пикчами", stats.total_shows)),
         format_section(
             "⚔️ Дуэли",
             format_metric("Боев", stats.total_duels),
-            format_metric("Удалений после боя", stats.duel_executions),
-            format_metric("Ничьих без удаления", stats.duel_ties),
+            format_metric("Казней", stats.duel_executions),
+            format_metric("Мирных исходов", stats.duel_ties),
         ),
         format_section(
             "🧪 Реакции",
@@ -1188,7 +1188,7 @@ def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
             format_section(
                 "😂 Анекдоты",
                 format_metric("В блокноте", joke_stats.total_jokes),
-                format_metric("Рассказано", joke_stats.total_shows),
+                format_metric("Рассказано раз", joke_stats.total_shows),
                 format_metric("🤙🏻 Одобрений", joke_stats.total_likes),
                 format_metric("🖕🏻 Пальцев", joke_stats.total_dislikes),
             ),
@@ -1199,30 +1199,30 @@ def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
 def format_start() -> str:
     return (
         "<b>👋 Я @kartinkomet_bot</b>\n"
-        "Общий склад пикч, рандом, дуэли и статистика без лишней бюрократии\n\n"
+        "Общий склад пикч и анекдотов: рандом, дуэли, реакции, топы и достижения\n\n"
         f"<b>🧠 Режим дня</b>\n{daily_mood()}\n\n"
         "<b>🚀 Быстрый старт</b>\n"
-        "• <code>🎲 Рандом</code> — получить пикчу\n"
-        "• <code>😂 Анекдот</code> — достать случайный текстовый баян\n"
-        "• <code>⚔️ Дуэль</code> — устроить бой двух пикч\n"
-        "• <code>⬆️ Загрузить пикчи</code> — пополнить пул в личке\n"
-        "• <code>🌦 Погода</code> — узнать, что там в Малой Токмачке"
+        "• <code>🎲 Рандом</code> — пикча из общего пула\n"
+        "• <code>😂 Анекдот</code> — случайный текст из блокнота\n"
+        "• <code>⚔️ Дуэль</code> — бой двух пикч на 60 секунд\n"
+        "• <code>📥 Пикчи</code> / <code>📝 Анекдоты</code> — пополнение в личке\n"
+        "• <code>🌦 Погода</code> — Малая Токмачка"
     )
 
 
 def format_help() -> str:
     sections = [
-        "<b>🧭 Пульт управления хаосом</b>",
+        "<b>🧭 Команды kartinkomet</b>",
         format_section(
             "🎲 Картинки",
-            "<code>/pic</code> — выстрелить рандомной пикчей",
-            "<code>/count</code> — размер общего пула",
-            "<code>/menu</code> — открыть пульт от ядерки",
+            "<code>/pic</code> — рандомная пикча",
+            "<code>/count</code> — размер пула",
+            "<code>/menu</code> — открыть пульт",
         ),
         format_section(
             "😂 Анекдоты",
             "<code>/joke</code> — случайный анекдот",
-            "<code>/upload_joke</code> — загрузить анекдоты в личке",
+            "<code>/upload_joke</code> — загрузка анекдотов в личке",
         ),
         format_section(
             "⚔️ Дуэли",
@@ -1231,9 +1231,9 @@ def format_help() -> str:
             "<code>/weather</code> — погода в Малой Токмачке",
         ),
         format_section(
-            "⬆️ Загрузка",
+            "📥 Загрузка",
             "<code>/upload_pidor</code> — открыть загрузку в личке",
-            "<code>/done</code> — закрыть загрузку",
+            "<code>/done</code> — завершить загрузку",
             "<code>/cancel</code> — отменить загрузку",
         ),
         format_section(
@@ -1258,7 +1258,7 @@ def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
     )
     return (
         "<b>📦 Общий пул</b>\n\n"
-        f"{format_metric('Пикч на складе', image_pool.count())}"
+        f"{format_metric('Пикч в запасе', image_pool.count())}"
         f"{joke_line}"
     )
 
@@ -1284,7 +1284,7 @@ async def send_weather(message: Message) -> None:
 def format_upload_private_only() -> str:
     return (
         "<b>📬 Загрузка уехала в личку</b>\n\n"
-        "В группе бот не ловит файлы стабильно из-за Telegram Privacy Mode\n\n"
+        "В группе оставляем выдачу и дуэли. Файлы надёжнее принимать один на один\n\n"
         "<b>Как пополнить пул</b>\n"
         "1. Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"2. Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
@@ -1355,7 +1355,7 @@ def format_invalid_joke_command() -> str:
 def format_joke_upload_private_only() -> str:
     return (
         "<b>📬 Анекдоты принимаю только в личке</b>\n\n"
-        "В группе оставляем выдачу, статы и дуэли без текстового склада на полу\n\n"
+        "В группе оставляем выдачу, статы и дуэли. Текстовый склад пополняется в личке\n\n"
         "<b>Как загрузить</b>\n"
         "1. Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"2. Отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>\n"

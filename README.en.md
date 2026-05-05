@@ -1,6 +1,6 @@
 # kartinkomet
 
-Telegram bot for a shared pool of images and jokes: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, weather, and duplicate cleanup.
+Telegram bot for a shared pool of images and jokes: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, weather, and duplicate cleanup. The production runtime stays lean: it only installs what the bot needs to run.
 
 [Русская версия](README.md)
 
@@ -19,6 +19,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - exact duplicates are rejected through `file_unique_id`
 - text duplicates are rejected through normalized joke text
 - visual duplicates can be cleaned with a separate `dHash` script
+- heavy visual-cleanup dependencies live in a separate maintenance file
 - one user can add up to `100` new images per hour
 - one user can cast one reaction per image, but can switch it
 - `2 🖕🏻` remove an image or joke from the pool
@@ -59,10 +60,10 @@ Main panel:
 
 ```text
 🎲 Рандом    😂 Анекдот
-⚔️ Дуэль     📊 Сводка
-🌦 Погода    👤 Мой вклад
+⚔️ Дуэль     🌦 Погода
+📊 Сводка    👤 Мой вклад
 🏆 Топ
-⬆️ Загрузить пикчи
+📥 Пикчи     📝 Анекдоты
 ```
 
 Under a random image:
@@ -87,7 +88,7 @@ During private upload:
 
 ## Message Design
 
-Messages are formatted as compact cards with clear sections. Long leaderboard lines are split so Telegram does not wrap everything into a wall of text.
+Messages are compact cards: one title, clear sections, and very little noise. The bot keeps its edge without turning the chat into a blinking billboard.
 
 Leaderboard example:
 
@@ -113,10 +114,10 @@ Stats example:
 📊 Сводка kartinkomet
 
 📦 Пул
-• Пикч внутри: 3823
+• Пикч в запасе: 3823
 
 🎲 Рандом
-• Выдано пикч: 2410
+• Выстрелов пикчами: 2410
 
 😂 Анекдоты
 • В блокноте: 128
@@ -126,8 +127,8 @@ Stats example:
 
 ⚔️ Дуэли
 • Боев: 37
-• Удалений после боя: 29
-• Ничьих без удаления: 8
+• Казней: 29
+• Мирных исходов: 8
 
 🧪 Реакции
 • 🤙🏻 Одобрений: 988
@@ -151,7 +152,7 @@ Jokes follow the same idea: the bot keeps per-chat delivery history, prefers les
 
 `/weather` and the `🌦 Погода` button show weather only for Mala Tokmachka.
 
-The forecast comes from Open-Meteo without an API key. Users do not pick or type a city.
+Weather data is fetched without an API key. Users do not pick or type a city.
 
 The response is a clean card with temperature, feels-like value, sky state, daily range, precipitation, and wind. Weather is cached for `10` minutes so repeated button taps do not hit the external API every time.
 
@@ -162,7 +163,7 @@ The response is a clean card with temperature, feels-like value, sky state, dail
 Upload flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Send `/upload_joke`.
+2. Press `📝 Анекдоты` or send `/upload_joke`.
 3. Send jokes as text, one joke per message.
 4. Finish with `/done` or cancel with `/cancel`.
 
@@ -181,11 +182,11 @@ Rules:
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `⬆️ Загрузить пикчи` or send `/upload_pidor`.
+2. Press `📥 Пикчи` or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `⬆️ Загрузить пикчи` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📥 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. After the first accepted image it sends one compact instruction with finish and cancel buttons.
 
@@ -341,6 +342,8 @@ Jokes live in `jokes.json`:
 - user upload counters use an index
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index
+- duel pairs are selected through one method and persist view counters with one JSON write
+- `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
 - JSON writes are atomic through a temporary file
 - duel completion removes the loser and writes stats in one save
@@ -358,6 +361,7 @@ Exact duplicates from one user:
 Visual duplicates through the maintenance script:
 
 ```bash
+pip install -r requirements-maintenance.txt
 python scripts/visual_dedupe.py --user-id 1045485205 --dry-run
 ```
 
@@ -401,6 +405,12 @@ python -m compileall bot scripts tests
 python -m unittest discover
 ```
 
+For visual duplicate cleanup, also install:
+
+```bash
+pip install -r requirements-maintenance.txt
+```
+
 ## Railway
 
 Included files:
@@ -441,4 +451,6 @@ bot/keyboards.py   # inline keyboards
 bot/texts.py       # phrases, mood labels, achievements, jury rule
 scripts/           # one-off maintenance scripts
 tests/             # contract tests
+requirements.txt   # production bot dependencies
+requirements-maintenance.txt # dependencies for heavy one-off scripts
 ```

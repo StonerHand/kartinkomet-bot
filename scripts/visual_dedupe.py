@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-from PIL import Image, UnidentifiedImageError
 
 DEFAULT_THRESHOLD = 5
 DEFAULT_CONCURRENCY = 8
@@ -35,6 +34,8 @@ class DuplicateMatch:
 
 
 def dhash(image_bytes: bytes) -> int:
+    Image, _ = _pillow_modules()
+
     with Image.open(BytesIO(image_bytes)) as image:
         grayscale = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
         pixels = list(grayscale.getdata())
@@ -48,6 +49,18 @@ def dhash(image_bytes: bytes) -> int:
                 value |= 1
 
     return value
+
+
+def _pillow_modules():
+    try:
+        from PIL import Image, UnidentifiedImageError
+    except ModuleNotFoundError as error:
+        raise RuntimeError(
+            "Pillow is required for visual dedupe. "
+            "Install maintenance dependencies with: pip install -r requirements-maintenance.txt"
+        ) from error
+
+    return Image, UnidentifiedImageError
 
 
 def hamming_distance(left: int, right: int) -> int:
@@ -171,7 +184,7 @@ async def hash_record(
         async with semaphore:
             image_bytes = await fetch_file_bytes(session, bot_token, file_id)
         image_hash = dhash(image_bytes)
-    except (aiohttp.ClientError, RuntimeError, UnidentifiedImageError, OSError) as error:
+    except (aiohttp.ClientError, RuntimeError, OSError) as error:
         print(f"skip {record_id}: {error}")
         return None
 
@@ -220,6 +233,7 @@ def write_cache(path: Path, cache: dict[str, str]) -> None:
 
 
 async def run(args: argparse.Namespace) -> None:
+    _pillow_modules()
     pool_path = Path(args.pool_path)
     cache_path = Path(args.cache_path or pool_path.with_name(".visual_hash_cache.json"))
     data = load_pool(pool_path)

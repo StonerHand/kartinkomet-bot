@@ -181,7 +181,7 @@ def format_weather_report(report: WeatherReport) -> str:
 def format_weather_error() -> str:
     return (
         "<b>🌦 Погода не прилетела</b>\n\n"
-        "Open-Meteo сейчас не отвечает. Попробуйте ещё раз чуть позже"
+        "Погодный источник сейчас не отвечает. Попробуйте ещё раз чуть позже"
     )
 
 

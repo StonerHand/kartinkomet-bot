@@ -90,6 +90,41 @@ class ImagePool:
         self._mark_shown(record, chat_id=chat_id)
         return self._to_image_record(record)
 
+    def random_duel_pair(
+        self,
+        chat_id: int | str,
+        avoid_recent: bool = True,
+    ) -> tuple[ImageRecord, ImageRecord] | None:
+        if len(self._records) < 2:
+            return None
+
+        left_records = self._selectable_records(
+            avoid_recent=avoid_recent,
+            chat_id=f"duel:{chat_id}:left",
+        )
+        left_record = RANDOM.choice(left_records)
+        right_records = [
+            record
+            for record in self._selectable_records(
+                avoid_recent=avoid_recent,
+                chat_id=f"duel:{chat_id}:right",
+            )
+            if record["id"] != left_record["id"]
+        ]
+        if not right_records:
+            right_records = [
+                record for record in self._records if record["id"] != left_record["id"]
+            ]
+
+        right_record = RANDOM.choice(right_records)
+        self._mark_shown_many(
+            [
+                (left_record, f"duel:{chat_id}:left"),
+                (right_record, f"duel:{chat_id}:right"),
+            ]
+        )
+        return self._to_image_record(left_record), self._to_image_record(right_record)
+
     def add_from_message(self, message: Message) -> AddResult:
         self.remember_user(message.from_user)
         image_data = self._extract_image_data(message)
@@ -356,9 +391,15 @@ class ImagePool:
         return [record for record in self._records if record["id"] not in last_id] or self._records
 
     def _mark_shown(self, record: dict, chat_id: int | str | None) -> None:
-        record["shown_count"] += 1
-        record["last_shown_at"] = datetime.now(UTC).isoformat()
-        self._remember_chat_show(record["id"], chat_id)
+        self._mark_shown_many([(record, chat_id)])
+
+    def _mark_shown_many(self, shows: list[tuple[dict, int | str | None]]) -> None:
+        shown_at = datetime.now(UTC).isoformat()
+        for record, chat_id in shows:
+            record["shown_count"] += 1
+            record["last_shown_at"] = shown_at
+            self._remember_chat_show(record["id"], chat_id)
+
         self._write()
 
     def _remember_chat_show(self, image_id: str, chat_id: int | str | None) -> None:

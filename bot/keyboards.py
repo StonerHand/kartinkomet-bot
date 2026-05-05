@@ -9,17 +9,18 @@ def main_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
-            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
+            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
-            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
+            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
             InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
         ],
         [
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
-            InlineKeyboardButton(text="⬆️ Загрузить пикчи", callback_data="upload"),
+            InlineKeyboardButton(text="📥 Пикчи", callback_data="upload"),
+            InlineKeyboardButton(text="📝 Анекдоты", callback_data="upload_joke"),
         ],
     ]
 
