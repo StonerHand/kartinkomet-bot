@@ -20,8 +20,10 @@ from bot.keyboards import (
     duel_vote,
     joke_actions,
     joke_actions_with_counts,
+    joke_duel_vote,
     main_menu,
     new_duel,
+    new_joke_duel,
     picture_actions,
     picture_actions_with_counts,
     upload_menu,
@@ -47,8 +49,58 @@ JOKE_UPLOAD_COMMAND = "upload_joke"
 DUEL_SECONDS = 60
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
+JOKE_DUEL_TEXT_LIMIT = 900
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
+
+JOKE_DUEL_START_PHRASES = (
+    "Анекдотная заруба в эфире",
+    "Стендап без лицензии стартовал",
+    "Два текста вошли в чат",
+    "Словесная драка началась",
+    "Комиссия по смешному собралась",
+    "Блокнот вывел бойцов",
+    "Пульт юмора дал искру",
+    "Суд баянов открыт",
+    "Ринг анекдотов готов",
+    "Народный разбор шуток начался",
+)
+JOKE_DUEL_STATUS_PHRASES = (
+    "Чат решает, кто достоин жить в блокноте",
+    "Кнопки принимают показания",
+    "Смеховая комиссия смотрит строго",
+    "Один текст выйдет сухим, второй уйдёт в архив",
+    "Голосование идёт без права на скуку",
+    "Блокнот нервно перелистывает страницы",
+    "Публика выбирает меньшее зло",
+    "Юмор проходит народную проверку",
+    "Присяжные держат палец на кнопке",
+    "Таймер тащит драму за шиворот",
+)
+JOKE_DUEL_WIN_PHRASES = (
+    "Чат вынес приговор. Победитель остаётся в блокноте",
+    "Смеховая комиссия определилась. Слабый текст удалён",
+    "Народ сказал своё. Проигравший анекдот покинул пул",
+    "Кнопки всё решили. Победитель получил прописку",
+    "Блокнот пережил чистку. Один анекдот не вывез",
+    "Юмор прошёл фильтр. Проигравший отправлен за дверь",
+    "Финальный смешок прозвучал. Победитель остаётся",
+    "Суд баянов закрыл заседание. Лишний текст удалён",
+    "Чат выбрал живого. Второй анекдот ушёл в туман",
+    "Вердикт принят. Победитель продолжит гастроли",
+)
+JOKE_DUEL_TIE_PHRASES = (
+    "Чат не определился. Оба анекдота остаются",
+    "Ничья. Блокнот решил не устраивать казнь",
+    "Присяжные зависли. Оба текста выжили",
+    "Суд смешного ушёл на обед. Удалений нет",
+    "Голоса разошлись поровну. Все остаются при своих",
+    "Кнопки не договорились. Блокнот никого не трогает",
+    "Народный суд моргнул. Оба анекдота живы",
+    "Таймер сгорел без жертвы. Ничья",
+    "Арена сохранила обоих. Видимо, так надо",
+    "Вердикт размазался. Казни не будет",
+)
 
 
 class UploadSession(TypedDict):
@@ -168,6 +220,11 @@ def build_router(
     async def duel_command(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
         await send_duel(bot=bot, message=message, image_pool=image_pool)
+
+    @router.message(Command("jokeduel"))
+    async def joke_duel_command(message: Message, bot: Bot) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_joke_duel(bot=bot, message=message, joke_pool=joke_pool)
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -545,6 +602,49 @@ def build_router(
                 LOGGER.warning("Failed to update duel vote message", exc_info=True)
         await callback.answer("Голос принят")
 
+    @router.callback_query(F.data.startswith("joke_duel:"))
+    async def joke_duel_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.data is None:
+            await callback.answer()
+            return
+
+        _, duel_id, side = callback.data.split(":", 2)
+        duel = duel_sessions.get(duel_id)
+        if duel is None or duel.get("kind") != "joke":
+            await callback.answer("Дуэль уже растворилась в истории", show_alert=True)
+            return
+        if not duel.get("active", False):
+            await callback.answer("Дуэль уже закончилась", show_alert=True)
+            return
+
+        votes = duel["votes"]
+        user_key = str(callback.from_user.id)
+        if votes.get(user_key) == side:
+            await callback.answer("Уже стоит")
+            return
+
+        votes[user_key] = side
+        left_votes, right_votes = duel_vote_counts(duel)
+        if callback.message:
+            try:
+                await callback.message.edit_text(
+                    format_joke_duel_score(
+                        str(duel["left_text"]),
+                        str(duel["right_text"]),
+                        left_votes,
+                        right_votes,
+                        title=str(duel.get("title") or random_joke_duel_start_phrase()),
+                        status=str(duel.get("status") or random_joke_duel_status_phrase()),
+                        remaining_seconds=duel_remaining_seconds(duel),
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=joke_duel_vote(duel_id, left_votes, right_votes),
+                )
+            except TelegramAPIError:
+                LOGGER.warning("Failed to update joke duel vote message", exc_info=True)
+        await callback.answer("Голос принят")
+
     @router.callback_query(F.data == "duel_new")
     async def new_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
@@ -560,6 +660,26 @@ def build_router(
         )
         if duel_result == "started":
             await callback.answer("Запускаю новую дуэль")
+        elif duel_result == "active":
+            await callback.answer("Дуэль уже идёт")
+        else:
+            await callback.answer("Дуэль не запустилась")
+
+    @router.callback_query(F.data == "joke_duel_new")
+    async def new_joke_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        duel_result = await send_joke_duel(
+            bot=bot,
+            message=callback.message,
+            joke_pool=joke_pool,
+            silent_if_active=True,
+        )
+        if duel_result == "started":
+            await callback.answer("Запускаю дуэль анекдотов")
         elif duel_result == "active":
             await callback.answer("Дуэль уже идёт")
         else:
@@ -775,6 +895,61 @@ async def send_duel(
         return "started"
 
 
+async def send_joke_duel(
+    bot: Bot,
+    message: Message,
+    joke_pool: JokePool,
+    silent_if_active: bool = False,
+) -> DuelStartResult:
+    chat_id = message.chat.id
+    async with duel_lock_for(chat_id):
+        if active_duel_id_for_chat(chat_id):
+            if not silent_if_active:
+                await message.answer(format_duel_already_active(), parse_mode="HTML")
+            return "active"
+
+        if joke_pool.count() < 2:
+            await message.answer("😂 Для дуэли нужно хотя бы два анекдота в блокноте")
+            return "failed"
+
+        duel_pair = joke_pool.random_duel_pair(chat_id=chat_id)
+        if duel_pair is None:
+            await message.answer("😂 Дуэль сорвалась. Блокнот пустоват")
+            return "failed"
+        left, right = duel_pair
+
+        duel_id = uuid4().hex
+        title = random_joke_duel_start_phrase()
+        status = random_joke_duel_status_phrase()
+        duel_sessions[duel_id] = {
+            "kind": "joke",
+            "chat_id": chat_id,
+            "left": left.id,
+            "right": right.id,
+            "left_text": left.text,
+            "right_text": right.text,
+            "votes": {},
+            "active": True,
+            "title": title,
+            "status": status,
+            "expires_at": monotonic() + DUEL_SECONDS,
+        }
+        try:
+            score_message = await message.answer(
+                format_joke_duel_score(left.text, right.text, 0, 0, title=title, status=status),
+                parse_mode="HTML",
+                reply_markup=joke_duel_vote(duel_id),
+            )
+        except TelegramAPIError:
+            duel_sessions.pop(duel_id, None)
+            LOGGER.warning("Failed to send joke duel vote message", exc_info=True)
+            return "failed"
+
+        register_active_duel(chat_id, duel_id)
+        schedule_joke_duel_finalizer(duel_id, bot, joke_pool, chat_id, score_message.message_id)
+        return "started"
+
+
 async def finalize_duel(
     duel_id: str,
     bot: Bot,
@@ -843,6 +1018,91 @@ async def finalize_duel(
         duel_tasks.pop(duel_id, None)
 
 
+async def finalize_joke_duel(
+    duel_id: str,
+    bot: Bot,
+    joke_pool: JokePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    try:
+        while True:
+            duel = duel_sessions.get(duel_id)
+            if duel is None or not duel.get("active", False):
+                return
+
+            remaining_seconds = duel_remaining_seconds(duel)
+            if remaining_seconds <= 0:
+                break
+
+            await asyncio.sleep(min(DUEL_TICK_SECONDS, remaining_seconds))
+            duel = duel_sessions.get(duel_id)
+            if duel is None or not duel.get("active", False):
+                return
+
+            remaining_seconds = duel_remaining_seconds(duel)
+            if remaining_seconds > 0:
+                await update_joke_duel_score_message(
+                    bot=bot,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    duel_id=duel_id,
+                    duel=duel,
+                    remaining_seconds=remaining_seconds,
+                )
+
+        duel = duel_sessions.get(duel_id)
+        if duel is None or not duel.get("active", False):
+            return
+
+        duel["active"] = False
+        left_votes, right_votes = duel_vote_counts(duel)
+
+        if left_votes == right_votes:
+            result_text = format_joke_duel_result(
+                str(duel["left_text"]),
+                str(duel["right_text"]),
+                left_votes,
+                right_votes,
+                winner=None,
+            )
+        elif left_votes > right_votes:
+            joke_pool.delete(str(duel["right"]))
+            result_text = format_joke_duel_result(
+                str(duel["left_text"]),
+                str(duel["right_text"]),
+                left_votes,
+                right_votes,
+                winner="left",
+            )
+        else:
+            joke_pool.delete(str(duel["left"]))
+            result_text = format_joke_duel_result(
+                str(duel["left_text"]),
+                str(duel["right_text"]),
+                left_votes,
+                right_votes,
+                winner="right",
+            )
+
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=result_text,
+                parse_mode="HTML",
+                reply_markup=new_joke_duel(),
+            )
+        except TelegramAPIError:
+            LOGGER.warning("Failed to edit completed joke duel message", exc_info=True)
+    except Exception:
+        LOGGER.exception("Joke duel finalizer crashed")
+    finally:
+        clear_active_duel(chat_id, duel_id)
+        duel_sessions.pop(duel_id, None)
+        duel_tasks.pop(duel_id, None)
+
+
 def schedule_duel_finalizer(
     duel_id: str,
     bot: Bot,
@@ -851,6 +1111,20 @@ def schedule_duel_finalizer(
     message_id: int,
 ) -> None:
     task = asyncio.create_task(finalize_duel(duel_id, bot, image_pool, chat_id, message_id))
+    duel_tasks[duel_id] = task
+    task.add_done_callback(log_duel_task_exception)
+
+
+def schedule_joke_duel_finalizer(
+    duel_id: str,
+    bot: Bot,
+    joke_pool: JokePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    task = asyncio.create_task(
+        finalize_joke_duel(duel_id, bot, joke_pool, chat_id, message_id)
+    )
     duel_tasks[duel_id] = task
     task.add_done_callback(log_duel_task_exception)
 
@@ -892,6 +1166,35 @@ async def update_duel_score_message(
         )
     except TelegramAPIError:
         LOGGER.warning("Failed to update duel timer message", exc_info=True)
+
+
+async def update_joke_duel_score_message(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    duel_id: str,
+    duel: dict,
+    remaining_seconds: int,
+) -> None:
+    left_votes, right_votes = duel_vote_counts(duel)
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=format_joke_duel_score(
+                str(duel["left_text"]),
+                str(duel["right_text"]),
+                left_votes,
+                right_votes,
+                title=str(duel.get("title") or random_joke_duel_start_phrase()),
+                status=str(duel.get("status") or random_joke_duel_status_phrase()),
+                remaining_seconds=remaining_seconds,
+            ),
+            parse_mode="HTML",
+            reply_markup=joke_duel_vote(duel_id, left_votes, right_votes),
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to update joke duel timer message", exc_info=True)
 
 
 def duel_vote_counts(duel: dict) -> tuple[int, int]:
@@ -1147,7 +1450,7 @@ async def show_menu(message: Message) -> None:
     await message.answer(
         "<b>🚨 Пульт kartinkomet</b>\n\n"
         "🎲 <b>Выдача</b> — пикчи и анекдоты\n"
-        "⚔️ <b>Арена</b> — дуэль двух пикч\n"
+        "⚔️ <b>Арена</b> — дуэли пикч и анекдотов\n"
         "📊 <b>Склад</b> — сводка, вклад и топ\n"
         "📥 <b>Загрузка</b> — пикчи и анекдоты в личке",
         parse_mode="HTML",
@@ -1204,7 +1507,8 @@ def format_start() -> str:
         "<b>🚀 Быстрый старт</b>\n"
         "• <code>🎲 Рандом</code> — пикча из общего пула\n"
         "• <code>😂 Анекдот</code> — случайный текст из блокнота\n"
-        "• <code>⚔️ Дуэль</code> — бой двух пикч на 60 секунд\n"
+        "• <code>⚔️ Пикчи</code> — бой двух пикч на 60 секунд\n"
+        "• <code>😂 Дуэль</code> — бой двух анекдотов на 60 секунд\n"
         "• <code>📥 Пикчи</code> / <code>📝 Анекдоты</code> — пополнение в личке\n"
         "• <code>🌦 Погода</code> — Малая Токмачка"
     )
@@ -1222,6 +1526,7 @@ def format_help() -> str:
         format_section(
             "😂 Анекдоты",
             "<code>/joke</code> — случайный анекдот",
+            "<code>/jokeduel</code> — битва двух случайных анекдотов",
             "<code>/upload_joke</code> — загрузка анекдотов в личке",
         ),
         format_section(
@@ -1584,6 +1889,72 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
     )
 
 
+def format_joke_duel_score(
+    left_text: str,
+    right_text: str,
+    left_votes: int,
+    right_votes: int,
+    title: str | None = None,
+    status: str | None = None,
+    remaining_seconds: int | None = None,
+) -> str:
+    if left_votes == right_votes:
+        verdict = "⚖️ пока ничья"
+    elif left_votes > right_votes:
+        verdict = "🔥 🅰️ ведёт"
+    else:
+        verdict = "🔥 🅱️ ведёт"
+
+    seconds_left = DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
+    return (
+        f"<b>😂⚔️ {escape(title or random_joke_duel_start_phrase())}</b>\n"
+        f"{escape(status or random_joke_duel_status_phrase())}\n\n"
+        f"<b>🅰️ Первый</b>\n"
+        f"<blockquote>{escape(trim_joke_duel_text(left_text))}</blockquote>\n\n"
+        f"<b>🅱️ Второй</b>\n"
+        f"<blockquote>{escape(trim_joke_duel_text(right_text))}</blockquote>\n\n"
+        f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
+        f"⏱ <b>{seconds_left} секунд</b> · {verdict}"
+    )
+
+
+def format_joke_duel_result(
+    left_text: str,
+    right_text: str,
+    left_votes: int,
+    right_votes: int,
+    winner: str | None,
+) -> str:
+    if winner is None:
+        phrase = random_joke_duel_tie_phrase()
+        verdict = "⚖️ Ничья. Оба анекдота остаются в блокноте"
+    elif winner == "left":
+        phrase = random_joke_duel_win_phrase()
+        verdict = "👑 Выжил: <b>🅰️ первый</b>\n🗑 Улетел из блокнота: <b>🅱️ второй</b>"
+    else:
+        phrase = random_joke_duel_win_phrase()
+        verdict = "👑 Выжил: <b>🅱️ второй</b>\n🗑 Улетел из блокнота: <b>🅰️ первый</b>"
+
+    return (
+        "<b>🏁 Дуэль анекдотов завершена</b>\n"
+        f"{escape(phrase)}\n\n"
+        f"<b>🅰️ Первый</b>\n"
+        f"<blockquote>{escape(trim_joke_duel_text(left_text, limit=700))}</blockquote>\n\n"
+        f"<b>🅱️ Второй</b>\n"
+        f"<blockquote>{escape(trim_joke_duel_text(right_text, limit=700))}</blockquote>\n\n"
+        f"🅰️ первый: <b>{left_votes}</b> · 🅱️ второй: <b>{right_votes}</b>\n\n"
+        f"{verdict}"
+    )
+
+
+def trim_joke_duel_text(text: str, limit: int = JOKE_DUEL_TEXT_LIMIT) -> str:
+    normalized = text.strip()
+    if len(normalized) <= limit:
+        return normalized
+
+    return normalized[: max(0, limit - 2)].rstrip() + "\n…"
+
+
 def random_duel_start_phrase() -> str:
     return RANDOM.choice(DUEL_START_PHRASES)
 
@@ -1598,6 +1969,22 @@ def random_duel_win_phrase() -> str:
 
 def random_duel_tie_phrase() -> str:
     return RANDOM.choice(DUEL_TIE_PHRASES)
+
+
+def random_joke_duel_start_phrase() -> str:
+    return RANDOM.choice(JOKE_DUEL_START_PHRASES)
+
+
+def random_joke_duel_status_phrase() -> str:
+    return RANDOM.choice(JOKE_DUEL_STATUS_PHRASES)
+
+
+def random_joke_duel_win_phrase() -> str:
+    return RANDOM.choice(JOKE_DUEL_WIN_PHRASES)
+
+
+def random_joke_duel_tie_phrase() -> str:
+    return RANDOM.choice(JOKE_DUEL_TIE_PHRASES)
 
 
 def achievement_for(

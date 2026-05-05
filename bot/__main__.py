@@ -15,6 +15,7 @@ BOT_COMMANDS = [
     BotCommand(command="pic", description="рандомная пикча"),
     BotCommand(command="joke", description="рандомный анекдот"),
     BotCommand(command="duel", description="дуэль двух пикч"),
+    BotCommand(command="jokeduel", description="дуэль двух анекдотов"),
     BotCommand(command="weather", description="погода в Малой Токмачке"),
     BotCommand(command="menu", description="пульт управления"),
     BotCommand(command="upload_pidor", description="загрузка пикч в личке"),

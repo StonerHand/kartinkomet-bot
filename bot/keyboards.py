@@ -8,14 +8,15 @@ def main_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
         ],
         [
-            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
+            InlineKeyboardButton(text="⚔️ Пикчи", callback_data="duel_new"),
+            InlineKeyboardButton(text="😂 Дуэль", callback_data="joke_duel_new"),
+        ],
+        [
             InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
-        ],
-        [
             InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
         ],
         [
+            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
@@ -59,6 +60,35 @@ def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⚔️ Новая дуэль", callback_data="duel_new")],
+        ]
+    )
+
+
+def joke_duel_vote(
+    duel_id: str,
+    left_votes: int = 0,
+    right_votes: int = 0,
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"🅰️ Первый · {left_votes}",
+                    callback_data=f"joke_duel:{duel_id}:left",
+                ),
+                InlineKeyboardButton(
+                    text=f"🅱️ Второй · {right_votes}",
+                    callback_data=f"joke_duel:{duel_id}:right",
+                ),
+            ],
+        ]
+    )
+
+
+def new_joke_duel() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="😂 Новая дуэль", callback_data="joke_duel_new")],
         ]
     )
 

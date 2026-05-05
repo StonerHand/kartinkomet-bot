@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs two-image duels, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs image and joke duels, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -24,7 +24,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - one user can cast one reaction per image, but can switch it
 - `2 🖕🏻` remove an image or joke from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
-- duels are self-healing: timer refreshes and stale duel state is cleared
+- image and joke duels are self-healing: timer refreshes and stale duel state is cleared
 
 ## Commands
 
@@ -33,6 +33,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | `/pic` | Send a random image |
 | `/joke` | Send a random joke |
 | `/duel` | Start a duel between two random images |
+| `/jokeduel` | Start a duel between two random jokes |
 | `/weather` | Show weather for Mala Tokmachka |
 | `/menu` | Open the main control panel |
 | `/upload_pidor` | Start upload mode in private chat |
@@ -60,9 +61,9 @@ Main panel:
 
 ```text
 🎲 Рандом    😂 Анекдот
-⚔️ Дуэль     🌦 Погода
-📊 Сводка    👤 Мой вклад
-🏆 Топ
+⚔️ Пикчи     😂 Дуэль
+🌦 Погода    📊 Сводка
+👤 Мой вклад 🏆 Топ
 📥 Пикчи     📝 Анекдоты
 ```
 
@@ -177,6 +178,20 @@ Rules:
 - `2 🖕🏻` remove the joke from the pool
 - `/reset_stats` resets reactions, views, and random memory, but does not delete jokes
 
+## Joke Duels
+
+`/jokeduel` and the `😂 Дуэль` button pick two random jokes and open a `60` second vote.
+
+Rules mirror the image arena:
+
+- only one active duel of any type can run in a chat
+- each user votes once but can switch sides
+- joke texts are rendered as quotes, so the duel card stays readable
+- winner stays in `jokes.json`
+- loser is removed from the joke pool
+- ties keep both jokes alive
+- final result includes a `😂 Новая дуэль` button
+
 ## Uploads
 
 Reliable flow:
@@ -203,7 +218,7 @@ Tracked upload outcomes:
 
 Rules:
 
-- only one active duel can run in a chat
+- only one active duel of any type can run in a chat
 - each user votes once but can switch sides
 - the duel card refreshes score and timer
 - winner stays in the pool
@@ -263,6 +278,7 @@ Current counts:
 - `150` empty-pool phrases
 - `50` achievements
 - `400` short duel phrases
+- separate short phrases for joke duels
 - daily mood labels
 - jury-rule messages
 
@@ -342,11 +358,12 @@ Jokes live in `jokes.json`:
 - user upload counters use an index
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index
-- duel pairs are selected through one method and persist view counters with one JSON write
+- duel pairs are selected through dedicated methods and persist view counters with one JSON write
 - `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
 - JSON writes are atomic through a temporary file
-- duel completion removes the loser and writes stats in one save
+- image duel completion removes the loser and writes stats in one save
+- joke duel completion removes the losing text from `jokes.json`
 - stale duels are cleared on the next start attempt
 - Telegram API errors are logged and do not crash polling
 

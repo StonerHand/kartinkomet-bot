@@ -25,6 +25,8 @@ from bot.handlers import (
     format_empty_joke_pool,
     format_help,
     format_joke,
+    format_joke_duel_result,
+    format_joke_duel_score,
     format_mood,
     format_start,
     format_stats,
@@ -43,7 +45,9 @@ from bot.joke_pool import JokePool, normalize_joke_text
 from bot.keyboards import (
     joke_actions,
     joke_actions_with_counts,
+    joke_duel_vote,
     main_menu,
+    new_joke_duel,
     picture_actions,
     picture_actions_with_counts,
     upload_menu,
@@ -114,6 +118,7 @@ class BotContractTest(unittest.TestCase):
                 "pic",
                 "joke",
                 "duel",
+                "jokeduel",
                 "weather",
                 "menu",
                 "upload_pidor",
@@ -134,6 +139,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("me", commands)
         self.assertIn("top", commands)
         self.assertIn("duel", commands)
+        self.assertIn("jokeduel", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
         self.assertNotIn("dedupe_user", commands)
@@ -193,7 +199,8 @@ class BotContractTest(unittest.TestCase):
             [
                 "🎲 Рандом",
                 "😂 Анекдот",
-                "⚔️ Дуэль",
+                "⚔️ Пикчи",
+                "😂 Дуэль",
                 "🌦 Погода",
                 "📊 Сводка",
                 "👤 Мой вклад",
@@ -229,6 +236,19 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё анекдот"])
         self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "😂 Ещё анекдот"])
+
+    def test_joke_duel_keyboard_uses_separate_callbacks(self) -> None:
+        buttons = [button.text for row in joke_duel_vote("duel-id", 3, 2).inline_keyboard for button in row]
+        callbacks = [
+            button.callback_data
+            for row in joke_duel_vote("duel-id", 3, 2).inline_keyboard
+            for button in row
+        ]
+        new_buttons = [button.text for row in new_joke_duel().inline_keyboard for button in row]
+
+        self.assertEqual(buttons, ["🅰️ Первый · 3", "🅱️ Второй · 2"])
+        self.assertEqual(callbacks, ["joke_duel:duel-id:left", "joke_duel:duel-id:right"])
+        self.assertEqual(new_buttons, ["😂 Новая дуэль"])
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
@@ -338,12 +358,14 @@ class BotContractTest(unittest.TestCase):
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
         self.assertIn("😂 Анекдот", format_start())
-        self.assertIn("⚔️ Дуэль", format_start())
+        self.assertIn("⚔️ Пикчи", format_start())
+        self.assertIn("😂 Дуэль", format_start())
         self.assertIn("🌦 Погода", format_start())
         self.assertIn("📝 Анекдоты", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>😂 Анекдоты</b>", format_help())
         self.assertIn("/upload_joke", format_help())
+        self.assertIn("/jokeduel", format_help())
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
         self.assertIn("/weather", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
@@ -354,6 +376,24 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("/upload_joke", format_upload_not_active())
         self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
+
+    def test_joke_duel_score_and_result_are_quoted(self) -> None:
+        score = format_joke_duel_score(
+            "Первый <текст>",
+            "Второй текст",
+            1,
+            2,
+            title="Суд шуток",
+            status="Чат слушает",
+            remaining_seconds=30,
+        )
+
+        self.assertIn("<b>😂⚔️ Суд шуток</b>", score)
+        self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", score)
+        self.assertIn("🅰️ первый: <b>1</b> · 🅱️ второй: <b>2</b>\n\n⏱", score)
+        self.assertIn("🔥 🅱️ ведёт", score)
+        self.assertIn("🗑 Улетел из блокнота: <b>🅰️ первый</b>", format_joke_duel_result("a", "b", 1, 2, "right"))
+        self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result("a", "b", 1, 1, None))
 
     def test_weather_report_format(self) -> None:
         report = WeatherReport(
@@ -426,6 +466,20 @@ class JokePoolTest(unittest.TestCase):
             assert first is not None
             assert second is not None
             self.assertNotEqual(first.id, second.id)
+
+    def test_random_joke_duel_pair_marks_two_distinct_jokes_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            pool.add_from_message(fake_text_message("Анекдот один"))
+            pool.add_from_message(fake_text_message("Анекдот два"))
+
+            pair = pool.random_duel_pair(chat_id=123)
+
+            self.assertIsNotNone(pair)
+            assert pair is not None
+            left, right = pair
+            self.assertNotEqual(left.id, right.id)
+            self.assertEqual(pool.stats().total_shows, 2)
 
     def test_joke_reactions_accumulate_and_can_be_switched(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
