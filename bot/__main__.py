@@ -25,7 +25,7 @@ BOT_COMMANDS = [
     BotCommand(command="stats", description="общая сводка"),
     BotCommand(command="me", description="мой вклад и достижения"),
     BotCommand(command="top", description="топ загрузчиков"),
-    BotCommand(command="count", description="сколько пикч в пуле"),
+    BotCommand(command="count", description="размер общего пула"),
     BotCommand(command="mood", description="режим дня"),
     BotCommand(command="help", description="справка"),
 ]
@@ -39,7 +39,6 @@ async def main() -> None:
 
     config = load_config()
     bot = Bot(token=config.bot_token)
-    await bot.set_my_commands(BOT_COMMANDS)
     dispatcher = Dispatcher(fsm_strategy=FSMStrategy.CHAT)
     dispatcher.include_router(
         build_router(
@@ -50,7 +49,11 @@ async def main() -> None:
         )
     )
 
-    await dispatcher.start_polling(bot)
+    try:
+        await bot.set_my_commands(BOT_COMMANDS)
+        await dispatcher.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":

@@ -359,7 +359,10 @@ Jokes live in `jokes.json`:
 - user upload counters use an index
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index
+- the `1000` images per hour throttle is decoupled from achievements, so anti-spam settings do not move game titles
 - duel pairs are selected through dedicated methods and persist view counters with one JSON write
+- active joke duels store only IDs, votes, and timer state, not the full joke texts
+- long jokes are split by HTML-safe message size and are never meaning-trimmed
 - `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
 - JSON writes are atomic through a temporary file

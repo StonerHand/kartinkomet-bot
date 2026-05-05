@@ -2,6 +2,7 @@ import json
 import re
 import tempfile
 import unittest
+from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -339,10 +340,12 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("stale-duel", duel_sessions)
 
     def test_quality_title_and_combos(self) -> None:
-        stats = SimpleNamespace(uploaded=1000, likes=60, dislikes=0, shown=60)
+        stats = SimpleNamespace(uploaded=100, likes=60, dislikes=0, shown=60)
+        early_stats = SimpleNamespace(uploaded=99, likes=60, dislikes=0, shown=60)
 
         self.assertEqual(quality_title(stats), "поставщик годноты")
         self.assertIn("заливочный марафонец", combo_achievements_for(stats))
+        self.assertNotIn("заливочный марафонец", combo_achievements_for(early_stats))
         self.assertIn("частый гость рандома", combo_achievements_for(stats))
 
     def test_user_progress_is_grouped_by_sections(self) -> None:
@@ -405,6 +408,14 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual("".join(chunks), long_text)
         self.assertGreater(len(chunks), 1)
         self.assertIn("<b>120 секунд</b>", score)
+        self.assertIn("бой двух анекдотов на 2 минуты", format_start())
+
+    def test_joke_duel_split_respects_escaped_html_size(self) -> None:
+        text = "<&>" * 3000
+        chunks = split_text_for_telegram(text)
+
+        self.assertEqual("".join(chunks), text)
+        self.assertTrue(all(len(escape(chunk)) <= 3500 for chunk in chunks))
 
     def test_weather_report_format(self) -> None:
         report = WeatherReport(

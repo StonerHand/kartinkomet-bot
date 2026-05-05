@@ -51,6 +51,7 @@ JOKE_DUEL_SECONDS = 120
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
 TELEGRAM_TEXT_CHUNK_SIZE = 3500
+UPLOAD_MARATHON_THRESHOLD = 100
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
 
@@ -943,8 +944,6 @@ async def send_joke_duel(
             "chat_id": chat_id,
             "left": left.id,
             "right": right.id,
-            "left_text": left.text,
-            "right_text": right.text,
             "votes": {},
             "active": True,
             "title": title,
@@ -1851,7 +1850,7 @@ def quality_title(stats) -> str:
 
 def combo_achievements_for(stats) -> list[str]:
     combos = []
-    if stats.uploaded >= UPLOAD_LIMIT_PER_HOUR:
+    if stats.uploaded >= UPLOAD_MARATHON_THRESHOLD:
         combos.append("заливочный марафонец")
     if stats.likes >= 10:
         combos.append("пикчи собирают одобрение")
