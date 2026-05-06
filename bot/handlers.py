@@ -3,6 +3,7 @@ import logging
 import random
 from datetime import date
 from html import escape
+from pathlib import Path
 from time import monotonic
 from typing import Literal, TypedDict
 from uuid import uuid4
@@ -12,7 +13,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InputMediaPhoto, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool
@@ -46,6 +47,9 @@ from bot.weather import format_weather_error, format_weather_report, get_mala_to
 
 UPLOAD_COMMAND = "upload_pidor"
 JOKE_UPLOAD_COMMAND = "upload_joke"
+KIBER_DRUZHINA_TRIGGER = "@kiberdruzhina_bot"
+KIBER_DRUZHINA_REPLY = "Пошел нахуй"
+KIBER_DRUZHINA_IMAGE_PATH = Path(__file__).resolve().parent.parent / "assets" / "kiber_druzhina.jpg"
 DUEL_SECONDS = 60
 JOKE_DUEL_SECONDS = 120
 DUEL_TICK_SECONDS = 15
@@ -699,6 +703,11 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await help_command(message)
 
+    @router.message(F.text.func(is_kiber_druzhina_trigger))
+    async def kiber_druzhina_trigger(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_kiber_druzhina_reply(message)
+
     @router.message(F.text)
     async def save_joke(message: Message) -> None:
         image_pool.remember_user(message.from_user)
@@ -844,6 +853,18 @@ async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
             chunk_title = f"{title} · часть {index}/{total_chunks}"
 
         await message.answer(format_joke_duel_entry(chunk_title, chunk), parse_mode="HTML")
+
+
+async def send_kiber_druzhina_reply(message: Message) -> None:
+    if KIBER_DRUZHINA_IMAGE_PATH.exists():
+        await message.answer_photo(
+            FSInputFile(KIBER_DRUZHINA_IMAGE_PATH),
+            caption=KIBER_DRUZHINA_REPLY,
+        )
+        return
+
+    LOGGER.warning("Kiber Druzhina image is missing: %s", KIBER_DRUZHINA_IMAGE_PATH)
+    await message.answer(KIBER_DRUZHINA_REPLY)
 
 
 async def send_duel(
@@ -1507,6 +1528,10 @@ def format_metric(label: str, value: int | str) -> str:
 
 def format_section(title: str, *lines: str) -> str:
     return "\n".join([f"<b>{title}</b>", *lines])
+
+
+def is_kiber_druzhina_trigger(text: str | None) -> bool:
+    return KIBER_DRUZHINA_TRIGGER in (text or "").casefold()
 
 
 def format_stats(
