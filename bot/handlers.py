@@ -47,6 +47,7 @@ from bot.weather import format_weather_error, format_weather_report, get_mala_to
 
 UPLOAD_COMMAND = "upload_pidor"
 JOKE_UPLOAD_COMMAND = "upload_joke"
+KIBER_DRUZHINA_COMMAND = "kiber"
 KIBER_DRUZHINA_TRIGGER = "@kiberdruzhina_bot"
 KIBER_DRUZHINA_REPLY = "Пошел нахуй"
 KIBER_DRUZHINA_IMAGE_PATH = Path(__file__).resolve().parent.parent / "assets" / "kiber_druzhina.jpg"
@@ -283,6 +284,12 @@ def build_router(
 
         image_pool.remember_user(message.from_user)
         await message.answer(format_user_id(message.from_user.id), parse_mode="HTML")
+
+    @router.message(Command(KIBER_DRUZHINA_COMMAND))
+    @router.channel_post(Command(KIBER_DRUZHINA_COMMAND))
+    async def kiber_druzhina_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_kiber_druzhina_reply(message)
 
     @router.message(Command(UPLOAD_COMMAND))
     @router.channel_post(Command(UPLOAD_COMMAND))

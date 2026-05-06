@@ -59,6 +59,7 @@ Hidden maintenance commands:
 Text triggers:
 
 - `@KiberDruzhina_bot` - easter-egg reply with a local image from `assets/kiber_druzhina.jpg`
+- `/kiber` - the same reply, but it works in groups even with Telegram Privacy Mode enabled
 
 ## Buttons
 
