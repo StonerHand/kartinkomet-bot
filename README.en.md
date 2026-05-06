@@ -24,7 +24,8 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - one user can cast one reaction per image, but can switch it
 - `2 🖕🏻` remove an image or joke from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
-- image and joke duels are self-healing: timer refreshes and stale duel state is cleared
+- duels are split by arena: one image duel and one joke duel can run at the same time
+- duels are self-healing: timer refreshes and stale duel state is cleared
 
 ## Commands
 
@@ -132,6 +133,10 @@ Stats example:
 • Пикчи 🖕🏻: 133
 • Анекдоты 🤙🏻: 19
 • Анекдоты 🖕🏻: 3
+
+🟢 Активные дуэли
+• Пикчевая арена: идёт, 42 сек
+• Анекдотная арена: свободно
 ```
 
 ## Random Selection
@@ -184,7 +189,8 @@ Rules:
 
 Rules mirror the image arena:
 
-- only one active duel of any type can run in a chat
+- one active joke duel can run in a chat
+- an image duel can run in parallel with the joke duel
 - each user votes once but can switch sides
 - joke texts are sent as separate quotes before the vote card
 - jokes are not trimmed: long text is split into several messages but kept in full
@@ -219,7 +225,8 @@ Tracked upload outcomes:
 
 Rules:
 
-- only one active duel of any type can run in a chat
+- one active image duel can run in a chat
+- a joke duel can run in parallel with the image duel
 - each user votes once but can switch sides
 - the duel card refreshes score and timer
 - winner stays in the pool
@@ -358,6 +365,8 @@ Jokes live in `jokes.json`:
 - duplicate checks use a `file_unique_id` set
 - random selection picks from a least-shown candidate window through a heap, without sorting the full pool
 - duels use shared arena history so a fresh pair does not repeat immediately
+- active duels are stored in two per-chat slots: `image` and `joke`
+- duplicate starts are blocked only inside their own slot, so image and joke arenas do not block each other
 - user upload counters use an index
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index

@@ -121,12 +121,13 @@ class JokeUploadSession(TypedDict):
 
 
 DuelStartResult = Literal["started", "active", "failed"]
+DuelKind = Literal["image", "joke"]
 
 
 active_uploads: dict[int, UploadSession] = {}
 active_joke_uploads: dict[int, JokeUploadSession] = {}
 duel_sessions: dict[str, dict] = {}
-active_duels_by_chat: dict[int, str] = {}
+active_duels_by_chat: dict[int, dict[DuelKind, str]] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
 duel_tasks: dict[str, asyncio.Task] = {}
 
@@ -200,7 +201,10 @@ def build_router(
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(format_stats(image_pool, joke_pool), parse_mode="HTML")
+        await message.answer(
+            format_stats(image_pool, joke_pool, chat_id=message.chat.id),
+            parse_mode="HTML",
+        )
 
     @router.message(Command("me"))
     async def my_uploads_command(message: Message) -> None:
@@ -382,7 +386,10 @@ def build_router(
     async def stats_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await callback.message.answer(format_stats(image_pool, joke_pool), parse_mode="HTML")
+            await callback.message.answer(
+                format_stats(image_pool, joke_pool, chat_id=callback.message.chat.id),
+                parse_mode="HTML",
+            )
         await callback.answer()
 
     @router.callback_query(F.data == "me")
@@ -574,7 +581,7 @@ def build_router(
 
         _, duel_id, side = callback.data.split(":", 2)
         duel = duel_sessions.get(duel_id)
-        if duel is None:
+        if duel is None or duel.get("kind", "image") != "image":
             await callback.answer("Дуэль уже растворилась в истории", show_alert=True)
             return
         if not duel.get("active", False):
@@ -847,9 +854,9 @@ async def send_duel(
 ) -> DuelStartResult:
     chat_id = message.chat.id
     async with duel_lock_for(chat_id):
-        if active_duel_id_for_chat(chat_id):
+        if active_duel_id_for_chat(chat_id, "image"):
             if not silent_if_active:
-                await message.answer(format_duel_already_active(), parse_mode="HTML")
+                await message.answer(format_duel_already_active("image"), parse_mode="HTML")
             return "active"
 
         if image_pool.count() < 2:
@@ -885,6 +892,7 @@ async def send_duel(
         title = random_duel_start_phrase()
         status = random_duel_status_phrase()
         duel_sessions[duel_id] = {
+            "kind": "image",
             "chat_id": chat_id,
             "left": left.id,
             "right": right.id,
@@ -905,7 +913,7 @@ async def send_duel(
             LOGGER.warning("Failed to send duel vote message", exc_info=True)
             return "failed"
 
-        register_active_duel(chat_id, duel_id)
+        register_active_duel(chat_id, "image", duel_id)
         schedule_duel_finalizer(duel_id, bot, image_pool, chat_id, score_message.message_id)
         return "started"
 
@@ -918,9 +926,9 @@ async def send_joke_duel(
 ) -> DuelStartResult:
     chat_id = message.chat.id
     async with duel_lock_for(chat_id):
-        if active_duel_id_for_chat(chat_id):
+        if active_duel_id_for_chat(chat_id, "joke"):
             if not silent_if_active:
-                await message.answer(format_duel_already_active(), parse_mode="HTML")
+                await message.answer(format_duel_already_active("joke"), parse_mode="HTML")
             return "active"
 
         if joke_pool.count() < 2:
@@ -965,7 +973,7 @@ async def send_joke_duel(
             LOGGER.warning("Failed to send joke duel vote message", exc_info=True)
             return "failed"
 
-        register_active_duel(chat_id, duel_id)
+        register_active_duel(chat_id, "joke", duel_id)
         schedule_joke_duel_finalizer(duel_id, bot, joke_pool, chat_id, score_message.message_id)
         return "started"
 
@@ -1033,7 +1041,7 @@ async def finalize_duel(
     except Exception:
         LOGGER.exception("Duel finalizer crashed")
     finally:
-        clear_active_duel(chat_id, duel_id)
+        clear_active_duel(chat_id, "image", duel_id)
         duel_sessions.pop(duel_id, None)
         duel_tasks.pop(duel_id, None)
 
@@ -1112,7 +1120,7 @@ async def finalize_joke_duel(
     except Exception:
         LOGGER.exception("Joke duel finalizer crashed")
     finally:
-        clear_active_duel(chat_id, duel_id)
+        clear_active_duel(chat_id, "joke", duel_id)
         duel_sessions.pop(duel_id, None)
         duel_tasks.pop(duel_id, None)
 
@@ -1243,32 +1251,48 @@ def duel_lock_for(chat_id: int) -> asyncio.Lock:
     return lock
 
 
-def active_duel_id_for_chat(chat_id: int) -> str | None:
-    duel_id = active_duels_by_chat.get(chat_id)
+def active_duel_id_for_chat(chat_id: int, kind: DuelKind) -> str | None:
+    chat_duels = active_duels_by_chat.get(chat_id)
+    if not chat_duels:
+        return None
+
+    duel_id = chat_duels.get(kind)
     if duel_id is None:
         return None
 
     duel = duel_sessions.get(duel_id)
-    if duel and duel.get("active", False):
+    duel_kind = duel.get("kind", "image") if duel else None
+    if duel and duel_kind == kind and duel.get("active", False):
         if duel_is_stale(duel):
             duel["active"] = False
-            active_duels_by_chat.pop(chat_id, None)
+            chat_duels.pop(kind, None)
+            if not chat_duels:
+                active_duels_by_chat.pop(chat_id, None)
             duel_sessions.pop(duel_id, None)
             duel_tasks.pop(duel_id, None)
-            LOGGER.warning("Cleared stale duel %s in chat %s", duel_id, chat_id)
+            LOGGER.warning("Cleared stale %s duel %s in chat %s", kind, duel_id, chat_id)
             return None
         return duel_id
 
-    active_duels_by_chat.pop(chat_id, None)
+    chat_duels.pop(kind, None)
+    if not chat_duels:
+        active_duels_by_chat.pop(chat_id, None)
     return None
 
 
-def register_active_duel(chat_id: int, duel_id: str) -> None:
-    active_duels_by_chat[chat_id] = duel_id
+def register_active_duel(chat_id: int, kind: DuelKind, duel_id: str) -> None:
+    active_duels_by_chat.setdefault(chat_id, {})[kind] = duel_id
 
 
-def clear_active_duel(chat_id: int, duel_id: str) -> None:
-    if active_duels_by_chat.get(chat_id) == duel_id:
+def clear_active_duel(chat_id: int, kind: DuelKind, duel_id: str) -> None:
+    chat_duels = active_duels_by_chat.get(chat_id)
+    if not chat_duels:
+        return
+
+    if chat_duels.get(kind) == duel_id:
+        chat_duels.pop(kind, None)
+
+    if not chat_duels:
         active_duels_by_chat.pop(chat_id, None)
 
 
@@ -1466,8 +1490,8 @@ async def show_menu(message: Message) -> None:
         "<b>🚨 Пульт от ядерки</b>\n\n"
         "🎲 <b>Выдача</b>\n"
         "Пикчи и анекдоты из общего склада\n\n"
-        "⚔️ <b>Арена</b>\n"
-        "Дуэли пикч и шуток без лишней мишуры\n\n"
+        "⚔️ <b>Дуэльные арены</b>\n"
+        "Пикчи и анекдоты дерутся отдельно, можно запускать обе\n\n"
         "📊 <b>Склад</b>\n"
         "Сводка, вклад, топ и погода\n\n"
         "📥 <b>Загрузка</b>\n"
@@ -1485,7 +1509,11 @@ def format_section(title: str, *lines: str) -> str:
     return "\n".join([f"<b>{title}</b>", *lines])
 
 
-def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> str:
+def format_stats(
+    image_pool: ImagePool,
+    joke_pool: JokePool | None = None,
+    chat_id: int | None = None,
+) -> str:
     stats = image_pool.stats()
     joke_stats = joke_pool.stats() if joke_pool else None
     pool_lines = [format_metric("Пикч в запасе", stats.total_images)]
@@ -1516,7 +1544,28 @@ def format_stats(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
         ),
         format_section("🧪 Реакции", *reaction_lines),
     ]
+    if chat_id is not None:
+        sections.append(format_section("🟢 Активные дуэли", *format_active_duel_lines(chat_id)))
     return "\n\n".join(sections)
+
+
+def format_active_duel_lines(chat_id: int) -> list[str]:
+    return [
+        format_metric("Пикчевая арена", active_duel_status(chat_id, "image")),
+        format_metric("Анекдотная арена", active_duel_status(chat_id, "joke")),
+    ]
+
+
+def active_duel_status(chat_id: int, kind: DuelKind) -> str:
+    duel_id = active_duel_id_for_chat(chat_id, kind)
+    if duel_id is None:
+        return "свободно"
+
+    duel = duel_sessions.get(duel_id)
+    if not duel:
+        return "свободно"
+
+    return f"идёт, {duel_remaining_seconds(duel)} сек"
 
 
 def format_start() -> str:
@@ -1546,12 +1595,13 @@ def format_help() -> str:
         format_section(
             "😂 Анекдоты",
             "<code>/joke</code> — случайный анекдот",
-            "<code>/jokeduel</code> — битва двух случайных анекдотов",
             "<code>/upload_joke</code> — загрузка анекдотов в личке",
         ),
         format_section(
             "⚔️ Дуэли",
             "<code>/duel</code> — битва двух случайных пикч",
+            "<code>/jokeduel</code> — битва двух случайных анекдотов",
+            "Пикчевая и анекдотная арены могут идти параллельно",
             "<code>/mood</code> — режим бота на сегодня",
             "<code>/weather</code> — погода в Малой Токмачке",
         ),
@@ -1617,11 +1667,19 @@ def format_upload_private_only() -> str:
     )
 
 
-def format_duel_already_active() -> str:
+def format_duel_already_active(kind: DuelKind = "image") -> str:
+    if kind == "joke":
+        busy_line = "Сейчас занята анекдотная арена"
+        free_line = "Пикчевую дуэль можно запускать отдельно"
+    else:
+        busy_line = "Сейчас занята пикчевая арена"
+        free_line = "Анекдотную дуэль можно запускать отдельно"
+
     return (
         "<b>⚔️ Дуэль уже идёт</b>\n\n"
-        "Дождитесь финального свистка\n"
-        "После итогов можно запускать новую"
+        f"{busy_line}\n"
+        f"{free_line}\n\n"
+        "Дубль внутри одного раздела не запускаю, чтобы чат не поехал"
     )
 
 

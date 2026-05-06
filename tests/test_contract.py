@@ -301,28 +301,37 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("🗑 Улетела из пула: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
 
-    def test_one_active_duel_per_chat_guard(self) -> None:
+    def test_one_active_duel_per_kind_guard(self) -> None:
         duel_sessions.clear()
         active_duels_by_chat.clear()
         duel_tasks.clear()
 
-        duel_sessions["duel-1"] = {"active": True, "expires_at": 10**12}
-        register_active_duel(123, "duel-1")
+        duel_sessions["duel-1"] = {"kind": "image", "active": True, "expires_at": 10**12}
+        duel_sessions["joke-duel-1"] = {"kind": "joke", "active": True, "expires_at": 10**12}
+        register_active_duel(123, "image", "duel-1")
+        register_active_duel(123, "joke", "joke-duel-1")
 
-        self.assertEqual(active_duel_id_for_chat(123), "duel-1")
+        self.assertEqual(active_duel_id_for_chat(123, "image"), "duel-1")
+        self.assertEqual(active_duel_id_for_chat(123, "joke"), "joke-duel-1")
 
         duel_sessions["duel-1"]["active"] = False
 
-        self.assertIsNone(active_duel_id_for_chat(123))
-        self.assertNotIn(123, active_duels_by_chat)
+        self.assertIsNone(active_duel_id_for_chat(123, "image"))
+        self.assertEqual(active_duel_id_for_chat(123, "joke"), "joke-duel-1")
         self.assertIn("Дуэль уже идёт", format_duel_already_active())
+        self.assertIn("Анекдотную дуэль можно запускать отдельно", format_duel_already_active("image"))
+        self.assertIn("Пикчевую дуэль можно запускать отдельно", format_duel_already_active("joke"))
 
-        duel_sessions["duel-2"] = {"active": True, "expires_at": 10**12}
-        register_active_duel(123, "duel-2")
-        clear_active_duel(123, "other-duel")
-        self.assertEqual(active_duel_id_for_chat(123), "duel-2")
-        clear_active_duel(123, "duel-2")
-        self.assertIsNone(active_duel_id_for_chat(123))
+        duel_sessions["duel-2"] = {"kind": "image", "active": True, "expires_at": 10**12}
+        register_active_duel(123, "image", "duel-2")
+        clear_active_duel(123, "image", "other-duel")
+        self.assertEqual(active_duel_id_for_chat(123, "image"), "duel-2")
+        clear_active_duel(123, "image", "duel-2")
+        self.assertIsNone(active_duel_id_for_chat(123, "image"))
+        self.assertEqual(active_duel_id_for_chat(123, "joke"), "joke-duel-1")
+        clear_active_duel(123, "joke", "joke-duel-1")
+        self.assertIsNone(active_duel_id_for_chat(123, "joke"))
+        self.assertNotIn(123, active_duels_by_chat)
         duel_sessions.clear()
         duel_tasks.clear()
 
@@ -331,12 +340,12 @@ class BotContractTest(unittest.TestCase):
         active_duels_by_chat.clear()
         duel_tasks.clear()
 
-        duel_sessions["stale-duel"] = {"active": True, "expires_at": 0}
-        register_active_duel(123, "stale-duel")
+        duel_sessions["stale-duel"] = {"kind": "image", "active": True, "expires_at": 0}
+        register_active_duel(123, "image", "stale-duel")
 
         self.assertTrue(duel_is_stale(duel_sessions["stale-duel"]))
         self.assertEqual(duel_remaining_seconds(duel_sessions["stale-duel"]), 0)
-        self.assertIsNone(active_duel_id_for_chat(123))
+        self.assertIsNone(active_duel_id_for_chat(123, "image"))
         self.assertNotIn(123, active_duels_by_chat)
         self.assertNotIn("stale-duel", duel_sessions)
 
@@ -569,6 +578,26 @@ class JokePoolTest(unittest.TestCase):
 
             self.assertIn("Анекдотов в блокноте: <b>1</b>", format_stats(image_pool, joke_pool))
             self.assertIn("Анекдотов в блокноте: <b>1</b>", format_count(image_pool, joke_pool))
+
+    def test_stats_include_active_duel_slots_for_current_chat(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            joke_pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            duel_sessions.clear()
+            active_duels_by_chat.clear()
+            duel_tasks.clear()
+
+            duel_sessions["duel-1"] = {"kind": "image", "active": True, "expires_at": 10**12}
+            register_active_duel(123, "image", "duel-1")
+
+            text = format_stats(image_pool, joke_pool, chat_id=123)
+
+            self.assertIn("<b>🟢 Активные дуэли</b>", text)
+            self.assertIn("Пикчевая арена: <b>идёт", text)
+            self.assertIn("Анекдотная арена: <b>свободно</b>", text)
+            duel_sessions.clear()
+            active_duels_by_chat.clear()
+            duel_tasks.clear()
 
 
 class ImagePoolTest(unittest.TestCase):
