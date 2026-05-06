@@ -56,11 +56,6 @@ Hidden maintenance commands:
 - `/dedupe_user USER_ID` - removes exact duplicates from one uploader, admin-only
 - `/id` - shows Telegram user ID, hidden from the public command menu
 
-Text triggers:
-
-- `@KiberDruzhina_bot` - easter-egg reply with a local image from `assets/kiber_druzhina.jpg`
-- `/kiber` - the same reply, but it works in groups even with Telegram Privacy Mode enabled
-
 ## Buttons
 
 Main panel:
@@ -379,7 +374,6 @@ Jokes live in `jokes.json`:
 - duel pairs are selected through dedicated methods and persist view counters with one JSON write
 - active joke duels store only IDs, votes, and timer state, not the full joke texts
 - long jokes are split by HTML-safe message size and are never meaning-trimmed
-- local easter-egg assets live in `assets/`, so Railway does not depend on Telegram Desktop temp files
 - `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
 - JSON writes are atomic through a temporary file

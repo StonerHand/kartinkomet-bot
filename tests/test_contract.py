@@ -37,10 +37,6 @@ from bot.handlers import (
     format_upload_limit,
     format_upload_not_active,
     format_upload_private_only,
-    is_kiber_druzhina_trigger,
-    KIBER_DRUZHINA_IMAGE_PATH,
-    KIBER_DRUZHINA_COMMAND,
-    KIBER_DRUZHINA_REPLY,
     next_achievement_for,
     parse_user_id_argument,
     quality_title,
@@ -149,7 +145,6 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("jokeduel", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
-        self.assertNotIn(KIBER_DRUZHINA_COMMAND, commands)
         self.assertNotIn("dedupe_user", commands)
 
     def test_hidden_dedupe_user_argument_parser(self) -> None:
@@ -395,15 +390,6 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("/upload_joke", format_upload_not_active())
         self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
-
-    def test_kiber_druzhina_trigger_is_text_based(self) -> None:
-        self.assertTrue(is_kiber_druzhina_trigger("@KiberDruzhina_bot"))
-        self.assertTrue(is_kiber_druzhina_trigger("/@KiberDruzhina_bot"))
-        self.assertTrue(is_kiber_druzhina_trigger("эй, @kiberdruzhina_bot"))
-        self.assertFalse(is_kiber_druzhina_trigger("@kartinkomet_bot"))
-        self.assertEqual(KIBER_DRUZHINA_COMMAND, "kiber")
-        self.assertEqual(KIBER_DRUZHINA_REPLY, "Пошел нахуй")
-        self.assertTrue(KIBER_DRUZHINA_IMAGE_PATH.exists())
 
     def test_joke_duel_score_and_result_are_quoted(self) -> None:
         entry = format_joke_duel_entry("🅰️ Первый анекдот", "Первый <текст>")
