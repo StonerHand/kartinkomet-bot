@@ -1,29 +1,43 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
-def main_menu() -> InlineKeyboardMarkup:
-    keyboard = [
+def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
+    upload_row = [
+        InlineKeyboardButton(
+            text="📥 Загрузить пикчи" if is_private else "📬 Как загрузить",
+            callback_data="upload",
+        ),
+        InlineKeyboardButton(
+            text="📝 Загрузить анекдоты" if is_private else "📝 Как добавить",
+            callback_data="upload_joke",
+        ),
+    ]
+    random_row = [
+        InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
+        InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+    ]
+    duel_row = [
+        InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
+        InlineKeyboardButton(text="😂 Дуэль шуток", callback_data="joke_duel_new"),
+    ]
+    utility_rows = [
         [
-            InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
-            InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
-        ],
-        [
-            InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
-            InlineKeyboardButton(text="😂 Дуэль шуток", callback_data="joke_duel_new"),
-        ],
-        [
+            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
             InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
         ],
         [
-            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
             InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
-            InlineKeyboardButton(text="📥 Пикчи", callback_data="upload"),
-            InlineKeyboardButton(text="📝 Анекдоты", callback_data="upload_joke"),
+            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
         ],
     ]
+    keyboard = (
+        [upload_row, random_row, duel_row, *utility_rows]
+        if is_private
+        else [random_row, duel_row, *utility_rows, upload_row]
+    )
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -89,6 +103,45 @@ def new_joke_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="😂 Новая дуэль", callback_data="joke_duel_new")],
+        ]
+    )
+
+
+def tournament_vote(
+    tournament_id: str,
+    votes: list[int] | None = None,
+) -> InlineKeyboardMarkup:
+    counts = votes or [0, 0, 0, 0]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"1️⃣ Первая · {counts[0]}",
+                    callback_data=f"tournament:{tournament_id}:0",
+                ),
+                InlineKeyboardButton(
+                    text=f"2️⃣ Вторая · {counts[1]}",
+                    callback_data=f"tournament:{tournament_id}:1",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"3️⃣ Третья · {counts[2]}",
+                    callback_data=f"tournament:{tournament_id}:2",
+                ),
+                InlineKeyboardButton(
+                    text=f"4️⃣ Четвёртая · {counts[3]}",
+                    callback_data=f"tournament:{tournament_id}:3",
+                ),
+            ],
+        ]
+    )
+
+
+def new_tournament() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏟 Новый турнир", callback_data="tournament_new")],
         ]
     )
 

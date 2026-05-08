@@ -11,8 +11,11 @@ from bot.config import parse_user_ids
 from bot.handlers import (
     active_duel_id_for_chat,
     active_duels_by_chat,
+    active_tournament_id_for_chat,
+    active_tournaments_by_chat,
     achievement_for,
     clear_active_duel,
+    clear_active_tournament,
     combo_achievements_for,
     current_achievement_for,
     duel_is_stale,
@@ -32,8 +35,10 @@ from bot.handlers import (
     format_mood,
     format_start,
     format_stats,
-    format_user_progress,
     format_top_uploaders,
+    format_tournament_result,
+    format_tournament_score,
+    format_user_progress,
     format_upload_limit,
     format_upload_not_active,
     format_upload_private_only,
@@ -41,7 +46,10 @@ from bot.handlers import (
     parse_user_id_argument,
     quality_title,
     register_active_duel,
+    register_active_tournament,
     split_text_for_telegram,
+    tournament_sessions,
+    tournament_tasks,
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool, normalize_joke_text
@@ -51,8 +59,10 @@ from bot.keyboards import (
     joke_duel_vote,
     main_menu,
     new_joke_duel,
+    new_tournament,
     picture_actions,
     picture_actions_with_counts,
+    tournament_vote,
     upload_menu,
 )
 from bot.texts import (
@@ -122,6 +132,7 @@ class BotContractTest(unittest.TestCase):
                 "joke",
                 "duel",
                 "jokeduel",
+                "tournament",
                 "weather",
                 "menu",
                 "upload_pidor",
@@ -143,6 +154,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("top", commands)
         self.assertIn("duel", commands)
         self.assertIn("jokeduel", commands)
+        self.assertIn("tournament", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("addpack_pidor", commands)
         self.assertNotIn("dedupe_user", commands)
@@ -196,6 +208,9 @@ class BotContractTest(unittest.TestCase):
 
     def test_main_keyboard_keeps_structured_actions(self) -> None:
         main_buttons = [button.text for row in main_menu().inline_keyboard for button in row]
+        private_buttons = [
+            button.text for row in main_menu(is_private=True).inline_keyboard for button in row
+        ]
 
         self.assertEqual(
             main_buttons,
@@ -204,14 +219,17 @@ class BotContractTest(unittest.TestCase):
                 "😂 Анекдот",
                 "⚔️ Дуэль пикч",
                 "😂 Дуэль шуток",
+                "🏟 Турнир",
                 "📊 Сводка",
                 "🏆 Топ",
-                "👤 Мой вклад",
                 "🌦 Погода",
-                "📥 Пикчи",
-                "📝 Анекдоты",
+                "👤 Мой вклад",
+                "📬 Как загрузить",
+                "📝 Как добавить",
             ],
         )
+        self.assertEqual(private_buttons[:2], ["📥 Загрузить пикчи", "📝 Загрузить анекдоты"])
+        self.assertIn("🏟 Турнир", private_buttons)
 
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
         upload_buttons = [button.text for row in upload_menu().inline_keyboard for button in row]
@@ -252,6 +270,30 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(buttons, ["🅰️ Первый · 3", "🅱️ Второй · 2"])
         self.assertEqual(callbacks, ["joke_duel:duel-id:left", "joke_duel:duel-id:right"])
         self.assertEqual(new_buttons, ["😂 Новая дуэль"])
+
+    def test_tournament_keyboard_uses_four_slots(self) -> None:
+        buttons = [button.text for row in tournament_vote("tour-id", [1, 2, 3, 4]).inline_keyboard for button in row]
+        callbacks = [
+            button.callback_data
+            for row in tournament_vote("tour-id", [1, 2, 3, 4]).inline_keyboard
+            for button in row
+        ]
+        new_buttons = [button.text for row in new_tournament().inline_keyboard for button in row]
+
+        self.assertEqual(
+            buttons,
+            ["1️⃣ Первая · 1", "2️⃣ Вторая · 2", "3️⃣ Третья · 3", "4️⃣ Четвёртая · 4"],
+        )
+        self.assertEqual(
+            callbacks,
+            [
+                "tournament:tour-id:0",
+                "tournament:tour-id:1",
+                "tournament:tour-id:2",
+                "tournament:tour-id:3",
+            ],
+        )
+        self.assertEqual(new_buttons, ["🏟 Новый турнир"])
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
         self.assertEqual(parse_user_ids("1, 2;3"), frozenset({1, 2, 3}))
@@ -301,18 +343,43 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("🗑 Улетела из пула: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
 
+    def test_tournament_score_format(self) -> None:
+        score = format_tournament_score(
+            [1, 3, 0, 2],
+            title="Сетка пикч",
+            status="Чат выбирает витрину",
+            remaining_seconds=77,
+        )
+
+        self.assertIn("<b>🏟 Турнир пикч</b>", score)
+        self.assertIn("Сетка пикч", score)
+        self.assertIn("1️⃣ Первая: <b>1</b> · 2️⃣ Вторая: <b>3</b>", score)
+        self.assertIn("<b>77 секунд</b>", score)
+        self.assertIn("👑 Ведёт: <b>2️⃣ вторая</b>", score)
+        self.assertIn("👑 Чемпион: <b>2️⃣ вторая</b>", format_tournament_result([1, 3, 0, 2], 1))
+        self.assertIn(
+            "⚖️ Чемпион не выбран. Все пикчи остаются в пуле",
+            format_tournament_result([1, 1, 0, 0], None),
+        )
+
     def test_one_active_duel_per_kind_guard(self) -> None:
         duel_sessions.clear()
         active_duels_by_chat.clear()
         duel_tasks.clear()
+        tournament_sessions.clear()
+        active_tournaments_by_chat.clear()
+        tournament_tasks.clear()
 
         duel_sessions["duel-1"] = {"kind": "image", "active": True, "expires_at": 10**12}
         duel_sessions["joke-duel-1"] = {"kind": "joke", "active": True, "expires_at": 10**12}
+        tournament_sessions["tournament-1"] = {"active": True, "expires_at": 10**12}
         register_active_duel(123, "image", "duel-1")
         register_active_duel(123, "joke", "joke-duel-1")
+        register_active_tournament(123, "tournament-1")
 
         self.assertEqual(active_duel_id_for_chat(123, "image"), "duel-1")
         self.assertEqual(active_duel_id_for_chat(123, "joke"), "joke-duel-1")
+        self.assertEqual(active_tournament_id_for_chat(123), "tournament-1")
 
         duel_sessions["duel-1"]["active"] = False
 
@@ -331,9 +398,14 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(active_duel_id_for_chat(123, "joke"), "joke-duel-1")
         clear_active_duel(123, "joke", "joke-duel-1")
         self.assertIsNone(active_duel_id_for_chat(123, "joke"))
+        clear_active_tournament(123, "tournament-1")
+        self.assertIsNone(active_tournament_id_for_chat(123))
         self.assertNotIn(123, active_duels_by_chat)
+        self.assertNotIn(123, active_tournaments_by_chat)
         duel_sessions.clear()
         duel_tasks.clear()
+        tournament_sessions.clear()
+        tournament_tasks.clear()
 
     def test_stale_duel_is_cleared_from_active_guard(self) -> None:
         duel_sessions.clear()
@@ -375,11 +447,13 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("😂 Анекдот", format_start())
         self.assertIn("⚔️ Дуэль пикч", format_start())
         self.assertIn("😂 Дуэль шуток", format_start())
+        self.assertIn("🏟 Турнир", format_start())
         self.assertIn("📝 Анекдоты", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>😂 Анекдоты</b>", format_help())
         self.assertIn("/upload_joke", format_help())
         self.assertIn("/jokeduel", format_help())
+        self.assertIn("/tournament", format_help())
         self.assertIn("<b>⚔️ Дуэли</b>", format_help())
         self.assertIn("/weather", format_help())
         self.assertIn("<b>🧠 Режим дня</b>", format_mood())
@@ -471,6 +545,21 @@ class BotContractTest(unittest.TestCase):
 
 
 class JokePoolTest(unittest.TestCase):
+    def test_sqlite_store_migrates_from_legacy_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "jokes.json"
+            database_path = Path(temp_dir) / "kartinkomet.sqlite"
+            storage_path.write_text(json.dumps(["Старый анекдот"]), encoding="utf-8")
+
+            pool = JokePool(str(storage_path), database_path=str(database_path))
+            pool.add_from_message(fake_text_message("Новый анекдот"))
+            storage_path.write_text(json.dumps([]), encoding="utf-8")
+            reloaded_pool = JokePool(str(storage_path), database_path=str(database_path))
+
+            self.assertTrue(database_path.exists())
+            self.assertEqual(pool.count(), 2)
+            self.assertEqual(reloaded_pool.count(), 2)
+
     def test_normalizes_text_and_rejects_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             pool = JokePool(str(Path(temp_dir) / "jokes.json"))
@@ -586,18 +675,27 @@ class JokePoolTest(unittest.TestCase):
             duel_sessions.clear()
             active_duels_by_chat.clear()
             duel_tasks.clear()
+            tournament_sessions.clear()
+            active_tournaments_by_chat.clear()
+            tournament_tasks.clear()
 
             duel_sessions["duel-1"] = {"kind": "image", "active": True, "expires_at": 10**12}
+            tournament_sessions["tournament-1"] = {"active": True, "expires_at": 10**12}
             register_active_duel(123, "image", "duel-1")
+            register_active_tournament(123, "tournament-1")
 
             text = format_stats(image_pool, joke_pool, chat_id=123)
 
             self.assertIn("<b>🟢 Активные дуэли</b>", text)
             self.assertIn("Пикчевая арена: <b>идёт", text)
             self.assertIn("Анекдотная арена: <b>свободно</b>", text)
+            self.assertIn("Турнир: <b>идёт", text)
             duel_sessions.clear()
             active_duels_by_chat.clear()
             duel_tasks.clear()
+            tournament_sessions.clear()
+            active_tournaments_by_chat.clear()
+            tournament_tasks.clear()
 
 
 class ImagePoolTest(unittest.TestCase):
@@ -610,10 +708,34 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.count(), 2)
             payload = json.loads(storage_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["version"], 3)
+            self.assertEqual(payload["version"], 4)
             self.assertEqual(len(payload["images"]), 2)
             self.assertEqual(payload["users"], {})
-            self.assertEqual(payload["duel_stats"], {"total": 0, "executions": 0, "ties": 0})
+            self.assertEqual(
+                payload["duel_stats"],
+                {
+                    "total": 0,
+                    "executions": 0,
+                    "ties": 0,
+                    "tournaments": 0,
+                    "tournament_ties": 0,
+                },
+            )
+
+    def test_sqlite_store_migrates_from_legacy_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage_path = Path(temp_dir) / "pool.json"
+            database_path = Path(temp_dir) / "kartinkomet.sqlite"
+            storage_path.write_text(json.dumps(["file-a"]), encoding="utf-8")
+
+            pool = ImagePool(str(storage_path), database_path=str(database_path))
+            pool.add_from_message(fake_photo_message("file-b", "unique-b"))
+            storage_path.write_text(json.dumps([]), encoding="utf-8")
+            reloaded_pool = ImagePool(str(storage_path), database_path=str(database_path))
+
+            self.assertTrue(database_path.exists())
+            self.assertEqual(pool.count(), 2)
+            self.assertEqual(reloaded_pool.count(), 2)
 
     def test_rejects_duplicate_file_unique_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -674,16 +796,22 @@ class ImagePoolTest(unittest.TestCase):
 
             pool.record_duel_result(tied=False)
             pool.record_duel_result(tied=True)
+            pool.record_tournament_result(tied=False)
+            pool.record_tournament_result(tied=True)
 
             stats = pool.stats()
             self.assertEqual(stats.total_duels, 2)
             self.assertEqual(stats.duel_executions, 1)
             self.assertEqual(stats.duel_ties, 1)
+            self.assertEqual(stats.total_tournaments, 2)
+            self.assertEqual(stats.tournament_ties, 1)
             self.assertIn("<b>⚔️ Дуэли</b>", format_stats(pool))
             self.assertIn("Казней: <b>1</b>", format_stats(pool))
+            self.assertIn("<b>🏟 Турниры</b>", format_stats(pool))
 
             reloaded_pool = ImagePool(str(storage_path))
             self.assertEqual(reloaded_pool.stats().total_duels, 2)
+            self.assertEqual(reloaded_pool.stats().total_tournaments, 2)
 
     def test_finish_duel_removes_loser_and_records_stats_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -715,6 +843,20 @@ class ImagePoolTest(unittest.TestCase):
             left, right = pair
             self.assertNotEqual(left.id, right.id)
             self.assertEqual(pool.stats().total_shows, 2)
+
+    def test_random_tournament_candidates_marks_four_distinct_images_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            for index in range(4):
+                pool.add_from_message(fake_photo_message(f"file-{index}", f"unique-{index}"))
+
+            candidates = pool.random_tournament_candidates(chat_id=123)
+
+            self.assertIsNotNone(candidates)
+            assert candidates is not None
+            self.assertEqual(len(candidates), 4)
+            self.assertEqual(len({record.id for record in candidates}), 4)
+            self.assertEqual(pool.stats().total_shows, 4)
 
     def test_image_duel_random_uses_shared_chat_history(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -922,7 +1064,16 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.duel_ties, 0)
             payload = json.loads(storage_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["chat_history"], {})
-            self.assertEqual(payload["duel_stats"], {"total": 0, "executions": 0, "ties": 0})
+            self.assertEqual(
+                payload["duel_stats"],
+                {
+                    "total": 0,
+                    "executions": 0,
+                    "ties": 0,
+                    "tournaments": 0,
+                    "tournament_ties": 0,
+                },
+            )
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 @dataclass(frozen=True)
 class Config:
     bot_token: str
+    database_path: str
     image_pool_path: str
     joke_pool_path: str
     target_channel_id: str | None
@@ -31,9 +32,15 @@ def load_config() -> Config:
         if railway_volume_path
         else "data/jokes.json"
     )
+    default_database_path = (
+        os.path.join(railway_volume_path, "kartinkomet.sqlite")
+        if railway_volume_path
+        else "data/kartinkomet.sqlite"
+    )
 
     return Config(
         bot_token=bot_token,
+        database_path=os.getenv("DATABASE_PATH", default_database_path),
         image_pool_path=os.getenv("IMAGE_POOL_PATH", default_pool_path),
         joke_pool_path=os.getenv("JOKE_POOL_PATH", default_joke_pool_path),
         target_channel_id=os.getenv("TARGET_CHANNEL_ID") or None,

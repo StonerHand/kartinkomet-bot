@@ -9,14 +9,17 @@ from uuid import uuid4
 
 from aiogram.types import Message, User
 
+from bot.storage import SQLiteDocumentStore
+
 REACTION_FIELDS = {
     "like": "likes",
     "dislike": "dislikes",
 }
-STORAGE_VERSION = 3
+STORAGE_VERSION = 4
+IMAGE_DOCUMENT_NAME = "image_pool"
 MAX_CHAT_HISTORY = 500
 UPLOAD_LIMIT_PER_HOUR = 1000
-RANDOM_CANDIDATE_LIMIT = 50
+RANDOM_CANDIDATE_LIMIT = 120
 RANDOM = random.SystemRandom()
 
 
@@ -50,6 +53,8 @@ class PoolStats:
     total_duels: int
     duel_executions: int
     duel_ties: int
+    total_tournaments: int
+    tournament_ties: int
 
 
 @dataclass(frozen=True)
@@ -69,9 +74,10 @@ class DedupeResult:
 
 
 class ImagePool:
-    def __init__(self, storage_path: str) -> None:
+    def __init__(self, storage_path: str, database_path: str | None = None) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._store = SQLiteDocumentStore(database_path) if database_path else None
         self._records, self._chat_history, self._users, self._duel_stats = self._load()
         self._rebuild_indexes()
 
@@ -116,6 +122,28 @@ class ImagePool:
             ]
         )
         return self._to_image_record(left_record), self._to_image_record(right_record)
+
+    def random_tournament_candidates(
+        self,
+        chat_id: int | str,
+        size: int = 4,
+        avoid_recent: bool = True,
+    ) -> list[ImageRecord] | None:
+        if len(self._records) < size:
+            return None
+
+        tournament_chat_id = f"tournament:{chat_id}"
+        records = self._selectable_records(
+            avoid_recent=avoid_recent,
+            chat_id=tournament_chat_id,
+            minimum_candidates=size,
+        )
+        if len(records) < size:
+            records = self._records
+
+        selected_records = RANDOM.sample(records, size)
+        self._mark_shown_many([(record, tournament_chat_id) for record in selected_records])
+        return [self._to_image_record(record) for record in selected_records]
 
     def add_from_message(self, message: Message) -> AddResult:
         self.remember_user(message.from_user)
@@ -206,6 +234,8 @@ class ImagePool:
             total_duels=self._duel_stats["total"],
             duel_executions=self._duel_stats["executions"],
             duel_ties=self._duel_stats["ties"],
+            total_tournaments=self._duel_stats["tournaments"],
+            tournament_ties=self._duel_stats["tournament_ties"],
         )
 
     def record_duel_result(self, *, tied: bool) -> None:
@@ -214,6 +244,12 @@ class ImagePool:
             self._duel_stats["ties"] += 1
         else:
             self._duel_stats["executions"] += 1
+        self._write()
+
+    def record_tournament_result(self, *, tied: bool) -> None:
+        self._duel_stats["tournaments"] += 1
+        if tied:
+            self._duel_stats["tournament_ties"] += 1
         self._write()
 
     def reset_stats(self) -> None:
@@ -346,7 +382,7 @@ class ImagePool:
         shown_records = [record for record in records if record.get("last_shown_at")]
         recent_limit = min(
             max(1, len(records) // 2),
-            25,
+            100,
             max(0, len(records) - minimum_candidates),
             len(shown_records),
         )
@@ -379,7 +415,11 @@ class ImagePool:
                 min(RANDOM_CANDIDATE_LIMIT, max(8, len(records) // 8)),
             ),
         )
-        least_shown = nsmallest(window_size, records, key=lambda record: record["shown_count"])
+        least_shown = nsmallest(
+            window_size,
+            records,
+            key=lambda record: (record["shown_count"], record.get("last_shown_at") or ""),
+        )
         shown_threshold = least_shown[-1]["shown_count"]
         return [record for record in records if record["shown_count"] <= shown_threshold]
 
@@ -468,15 +508,19 @@ class ImagePool:
         return None
 
     def _load(self) -> tuple[list[dict], dict[str, list[str]], dict[str, dict], dict[str, int]]:
-        if not self.storage_path.exists():
+        data = self._store.load(IMAGE_DOCUMENT_NAME) if self._store else None
+        needs_write = False
+
+        if data is None and not self.storage_path.exists():
             duel_stats = self._normalize_duel_stats({})
             self._atomic_write([], {}, {}, duel_stats)
             return [], {}, {}, duel_stats
 
-        with self.storage_path.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+        if data is None:
+            with self.storage_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+            needs_write = self._store is not None
 
-        needs_write = False
         if isinstance(data, list):
             raw_records = data
             raw_chat_history = {}
@@ -687,8 +731,11 @@ class ImagePool:
             "total": normalized_count("total"),
             "executions": normalized_count("executions"),
             "ties": normalized_count("ties"),
+            "tournaments": normalized_count("tournaments"),
+            "tournament_ties": normalized_count("tournament_ties"),
         }
         stats["total"] = max(stats["total"], stats["executions"] + stats["ties"])
+        stats["tournament_ties"] = min(stats["tournament_ties"], stats["tournaments"])
         return stats
 
     def _atomic_write(
@@ -698,7 +745,6 @@ class ImagePool:
         users: dict[str, dict],
         duel_stats: dict[str, int],
     ) -> None:
-        temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         payload = {
             "version": STORAGE_VERSION,
             "images": records,
@@ -706,6 +752,11 @@ class ImagePool:
             "users": users,
             "duel_stats": duel_stats,
         }
+        if self._store:
+            self._store.save(IMAGE_DOCUMENT_NAME, payload)
+            return
+
+        temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         with temp_path.open("w", encoding="utf-8") as file:
             json.dump(payload, file, ensure_ascii=False, separators=(",", ":"))
             file.write("\n")

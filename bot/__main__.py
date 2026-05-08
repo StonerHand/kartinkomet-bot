@@ -16,6 +16,7 @@ BOT_COMMANDS = [
     BotCommand(command="joke", description="рандомный анекдот"),
     BotCommand(command="duel", description="дуэль двух пикч"),
     BotCommand(command="jokeduel", description="дуэль двух анекдотов"),
+    BotCommand(command="tournament", description="турнир четырёх пикч"),
     BotCommand(command="weather", description="погода в Малой Токмачке"),
     BotCommand(command="menu", description="пульт управления"),
     BotCommand(command="upload_pidor", description="загрузка пикч в личке"),
@@ -42,8 +43,8 @@ async def main() -> None:
     dispatcher = Dispatcher(fsm_strategy=FSMStrategy.CHAT)
     dispatcher.include_router(
         build_router(
-            image_pool=ImagePool(config.image_pool_path),
-            joke_pool=JokePool(config.joke_pool_path),
+            image_pool=ImagePool(config.image_pool_path, database_path=config.database_path),
+            joke_pool=JokePool(config.joke_pool_path, database_path=config.database_path),
             target_channel_id=config.target_channel_id,
             admin_user_ids=config.admin_user_ids,
         )

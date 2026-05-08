@@ -1,12 +1,12 @@
 # kartinkomet
 
-Telegram bot for a shared pool of images and jokes: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, weather, and duplicate cleanup. The production runtime stays lean: it only installs what the bot needs to run.
+Telegram bot for a shared pool of images and jokes: random delivery, private uploads, reactions, leaderboards, personal achievements, meme duels, tournaments, weather, and duplicate cleanup. The production runtime stays lean: it only installs what the bot needs to run.
 
 [Русская версия](README.md)
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs image and joke duels, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -15,7 +15,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - groups are for random images, duels, stats, and leaderboards
 - uploads happen only in private chat with the bot, so Telegram Privacy Mode cannot break file intake
 - the pool is shared: upload in private chat, use in groups
-- jokes live separately from images in `jokes.json`
+- data lives in SQLite; legacy `image_pool.json` and `jokes.json` are imported automatically on first migration
 - exact duplicates are rejected through `file_unique_id`
 - text duplicates are rejected through normalized joke text
 - visual duplicates can be cleaned with a separate `dHash` script
@@ -25,6 +25,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - `2 🖕🏻` remove an image or joke from the pool
 - leaderboards and achievements show usernames without `@`, so nobody gets tagged
 - duels are split by arena: one image duel and one joke duel can run at the same time
+- image tournaments are separate: 4 images, 90 seconds, one champion, no deletion
 - duels are self-healing: timer refreshes and stale duel state is cleared
 
 ## Commands
@@ -35,6 +36,7 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | `/joke` | Send a random joke |
 | `/duel` | Start a duel between two random images |
 | `/jokeduel` | Start a duel between two random jokes |
+| `/tournament` | Start a four-image tournament |
 | `/weather` | Show weather for Mala Tokmachka |
 | `/menu` | Open the main control panel |
 | `/upload_pidor` | Start upload mode in private chat |
@@ -63,9 +65,21 @@ Main panel:
 ```text
 🎲 Пикча        😂 Анекдот
 ⚔️ Дуэль пикч   😂 Дуэль шуток
-📊 Сводка       🏆 Топ
-👤 Мой вклад    🌦 Погода
-📥 Пикчи     📝 Анекдоты
+🏟 Турнир       📊 Сводка
+🏆 Топ          🌦 Погода
+👤 Мой вклад
+📬 Как загрузить  📝 Как добавить
+```
+
+In private chat, uploads move to the top:
+
+```text
+📥 Загрузить пикчи  📝 Загрузить анекдоты
+🎲 Пикча            😂 Анекдот
+⚔️ Дуэль пикч       😂 Дуэль шуток
+🏟 Турнир           📊 Сводка
+🏆 Топ              🌦 Погода
+👤 Мой вклад
 ```
 
 Under a random image:
@@ -128,6 +142,10 @@ Stats example:
 • Казней: 29
 • Мирных исходов: 8
 
+🏟 Турниры
+• Запусков: 12
+• Без чемпиона: 3
+
 🧪 Реакции
 • Пикчи 🤙🏻: 988
 • Пикчи 🖕🏻: 133
@@ -137,6 +155,7 @@ Stats example:
 🟢 Активные дуэли
 • Пикчевая арена: идёт, 42 сек
 • Анекдотная арена: свободно
+• Турнир: свободно
 ```
 
 ## Random Selection
@@ -151,6 +170,8 @@ The picker is not a plain list shuffle. It:
 Large pools repeat much less often. Small pools can still repeat, but the bot avoids sending the same image immediately.
 
 Duels use a separate arena history: the two images from the just-played pair should not immediately form the next pair again.
+
+Tournaments use their own `tournament:{chat_id}` history and pick four less-exhausted images.
 
 Jokes follow the same idea: the bot keeps per-chat delivery history, chooses from a less-shown candidate window, and avoids sending the same text twice in a row when there are alternatives.
 
@@ -175,7 +196,7 @@ Upload flow:
 
 Rules:
 
-- jokes are stored separately in `jokes.json`
+- jokes are stored separately from images in the SQLite `joke_pool` document
 - images and jokes never mix
 - empty messages and slash commands are not added
 - duplicate jokes are rejected through normalized text
@@ -194,7 +215,7 @@ Rules mirror the image arena:
 - each user votes once but can switch sides
 - joke texts are sent as separate quotes before the vote card
 - jokes are not trimmed: long text is split into several messages but kept in full
-- winner stays in `jokes.json`
+- winner stays in the joke pool
 - loser is removed from the joke pool
 - ties keep both jokes alive
 - final result includes a `😂 Новая дуэль` button
@@ -243,6 +264,20 @@ There are `400` dedicated short duel phrases:
 - `100` live statuses
 - `100` winner phrases
 - `100` tie phrases
+
+## Tournaments
+
+`/tournament` and the `🏟 Турнир` button pick four random images and open a `90` second vote.
+
+Unlike duels, tournaments are non-destructive:
+
+- losers are not removed
+- the chat only chooses a showcase champion
+- each user votes once, but can switch sides
+- if several images share the top score, no champion is assigned
+- final result includes a `🏟 Новый турнир` button
+
+In short: duels are the jury rule, tournaments are the showcase.
 
 ## Reactions And Jury Rule
 
@@ -294,15 +329,22 @@ Image captions are clean, without mood prefixes.
 
 ## Storage
 
-Images and jokes are stored in separate JSON files.
+Primary storage is the `kartinkomet.sqlite` SQLite file.
 
-Images live in `image_pool.json`. It automatically migrates older plain `file_id` lists to the versioned format.
+Images and jokes live in separate documents inside the same SQLite database:
+
+- `image_pool` — images, reactions, users, random history, duels, and tournaments
+- `joke_pool` — jokes, reactions, and delivery history
+
+Legacy `image_pool.json` and `jokes.json` are still supported. If SQLite is empty, the bot reads those files, normalizes the data, and writes it into `kartinkomet.sqlite`. Migration does not require a manual import.
+
+The JSON below is the document shape stored inside SQLite.
 
 Example:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "images": [
     {
       "id": "a1b2c3",
@@ -326,12 +368,14 @@ Example:
   "duel_stats": {
     "total": 37,
     "executions": 29,
-    "ties": 8
+    "ties": 8,
+    "tournaments": 12,
+    "tournament_ties": 3
   }
 }
 ```
 
-Jokes live in `jokes.json`:
+Joke document:
 
 ```json
 {
@@ -361,6 +405,8 @@ Jokes live in `jokes.json`:
 ## Performance And Reliability
 
 - the pool is loaded into memory once at startup
+- SQLite is the primary durable storage file
+- old JSON files are used as first-migration sources
 - image lookup by `id` uses an index
 - duplicate checks use a `file_unique_id` set
 - random selection picks from a least-shown candidate window through a heap, without sorting the full pool
@@ -371,14 +417,16 @@ Jokes live in `jokes.json`:
 - per-user stats use an indexed record list by user ID
 - hourly upload limits use a sorted timestamp index
 - the `1000` images per hour throttle is decoupled from achievements, so anti-spam settings do not move game titles
-- duel pairs are selected through dedicated methods and persist view counters with one JSON write
+- duel pairs and tournament quartets are selected through dedicated methods and persist view counters in one operation
 - active joke duels store only IDs, votes, and timer state, not the full joke texts
 - long jokes are split by HTML-safe message size and are never meaning-trimmed
 - `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
-- JSON writes are atomic through a temporary file
+- SQLite writes go through one compact document-store
+- JSON writes remain only as a fallback for tests and manual local mode without `DATABASE_PATH`
 - image duel completion removes the loser and writes stats in one save
-- joke duel completion removes the losing text from `jokes.json`
+- joke duel completion removes the losing text from storage
+- tournament completion writes stats but does not delete images
 - stale duels are cleared on the next start attempt
 - Telegram API errors are logged and do not crash polling
 
@@ -418,6 +466,7 @@ cp .env.example .env
 
 ```env
 BOT_TOKEN=123456:your-token
+DATABASE_PATH=data/kartinkomet.sqlite
 IMAGE_POOL_PATH=data/image_pool.json
 JOKE_POOL_PATH=data/jokes.json
 TARGET_CHANNEL_ID=
@@ -464,12 +513,13 @@ Attach a Railway Volume with mount path:
 /data
 ```
 
-When `RAILWAY_VOLUME_MOUNT_PATH` exists, the bot stores the pool here:
+When `RAILWAY_VOLUME_MOUNT_PATH` exists, the bot stores the main database here:
 
 ```text
-/data/image_pool.json
-/data/jokes.json
+/data/kartinkomet.sqlite
 ```
+
+If old `/data/image_pool.json` and `/data/jokes.json` files exist nearby, they are used for the first migration.
 
 ## Project Structure
 
@@ -477,9 +527,10 @@ When `RAILWAY_VOLUME_MOUNT_PATH` exists, the bot stores the pool here:
 bot/__main__.py    # aiogram polling and command menu
 bot/config.py      # environment variables and paths
 bot/handlers.py    # commands, callbacks, and bot workflows
-bot/image_pool.py  # JSON storage, random picker, reactions, indexes
-bot/joke_pool.py   # separate JSON joke pool
+bot/image_pool.py  # image pool, random picker, reactions, duels, tournaments, indexes
+bot/joke_pool.py   # separate joke pool
 bot/keyboards.py   # inline keyboards
+bot/storage.py     # SQLite document-store
 bot/texts.py       # phrases, mood labels, achievements, jury rule
 scripts/           # one-off maintenance scripts
 tests/             # contract tests

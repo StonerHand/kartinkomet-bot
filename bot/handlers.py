@@ -24,8 +24,10 @@ from bot.keyboards import (
     main_menu,
     new_duel,
     new_joke_duel,
+    new_tournament,
     picture_actions,
     picture_actions_with_counts,
+    tournament_vote,
     upload_menu,
 )
 from bot.texts import (
@@ -48,6 +50,8 @@ UPLOAD_COMMAND = "upload_pidor"
 JOKE_UPLOAD_COMMAND = "upload_joke"
 DUEL_SECONDS = 60
 JOKE_DUEL_SECONDS = 120
+TOURNAMENT_SECONDS = 90
+TOURNAMENT_SIZE = 4
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
 TELEGRAM_TEXT_CHUNK_SIZE = 3500
@@ -104,6 +108,55 @@ JOKE_DUEL_TIE_PHRASES = (
     "Вердикт размазался. Казни не будет",
 )
 
+TOURNAMENT_START_PHRASES = (
+    "Открыт короткий чемпионат подозрительных пикч",
+    "Четыре кандидата вышли на витрину",
+    "Мини-олимпиада общего склада стартовала",
+    "Пикчи построились в сетку без лишних речей",
+    "Чат получил четыре повода нажать не туда",
+    "Склад выставил квартет на народный просмотр",
+    "Начался турнир без судьи и тормозов",
+    "Четвёрка визуального шума готова к проверке",
+    "Пикчевый плей-офф включён",
+    "Контент вышел на короткую дистанцию",
+)
+TOURNAMENT_STATUS_PHRASES = (
+    "Выбираем чемпиона, никого не удаляем",
+    "Тут не казнь, тут корона",
+    "Голосуйте за ту, которую не стыдно вынести вперёд",
+    "Победитель получит славу, остальные просто переживут",
+    "Кнопки собирают народный рейтинг",
+    "Смотрим, кто сегодня тащит визуальный цех",
+    "Чат решает, какая пикча громче",
+    "Турнир идёт мягче дуэли, но с понтами",
+    "Каждый голос двигает корону",
+    "Склад ждёт нового чемпиона",
+)
+TOURNAMENT_WIN_PHRASES = (
+    "Корона нашла голову",
+    "Чемпион определён, склад хлопает папками",
+    "Победитель вышел из сетки сухим",
+    "Народ выбрал витринный экземпляр",
+    "Рейтинг сказал своё",
+    "Турнир закрылся без жертв, но с фаворитом",
+    "Кнопочная демократия выдала чемпиона",
+    "Победитель забрал свет софитов",
+    "Пикча дня получила микрокорону",
+    "Общий склад записал нового чемпиона",
+)
+TOURNAMENT_TIE_PHRASES = (
+    "Ничья. Чат красиво ушёл от ответственности",
+    "Корону не выдали, кандидаты разошлись молча",
+    "Голоса слиплись в ничью",
+    "Турнир завис на дипломатии",
+    "Победитель не найден, склад делает вид, что так и надо",
+    "Сетка закончилась без чемпиона",
+    "Кнопки не смогли договориться",
+    "Ничья, зато никто не обиделся",
+    "Чат посмотрел и промолчал достаточно громко",
+    "Корона осталась на зарядке",
+)
+
 
 class UploadSession(TypedDict):
     added: int
@@ -130,6 +183,10 @@ duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, dict[DuelKind, str]] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
 duel_tasks: dict[str, asyncio.Task] = {}
+tournament_sessions: dict[str, dict] = {}
+active_tournaments_by_chat: dict[int, str] = {}
+tournament_locks: dict[int, asyncio.Lock] = {}
+tournament_tasks: dict[str, asyncio.Task] = {}
 
 
 class AddPicture(StatesGroup):
@@ -231,6 +288,11 @@ def build_router(
     async def joke_duel_command(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
         await send_joke_duel(bot=bot, message=message, joke_pool=joke_pool)
+
+    @router.message(Command("tournament"))
+    async def tournament_command(message: Message, bot: Bot) -> None:
+        image_pool.remember_user(message.from_user)
+        await send_tournament(bot=bot, message=message, image_pool=image_pool)
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -654,6 +716,56 @@ def build_router(
                 LOGGER.warning("Failed to update joke duel vote message", exc_info=True)
         await callback.answer("Голос принят")
 
+    @router.callback_query(F.data.startswith("tournament:"))
+    async def tournament_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.data is None:
+            await callback.answer()
+            return
+
+        _, tournament_id, raw_option = callback.data.split(":", 2)
+        tournament = tournament_sessions.get(tournament_id)
+        if tournament is None:
+            await callback.answer("Турнир уже уехал в архив", show_alert=True)
+            return
+        if not tournament.get("active", False):
+            await callback.answer("Турнир уже закончился", show_alert=True)
+            return
+
+        try:
+            option = int(raw_option)
+        except ValueError:
+            await callback.answer()
+            return
+
+        if option not in range(TOURNAMENT_SIZE):
+            await callback.answer()
+            return
+
+        votes = tournament["votes"]
+        user_key = str(callback.from_user.id)
+        if votes.get(user_key) == option:
+            await callback.answer("Уже стоит")
+            return
+
+        votes[user_key] = option
+        vote_counts = tournament_vote_counts(tournament)
+        if callback.message:
+            try:
+                await callback.message.edit_text(
+                    format_tournament_score(
+                        vote_counts,
+                        title=str(tournament.get("title") or random_tournament_start_phrase()),
+                        status=str(tournament.get("status") or random_tournament_status_phrase()),
+                        remaining_seconds=tournament_remaining_seconds(tournament),
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=tournament_vote(tournament_id, vote_counts),
+                )
+            except TelegramAPIError:
+                LOGGER.warning("Failed to update tournament vote message", exc_info=True)
+        await callback.answer("Голос принят")
+
     @router.callback_query(F.data == "duel_new")
     async def new_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
@@ -693,6 +805,26 @@ def build_router(
             await callback.answer("Дуэль уже идёт")
         else:
             await callback.answer("Дуэль не запустилась")
+
+    @router.callback_query(F.data == "tournament_new")
+    async def new_tournament_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None:
+            await callback.answer()
+            return
+
+        tournament_result = await send_tournament(
+            bot=bot,
+            message=callback.message,
+            image_pool=image_pool,
+            silent_if_active=True,
+        )
+        if tournament_result == "started":
+            await callback.answer("Запускаю турнир")
+        elif tournament_result == "active":
+            await callback.answer("Турнир уже идёт")
+        else:
+            await callback.answer("Турнир не запустился")
 
     @router.message(F.text == "Помощь")
     async def help_button(message: Message) -> None:
@@ -978,6 +1110,80 @@ async def send_joke_duel(
         return "started"
 
 
+async def send_tournament(
+    bot: Bot,
+    message: Message,
+    image_pool: ImagePool,
+    silent_if_active: bool = False,
+) -> DuelStartResult:
+    chat_id = message.chat.id
+    async with tournament_lock_for(chat_id):
+        if active_tournament_id_for_chat(chat_id):
+            if not silent_if_active:
+                await message.answer(format_tournament_already_active(), parse_mode="HTML")
+            return "active"
+
+        if image_pool.count() < TOURNAMENT_SIZE:
+            await message.answer(
+                f"🏟 Для турнира нужно хотя бы {TOURNAMENT_SIZE} пикчи в пуле",
+            )
+            return "failed"
+
+        candidates = image_pool.random_tournament_candidates(
+            chat_id=chat_id,
+            size=TOURNAMENT_SIZE,
+        )
+        if candidates is None:
+            await message.answer("🏟 Турнир сорвался. Пул не набрал состав")
+            return "failed"
+
+        try:
+            await bot.send_media_group(
+                chat_id=chat_id,
+                media=[InputMediaPhoto(media=record.file_id) for record in candidates],
+            )
+        except TelegramAPIError:
+            LOGGER.warning(
+                "Failed to send tournament media group, falling back to separate photos",
+                exc_info=True,
+            )
+            for record in candidates:
+                await bot.send_photo(chat_id=chat_id, photo=record.file_id)
+
+        tournament_id = uuid4().hex
+        title = random_tournament_start_phrase()
+        status = random_tournament_status_phrase()
+        tournament_sessions[tournament_id] = {
+            "chat_id": chat_id,
+            "records": [record.id for record in candidates],
+            "votes": {},
+            "active": True,
+            "title": title,
+            "status": status,
+            "expires_at": monotonic() + TOURNAMENT_SECONDS,
+        }
+        try:
+            score_message = await message.answer(
+                format_tournament_score([0, 0, 0, 0], title=title, status=status),
+                parse_mode="HTML",
+                reply_markup=tournament_vote(tournament_id),
+            )
+        except TelegramAPIError:
+            tournament_sessions.pop(tournament_id, None)
+            LOGGER.warning("Failed to send tournament vote message", exc_info=True)
+            return "failed"
+
+        register_active_tournament(chat_id, tournament_id)
+        schedule_tournament_finalizer(
+            tournament_id,
+            bot,
+            image_pool,
+            chat_id,
+            score_message.message_id,
+        )
+        return "started"
+
+
 async def finalize_duel(
     duel_id: str,
     bot: Bot,
@@ -1125,6 +1331,67 @@ async def finalize_joke_duel(
         duel_tasks.pop(duel_id, None)
 
 
+async def finalize_tournament(
+    tournament_id: str,
+    bot: Bot,
+    image_pool: ImagePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    try:
+        while True:
+            tournament = tournament_sessions.get(tournament_id)
+            if tournament is None or not tournament.get("active", False):
+                return
+
+            remaining_seconds = tournament_remaining_seconds(tournament)
+            if remaining_seconds <= 0:
+                break
+
+            await asyncio.sleep(min(DUEL_TICK_SECONDS, remaining_seconds))
+            tournament = tournament_sessions.get(tournament_id)
+            if tournament is None or not tournament.get("active", False):
+                return
+
+            remaining_seconds = tournament_remaining_seconds(tournament)
+            if remaining_seconds > 0:
+                await update_tournament_score_message(
+                    bot=bot,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    tournament_id=tournament_id,
+                    tournament=tournament,
+                    remaining_seconds=remaining_seconds,
+                )
+
+        tournament = tournament_sessions.get(tournament_id)
+        if tournament is None or not tournament.get("active", False):
+            return
+
+        tournament["active"] = False
+        vote_counts = tournament_vote_counts(tournament)
+        winner = tournament_winner(vote_counts)
+        image_pool.record_tournament_result(tied=winner is None)
+        result_text = format_tournament_result(vote_counts, winner=winner)
+
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=result_text,
+                parse_mode="HTML",
+                reply_markup=new_tournament(),
+            )
+        except TelegramAPIError:
+            LOGGER.warning("Failed to edit completed tournament message", exc_info=True)
+    except Exception:
+        LOGGER.exception("Tournament finalizer crashed")
+    finally:
+        clear_active_tournament(chat_id, tournament_id)
+        tournament_sessions.pop(tournament_id, None)
+        tournament_tasks.pop(tournament_id, None)
+
+
 def schedule_duel_finalizer(
     duel_id: str,
     bot: Bot,
@@ -1148,6 +1415,20 @@ def schedule_joke_duel_finalizer(
         finalize_joke_duel(duel_id, bot, joke_pool, chat_id, message_id)
     )
     duel_tasks[duel_id] = task
+    task.add_done_callback(log_duel_task_exception)
+
+
+def schedule_tournament_finalizer(
+    tournament_id: str,
+    bot: Bot,
+    image_pool: ImagePool,
+    chat_id: int,
+    message_id: int,
+) -> None:
+    task = asyncio.create_task(
+        finalize_tournament(tournament_id, bot, image_pool, chat_id, message_id)
+    )
+    tournament_tasks[tournament_id] = task
     task.add_done_callback(log_duel_task_exception)
 
 
@@ -1217,12 +1498,57 @@ async def update_joke_duel_score_message(
         LOGGER.warning("Failed to update joke duel timer message", exc_info=True)
 
 
+async def update_tournament_score_message(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    tournament_id: str,
+    tournament: dict,
+    remaining_seconds: int,
+) -> None:
+    vote_counts = tournament_vote_counts(tournament)
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=format_tournament_score(
+                vote_counts,
+                title=str(tournament.get("title") or random_tournament_start_phrase()),
+                status=str(tournament.get("status") or random_tournament_status_phrase()),
+                remaining_seconds=remaining_seconds,
+            ),
+            parse_mode="HTML",
+            reply_markup=tournament_vote(tournament_id, vote_counts),
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to update tournament timer message", exc_info=True)
+
+
 def duel_vote_counts(duel: dict) -> tuple[int, int]:
     votes = duel.get("votes", {})
     return (
         sum(1 for vote in votes.values() if vote == "left"),
         sum(1 for vote in votes.values() if vote == "right"),
     )
+
+
+def tournament_vote_counts(tournament: dict) -> list[int]:
+    votes = tournament.get("votes", {})
+    counts = [0, 0, 0, 0]
+    for vote in votes.values():
+        if isinstance(vote, int) and vote in range(TOURNAMENT_SIZE):
+            counts[vote] += 1
+    return counts
+
+
+def tournament_winner(votes: list[int]) -> int | None:
+    if not votes:
+        return None
+
+    best_score = max(votes)
+    if best_score <= 0 or votes.count(best_score) != 1:
+        return None
+    return votes.index(best_score)
 
 
 def duel_remaining_seconds(duel: dict) -> int:
@@ -1234,6 +1560,10 @@ def duel_remaining_seconds(duel: dict) -> int:
     return max(0, round(expires_at - monotonic()))
 
 
+def tournament_remaining_seconds(tournament: dict) -> int:
+    return duel_remaining_seconds(tournament)
+
+
 def duel_is_stale(duel: dict) -> bool:
     try:
         expires_at = float(duel.get("expires_at") or 0)
@@ -1243,11 +1573,23 @@ def duel_is_stale(duel: dict) -> bool:
     return monotonic() > expires_at + DUEL_STALE_GRACE_SECONDS
 
 
+def tournament_is_stale(tournament: dict) -> bool:
+    return duel_is_stale(tournament)
+
+
 def duel_lock_for(chat_id: int) -> asyncio.Lock:
     lock = duel_locks.get(chat_id)
     if lock is None:
         lock = asyncio.Lock()
         duel_locks[chat_id] = lock
+    return lock
+
+
+def tournament_lock_for(chat_id: int) -> asyncio.Lock:
+    lock = tournament_locks.get(chat_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        tournament_locks[chat_id] = lock
     return lock
 
 
@@ -1294,6 +1636,35 @@ def clear_active_duel(chat_id: int, kind: DuelKind, duel_id: str) -> None:
 
     if not chat_duels:
         active_duels_by_chat.pop(chat_id, None)
+
+
+def active_tournament_id_for_chat(chat_id: int) -> str | None:
+    tournament_id = active_tournaments_by_chat.get(chat_id)
+    if tournament_id is None:
+        return None
+
+    tournament = tournament_sessions.get(tournament_id)
+    if tournament and tournament.get("active", False):
+        if tournament_is_stale(tournament):
+            tournament["active"] = False
+            active_tournaments_by_chat.pop(chat_id, None)
+            tournament_sessions.pop(tournament_id, None)
+            tournament_tasks.pop(tournament_id, None)
+            LOGGER.warning("Cleared stale tournament %s in chat %s", tournament_id, chat_id)
+            return None
+        return tournament_id
+
+    active_tournaments_by_chat.pop(chat_id, None)
+    return None
+
+
+def register_active_tournament(chat_id: int, tournament_id: str) -> None:
+    active_tournaments_by_chat[chat_id] = tournament_id
+
+
+def clear_active_tournament(chat_id: int, tournament_id: str) -> None:
+    if active_tournaments_by_chat.get(chat_id) == tournament_id:
+        active_tournaments_by_chat.pop(chat_id, None)
 
 
 async def activate_upload(message: Message, state: FSMContext) -> bool:
@@ -1486,18 +1857,24 @@ def parse_user_id_argument(message: Message) -> int | None:
 
 
 async def show_menu(message: Message) -> None:
+    is_private = is_private_chat(message)
+    upload_note = (
+        "Личка открыта: можно грузить пикчи и анекдоты"
+        if is_private
+        else "В группе загрузка только объясняет путь в личку"
+    )
     await message.answer(
         "<b>🚨 Пульт от ядерки</b>\n\n"
-        "🎲 <b>Выдача</b>\n"
-        "Пикчи и анекдоты из общего склада\n\n"
-        "⚔️ <b>Дуэльные арены</b>\n"
-        "Пикчи и анекдоты дерутся отдельно, можно запускать обе\n\n"
-        "📊 <b>Склад</b>\n"
-        "Сводка, вклад, топ и погода\n\n"
-        "📥 <b>Загрузка</b>\n"
-        "Пополнение только в личке с ботом",
+        "<b>🎲 Выдача</b>\n"
+        "Пикчи, анекдоты и быстрый рандом\n\n"
+        "<b>⚔️ Игровая зона</b>\n"
+        "Дуэли удаляют слабых, турнир выбирает чемпиона без казни\n\n"
+        "<b>📊 Склад</b>\n"
+        "Сводка, топ, личный вклад и погода\n\n"
+        "<b>📥 Загрузка</b>\n"
+        f"{upload_note}",
         parse_mode="HTML",
-        reply_markup=main_menu(),
+        reply_markup=main_menu(is_private=is_private),
     )
 
 
@@ -1542,6 +1919,11 @@ def format_stats(
             format_metric("Казней", stats.duel_executions),
             format_metric("Мирных исходов", stats.duel_ties),
         ),
+        format_section(
+            "🏟 Турниры",
+            format_metric("Запусков", stats.total_tournaments),
+            format_metric("Без чемпиона", stats.tournament_ties),
+        ),
         format_section("🧪 Реакции", *reaction_lines),
     ]
     if chat_id is not None:
@@ -1553,6 +1935,7 @@ def format_active_duel_lines(chat_id: int) -> list[str]:
     return [
         format_metric("Пикчевая арена", active_duel_status(chat_id, "image")),
         format_metric("Анекдотная арена", active_duel_status(chat_id, "joke")),
+        format_metric("Турнир", active_tournament_status(chat_id)),
     ]
 
 
@@ -1568,6 +1951,18 @@ def active_duel_status(chat_id: int, kind: DuelKind) -> str:
     return f"идёт, {duel_remaining_seconds(duel)} сек"
 
 
+def active_tournament_status(chat_id: int) -> str:
+    tournament_id = active_tournament_id_for_chat(chat_id)
+    if tournament_id is None:
+        return "свободно"
+
+    tournament = tournament_sessions.get(tournament_id)
+    if not tournament:
+        return "свободно"
+
+    return f"идёт, {tournament_remaining_seconds(tournament)} сек"
+
+
 def format_start() -> str:
     return (
         "<b>👋 Я @kartinkomet_bot</b>\n\n"
@@ -1579,6 +1974,7 @@ def format_start() -> str:
         "• <code>😂 Анекдот</code> — случайный текст из блокнота\n"
         "• <code>⚔️ Дуэль пикч</code> — арена на 60 секунд\n"
         "• <code>😂 Дуэль шуток</code> — бой анекдотов на 2 минуты\n"
+        "• <code>🏟 Турнир</code> — четыре пикчи, один чемпион, без удаления\n"
         "• <code>📥 Пикчи</code> и <code>📝 Анекдоты</code> — загрузка в личке"
     )
 
@@ -1601,6 +1997,7 @@ def format_help() -> str:
             "⚔️ Дуэли",
             "<code>/duel</code> — битва двух случайных пикч",
             "<code>/jokeduel</code> — битва двух случайных анекдотов",
+            "<code>/tournament</code> — турнир четырёх пикч без удаления",
             "Пикчевая и анекдотная арены могут идти параллельно",
             "<code>/mood</code> — режим бота на сегодня",
             "<code>/weather</code> — погода в Малой Токмачке",
@@ -1680,6 +2077,13 @@ def format_duel_already_active(kind: DuelKind = "image") -> str:
         f"{busy_line}\n"
         f"{free_line}\n\n"
         "Дубль внутри одного раздела не запускаю, чтобы чат не поехал"
+    )
+
+
+def format_tournament_already_active() -> str:
+    return (
+        "<b>🏟 Турнир уже идёт</b>\n\n"
+        "Дождитесь финального свистка, потом запускайте новый"
     )
 
 
@@ -2029,6 +2433,55 @@ def format_joke_duel_result(
     )
 
 
+def format_tournament_score(
+    votes: list[int],
+    title: str | None = None,
+    status: str | None = None,
+    remaining_seconds: int | None = None,
+) -> str:
+    winner = tournament_winner(votes)
+    if winner is None:
+        verdict = "⚖️ Лидера нет"
+    else:
+        verdict = f"👑 Ведёт: <b>{tournament_option_label(winner)}</b>"
+
+    seconds_left = TOURNAMENT_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
+    return (
+        "<b>🏟 Турнир пикч</b>\n\n"
+        f"{escape(title or random_tournament_start_phrase())}\n"
+        f"{escape(status or random_tournament_status_phrase())}\n\n"
+        "<b>Счёт</b>\n"
+        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
+        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
+        f"⏱ Осталось: <b>{seconds_left} секунд</b>\n"
+        f"{verdict}"
+    )
+
+
+def format_tournament_result(votes: list[int], winner: int | None) -> str:
+    if winner is None:
+        phrase = random_tournament_tie_phrase()
+        verdict = "⚖️ Чемпион не выбран. Все пикчи остаются в пуле"
+    else:
+        phrase = random_tournament_win_phrase()
+        verdict = f"👑 Чемпион: <b>{tournament_option_label(winner)}</b>\n📦 Остальные остаются в пуле"
+
+    return (
+        "<b>🏁 Турнир завершён</b>\n\n"
+        f"{escape(phrase)}\n\n"
+        "<b>Счёт</b>\n"
+        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
+        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
+        "<b>Вердикт</b>\n"
+        f"{verdict}"
+    )
+
+
+def tournament_option_label(index: int) -> str:
+    labels = ["1️⃣ первая", "2️⃣ вторая", "3️⃣ третья", "4️⃣ четвёртая"]
+    return labels[index]
+
+
 def split_text_for_telegram(
     text: str,
     chunk_size: int = TELEGRAM_TEXT_CHUNK_SIZE,
@@ -2085,6 +2538,22 @@ def random_joke_duel_win_phrase() -> str:
 
 def random_joke_duel_tie_phrase() -> str:
     return RANDOM.choice(JOKE_DUEL_TIE_PHRASES)
+
+
+def random_tournament_start_phrase() -> str:
+    return RANDOM.choice(TOURNAMENT_START_PHRASES)
+
+
+def random_tournament_status_phrase() -> str:
+    return RANDOM.choice(TOURNAMENT_STATUS_PHRASES)
+
+
+def random_tournament_win_phrase() -> str:
+    return RANDOM.choice(TOURNAMENT_WIN_PHRASES)
+
+
+def random_tournament_tie_phrase() -> str:
+    return RANDOM.choice(TOURNAMENT_TIE_PHRASES)
 
 
 def achievement_for(

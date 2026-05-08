@@ -9,13 +9,16 @@ from uuid import uuid4
 
 from aiogram.types import Message
 
+from bot.storage import SQLiteDocumentStore
+
 REACTION_FIELDS = {
     "like": "likes",
     "dislike": "dislikes",
 }
 STORAGE_VERSION = 1
+JOKE_DOCUMENT_NAME = "joke_pool"
 MAX_CHAT_HISTORY = 200
-RANDOM_CANDIDATE_LIMIT = 40
+RANDOM_CANDIDATE_LIMIT = 80
 RANDOM = random.SystemRandom()
 
 
@@ -49,9 +52,10 @@ class JokeStats:
 
 
 class JokePool:
-    def __init__(self, storage_path: str) -> None:
+    def __init__(self, storage_path: str, database_path: str | None = None) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._store = SQLiteDocumentStore(database_path) if database_path else None
         self._records, self._chat_history = self._load()
         self._rebuild_indexes()
 
@@ -187,7 +191,7 @@ class JokePool:
         shown_records = [record for record in records if record.get("last_shown_at")]
         recent_limit = min(
             max(1, len(records) // 2),
-            20,
+            60,
             max(0, len(records) - minimum_candidates),
             len(shown_records),
         )
@@ -220,7 +224,11 @@ class JokePool:
                 min(RANDOM_CANDIDATE_LIMIT, max(8, len(records) // 8)),
             ),
         )
-        least_shown = nsmallest(window_size, records, key=lambda record: record["shown_count"])
+        least_shown = nsmallest(
+            window_size,
+            records,
+            key=lambda record: (record["shown_count"], record.get("last_shown_at") or ""),
+        )
         shown_threshold = least_shown[-1]["shown_count"]
         return [record for record in records if record["shown_count"] <= shown_threshold]
 
@@ -284,14 +292,18 @@ class JokePool:
         )
 
     def _load(self) -> tuple[list[dict], dict[str, list[str]]]:
-        if not self.storage_path.exists():
+        data = self._store.load(JOKE_DOCUMENT_NAME) if self._store else None
+        needs_write = False
+
+        if data is None and not self.storage_path.exists():
             self._atomic_write([], {})
             return [], {}
 
-        with self.storage_path.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+        if data is None:
+            with self.storage_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+            needs_write = self._store is not None
 
-        needs_write = False
         if isinstance(data, list):
             raw_records = data
             raw_chat_history = {}
@@ -444,12 +456,16 @@ class JokePool:
         self._atomic_write(self._records, self._chat_history)
 
     def _atomic_write(self, records: list[dict], chat_history: dict[str, list[str]]) -> None:
-        temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         payload = {
             "version": STORAGE_VERSION,
             "jokes": records,
             "chat_history": chat_history,
         }
+        if self._store:
+            self._store.save(JOKE_DOCUMENT_NAME, payload)
+            return
+
+        temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
         with temp_path.open("w", encoding="utf-8") as file:
             json.dump(payload, file, ensure_ascii=False, separators=(",", ":"))
             file.write("\n")
