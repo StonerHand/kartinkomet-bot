@@ -64,22 +64,22 @@ Main panel:
 
 ```text
 🎲 Пикча        😂 Анекдот
-⚔️ Дуэль пикч   😂 Дуэль шуток
+⚔️ Пикчи        😂 Шутки
 🏟 Турнир       📊 Сводка
 🏆 Топ          🌦 Погода
-👤 Мой вклад
-📬 Как загрузить  📝 Как добавить
+👤 Профиль
+📬 Пикчи        📝 Шутки
 ```
 
 In private chat, uploads move to the top:
 
 ```text
-📥 Загрузить пикчи  📝 Загрузить анекдоты
-🎲 Пикча            😂 Анекдот
-⚔️ Дуэль пикч       😂 Дуэль шуток
-🏟 Турнир           📊 Сводка
-🏆 Топ              🌦 Погода
-👤 Мой вклад
+📥 Пикчи        📝 Шутки
+🎲 Пикча        😂 Анекдот
+⚔️ Пикчи        😂 Шутки
+🏟 Турнир       📊 Сводка
+🏆 Топ          🌦 Погода
+👤 Профиль
 ```
 
 Under a random image:
@@ -111,7 +111,7 @@ Leaderboard example:
 ```text
 🏆 Топ загрузчиков пикч
 
-👑 Пьедестал:
+👑 Пьедестал
 
 🥇 TakaKenshi — 3441 пикч · картинный монополист
 🥈 Art_Denisovich — 242 пикч · архитектор мемного склада
@@ -127,35 +127,31 @@ Leaderboard example:
 Stats example:
 
 ```text
-📊 Сводка kartinkomet
+📊 Сводка
 
-📦 Склад
-• Пикч в запасе: 3823
-• Анекдотов в блокноте: 128
+📦 Пул
+Пикчи: 3823
+Анекдоты: 128
 
-🎲 Выдача
-• Выстрелов пикчами: 2410
-• Рассказано анекдотов: 54
+🎲 Рандом
+Пикчи выданы: 2410
+Анекдоты выданы: 54
 
-⚔️ Дуэли
-• Боев: 37
-• Казней: 29
-• Мирных исходов: 8
+⚔️ Игры
+Дуэли: 37
+Удалений после дуэлей: 29
+Мирных дуэлей: 8
+Турниры: 12
+Турниры без чемпиона: 3
 
-🏟 Турниры
-• Запусков: 12
-• Без чемпиона: 3
+🤙🏻 Реакции
+Пикчи: 988 🤙🏻 · 133 🖕🏻
+Анекдоты: 19 🤙🏻 · 3 🖕🏻
 
-🧪 Реакции
-• Пикчи 🤙🏻: 988
-• Пикчи 🖕🏻: 133
-• Анекдоты 🤙🏻: 19
-• Анекдоты 🖕🏻: 3
-
-🟢 Активные дуэли
-• Пикчевая арена: идёт, 42 сек
-• Анекдотная арена: свободно
-• Турнир: свободно
+🟢 Активные игры
+Дуэль пикч: идёт, 42 сек
+Дуэль шуток: свободно
+Турнир: свободно
 ```
 
 ## Random Selection
@@ -206,7 +202,7 @@ Rules:
 
 ## Joke Duels
 
-`/jokeduel` and the `😂 Дуэль шуток` button pick two random jokes and open a `2` minute vote.
+`/jokeduel` and the `😂 Шутки` button pick two random jokes and open a `2` minute vote.
 
 Rules mirror the image arena:
 
@@ -229,9 +225,9 @@ Reliable flow:
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `📥 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📬 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
 
-The bot does not acknowledge every accepted image. After the first accepted image it sends one compact instruction with finish and cancel buttons.
+The bot does not acknowledge every accepted image. It shows the instruction and finish/cancel buttons immediately when upload starts, then quietly counts the result.
 
 Tracked upload outcomes:
 

@@ -4,11 +4,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
     upload_row = [
         InlineKeyboardButton(
-            text="📥 Загрузить пикчи" if is_private else "📬 Как загрузить",
+            text="📥 Пикчи" if is_private else "📬 Пикчи",
             callback_data="upload",
         ),
         InlineKeyboardButton(
-            text="📝 Загрузить анекдоты" if is_private else "📝 Как добавить",
+            text="📝 Шутки",
             callback_data="upload_joke",
         ),
     ]
@@ -17,8 +17,8 @@ def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
     ]
     duel_row = [
-        InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
-        InlineKeyboardButton(text="😂 Дуэль шуток", callback_data="joke_duel_new"),
+        InlineKeyboardButton(text="⚔️ Пикчи", callback_data="duel_new"),
+        InlineKeyboardButton(text="😂 Шутки", callback_data="joke_duel_new"),
     ]
     utility_rows = [
         [
@@ -30,7 +30,7 @@ def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
         ],
         [
-            InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+            InlineKeyboardButton(text="👤 Профиль", callback_data="me"),
         ],
     ]
     keyboard = (
