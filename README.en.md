@@ -15,9 +15,9 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 - groups are for random images, duels, stats, and leaderboards
 - uploads happen only in private chat with the bot, so Telegram Privacy Mode cannot break file intake
 - the pool is shared: upload in private chat, use in groups
-- data lives in SQLite; legacy `image_pool.json` and `jokes.json` are imported automatically on first migration
-- exact duplicates are rejected through `file_unique_id`
-- text duplicates are rejected through normalized joke text
+- data lives in a normalized SQLite database; legacy `image_pool.json` and `jokes.json` are imported automatically on first migration
+- image duplicates are rejected through `file_unique_id` plus a fast `file_id` fallback
+- text duplicates are rejected through normalized joke text with extra punctuation removed
 - visual duplicates can be cleaned with a separate `dHash` script
 - heavy visual-cleanup dependencies live in a separate maintenance file
 - one user can add up to `1000` new images per hour
@@ -192,7 +192,7 @@ Upload flow:
 
 Rules:
 
-- jokes are stored separately from images in the SQLite `joke_pool` document
+- jokes are stored separately from images in the `jokes`, `joke_reactions`, and `joke_chat_history` SQLite tables
 - images and jokes never mix
 - empty messages and slash commands are not added
 - duplicate jokes are rejected through normalized text
@@ -327,14 +327,20 @@ Image captions are clean, without mood prefixes.
 
 Primary storage is the `kartinkomet.sqlite` SQLite file.
 
-Images and jokes live in separate documents inside the same SQLite database:
+The database uses real tables instead of storing the entire pool as one large JSON document:
 
-- `image_pool` — images, reactions, users, random history, duels, and tournaments
-- `joke_pool` — jokes, reactions, and delivery history
+- `images` — images, Telegram `file_id`, `file_unique_id`, view counters, and reaction totals
+- `image_reactions` — one user's current vote for one image
+- `image_chat_history` — per-chat random history
+- `image_stats` — duel counters, tournament counters, and schema version
+- `users` — usernames and names for leaderboards without Telegram mentions
+- `jokes` — jokes and their counters
+- `joke_reactions` — reactions on jokes
+- `joke_chat_history` — per-chat joke delivery history
 
-Legacy `image_pool.json` and `jokes.json` are still supported. If SQLite is empty, the bot reads those files, normalizes the data, and writes it into `kartinkomet.sqlite`. Migration does not require a manual import.
+Legacy storage is still supported. If SQLite is empty, the bot first checks the old `documents` format inside SQLite, then legacy `image_pool.json` and `jokes.json`, normalizes the data, and writes it into the new tables. Migration does not require a manual import.
 
-The JSON below is the document shape stored inside SQLite.
+The JSON below is the compatible migration and local fallback shape for runs without `DATABASE_PATH`.
 
 Example:
 
@@ -401,10 +407,12 @@ Joke document:
 ## Performance And Reliability
 
 - the pool is loaded into memory once at startup
-- SQLite is the primary durable storage file
+- SQLite is the primary durable storage file with separate tables for images, jokes, reactions, history, and users
 - old JSON files are used as first-migration sources
 - image lookup by `id` uses an index
-- duplicate checks use a `file_unique_id` set
+- duplicate checks use `file_unique_id` and `file_id` sets
+- joke duplicates are normalized by case, whitespace, and punctuation
+- `/stats`, `/top`, and `/me` use in-memory caches that are invalidated only after pool changes
 - random selection picks from a least-shown candidate window through a heap, without sorting the full pool
 - duels use shared arena history so a fresh pair does not repeat immediately
 - active duels are stored in two per-chat slots: `image` and `joke`
@@ -418,12 +426,13 @@ Joke document:
 - long jokes are split by HTML-safe message size and are never meaning-trimmed
 - `Pillow` is not part of the Railway runtime and is only needed for the maintenance script
 - reactions are normalized while reading the database
-- SQLite writes go through one compact document-store
+- SQLite writes go through a normalized storage layer with backward compatibility for old documents
 - JSON writes remain only as a fallback for tests and manual local mode without `DATABASE_PATH`
 - image duel completion removes the loser and writes stats in one save
 - joke duel completion removes the losing text from storage
 - tournament completion writes stats but does not delete images
 - stale duels are cleared on the next start attempt
+- redundant Telegram score edits are skipped, and `message is not modified` no longer pollutes logs
 - Telegram API errors are logged and do not crash polling
 
 ## Duplicate Cleanup
@@ -526,7 +535,7 @@ bot/handlers.py    # commands, callbacks, and bot workflows
 bot/image_pool.py  # image pool, random picker, reactions, duels, tournaments, indexes
 bot/joke_pool.py   # separate joke pool
 bot/keyboards.py   # inline keyboards
-bot/storage.py     # SQLite document-store
+bot/storage.py     # SQLite storage: tables, migration, and legacy fallback
 bot/texts.py       # phrases, mood labels, achievements, jury rule
 scripts/           # one-off maintenance scripts
 tests/             # contract tests

@@ -58,6 +58,7 @@ class JokePool:
         self._store = SQLiteDocumentStore(database_path) if database_path else None
         self._records, self._chat_history = self._load()
         self._rebuild_indexes()
+        self._invalidate_cache()
 
     def count(self) -> int:
         return len(self._records)
@@ -160,12 +161,16 @@ class JokePool:
         return True
 
     def stats(self) -> JokeStats:
-        return JokeStats(
+        if self._stats_cache is not None:
+            return self._stats_cache
+
+        self._stats_cache = JokeStats(
             total_jokes=len(self._records),
             total_shows=sum(record["shown_count"] for record in self._records),
             total_likes=sum(record["likes"] for record in self._records),
             total_dislikes=sum(record["dislikes"] for record in self._records),
         )
+        return self._stats_cache
 
     def reset_stats(self) -> None:
         for record in self._records:
@@ -292,8 +297,11 @@ class JokePool:
         )
 
     def _load(self) -> tuple[list[dict], dict[str, list[str]]]:
-        data = self._store.load(JOKE_DOCUMENT_NAME) if self._store else None
+        data = self._store.load_joke_pool() if self._store else None
         needs_write = False
+        if data is None and self._store:
+            data = self._store.load(JOKE_DOCUMENT_NAME)
+            needs_write = data is not None
 
         if data is None and not self.storage_path.exists():
             self._atomic_write([], {})
@@ -371,7 +379,7 @@ class JokePool:
         return {
             "id": str(item.get("id") or uuid4().hex),
             "text": text,
-            "normalized_text": str(item.get("normalized_text") or joke_key(text)),
+            "normalized_text": joke_key(text),
             "added_by": added_by,
             "added_at": item.get("added_at"),
             "shown_count": int(item.get("shown_count") or 0),
@@ -454,6 +462,7 @@ class JokePool:
 
     def _write(self) -> None:
         self._atomic_write(self._records, self._chat_history)
+        self._invalidate_cache()
 
     def _atomic_write(self, records: list[dict], chat_history: dict[str, list[str]]) -> None:
         payload = {
@@ -462,7 +471,7 @@ class JokePool:
             "chat_history": chat_history,
         }
         if self._store:
-            self._store.save(JOKE_DOCUMENT_NAME, payload)
+            self._store.save_joke_pool(payload)
             return
 
         temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
@@ -471,6 +480,9 @@ class JokePool:
             file.write("\n")
 
         temp_path.replace(self.storage_path)
+
+    def _invalidate_cache(self) -> None:
+        self._stats_cache: JokeStats | None = None
 
 
 def normalize_joke_text(text: str) -> str:
@@ -488,4 +500,6 @@ def normalize_joke_text(text: str) -> str:
 
 
 def joke_key(text: str) -> str:
-    return re.sub(r"\s+", " ", text.casefold()).strip()
+    normalized = text.casefold().replace("ё", "е")
+    normalized = re.sub(r"[^\w\s]+", " ", normalized, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", normalized).strip()

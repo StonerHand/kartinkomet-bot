@@ -1,5 +1,6 @@
 import json
 import re
+import sqlite3
 import tempfile
 import unittest
 from html import escape
@@ -559,6 +560,11 @@ class JokePoolTest(unittest.TestCase):
             self.assertTrue(database_path.exists())
             self.assertEqual(pool.count(), 2)
             self.assertEqual(reloaded_pool.count(), 2)
+            with sqlite3.connect(database_path) as connection:
+                joke_count = connection.execute("SELECT COUNT(*) FROM jokes").fetchone()[0]
+                reaction_count = connection.execute("SELECT COUNT(*) FROM joke_reactions").fetchone()[0]
+            self.assertEqual(joke_count, 2)
+            self.assertEqual(reaction_count, 0)
 
     def test_normalizes_text_and_rejects_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -566,10 +572,13 @@ class JokePoolTest(unittest.TestCase):
 
             first = pool.add_from_message(fake_text_message("  Первая строка\n\n\nВторая строка  "))
             duplicate = pool.add_from_message(fake_text_message("первая строка\nвторая строка"))
+            punctuation_duplicate = pool.add_from_message(fake_text_message("Первая строка!!! Вторая строка"))
 
             self.assertTrue(first.added)
             self.assertFalse(duplicate.added)
             self.assertTrue(duplicate.duplicate)
+            self.assertFalse(punctuation_duplicate.added)
+            self.assertTrue(punctuation_duplicate.duplicate)
             self.assertEqual(pool.count(), 1)
             self.assertEqual(normalize_joke_text("a\n\n\nb"), "a\n\nb")
 
@@ -736,17 +745,25 @@ class ImagePoolTest(unittest.TestCase):
             self.assertTrue(database_path.exists())
             self.assertEqual(pool.count(), 2)
             self.assertEqual(reloaded_pool.count(), 2)
+            with sqlite3.connect(database_path) as connection:
+                image_count = connection.execute("SELECT COUNT(*) FROM images").fetchone()[0]
+                user_count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            self.assertEqual(image_count, 2)
+            self.assertEqual(user_count, 1)
 
-    def test_rejects_duplicate_file_unique_id(self) -> None:
+    def test_rejects_duplicate_file_unique_id_and_file_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             pool = ImagePool(str(Path(temp_dir) / "pool.json"))
 
             first = pool.add_from_message(fake_photo_message("file-a", "unique-a"))
             second = pool.add_from_message(fake_photo_message("file-b", "unique-a"))
+            third = pool.add_from_message(fake_photo_message("file-a", "unique-c"))
 
             self.assertTrue(first.added)
             self.assertFalse(second.added)
             self.assertTrue(second.duplicate)
+            self.assertFalse(third.added)
+            self.assertTrue(third.duplicate)
             self.assertEqual(pool.count(), 1)
 
     def test_limits_successful_uploads_per_user_per_hour(self) -> None:

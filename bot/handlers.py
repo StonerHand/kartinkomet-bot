@@ -645,20 +645,19 @@ def build_router(
         votes[user_key] = side
         left_votes, right_votes = duel_vote_counts(duel)
         if callback.message:
-            try:
-                await callback.message.edit_text(
-                    format_duel_score(
-                        left_votes,
-                        right_votes,
-                        title=str(duel.get("title") or random_duel_start_phrase()),
-                        status=str(duel.get("status") or random_duel_status_phrase()),
-                        remaining_seconds=duel_remaining_seconds(duel),
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=duel_vote(duel_id, left_votes, right_votes),
-                )
-            except TelegramAPIError:
-                LOGGER.warning("Failed to update duel vote message", exc_info=True)
+            await edit_callback_text_if_changed(
+                callback.message,
+                duel,
+                format_duel_score(
+                    left_votes,
+                    right_votes,
+                    title=str(duel.get("title") or random_duel_start_phrase()),
+                    status=str(duel.get("status") or random_duel_status_phrase()),
+                    remaining_seconds=duel_remaining_seconds(duel),
+                ),
+                duel_vote(duel_id, left_votes, right_votes),
+                "duel vote message",
+            )
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data.startswith("joke_duel:"))
@@ -686,20 +685,19 @@ def build_router(
         votes[user_key] = side
         left_votes, right_votes = duel_vote_counts(duel)
         if callback.message:
-            try:
-                await callback.message.edit_text(
-                    format_joke_duel_score(
-                        left_votes,
-                        right_votes,
-                        title=str(duel.get("title") or random_joke_duel_start_phrase()),
-                        status=str(duel.get("status") or random_joke_duel_status_phrase()),
-                        remaining_seconds=duel_remaining_seconds(duel),
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=joke_duel_vote(duel_id, left_votes, right_votes),
-                )
-            except TelegramAPIError:
-                LOGGER.warning("Failed to update joke duel vote message", exc_info=True)
+            await edit_callback_text_if_changed(
+                callback.message,
+                duel,
+                format_joke_duel_score(
+                    left_votes,
+                    right_votes,
+                    title=str(duel.get("title") or random_joke_duel_start_phrase()),
+                    status=str(duel.get("status") or random_joke_duel_status_phrase()),
+                    remaining_seconds=duel_remaining_seconds(duel),
+                ),
+                joke_duel_vote(duel_id, left_votes, right_votes),
+                "joke duel vote message",
+            )
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data.startswith("tournament:"))
@@ -737,19 +735,18 @@ def build_router(
         votes[user_key] = option
         vote_counts = tournament_vote_counts(tournament)
         if callback.message:
-            try:
-                await callback.message.edit_text(
-                    format_tournament_score(
-                        vote_counts,
-                        title=str(tournament.get("title") or random_tournament_start_phrase()),
-                        status=str(tournament.get("status") or random_tournament_status_phrase()),
-                        remaining_seconds=tournament_remaining_seconds(tournament),
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=tournament_vote(tournament_id, vote_counts),
-                )
-            except TelegramAPIError:
-                LOGGER.warning("Failed to update tournament vote message", exc_info=True)
+            await edit_callback_text_if_changed(
+                callback.message,
+                tournament,
+                format_tournament_score(
+                    vote_counts,
+                    title=str(tournament.get("title") or random_tournament_start_phrase()),
+                    status=str(tournament.get("status") or random_tournament_status_phrase()),
+                    remaining_seconds=tournament_remaining_seconds(tournament),
+                ),
+                tournament_vote(tournament_id, vote_counts),
+                "tournament vote message",
+            )
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data == "duel_new")
@@ -952,6 +949,62 @@ async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
         await message.answer(format_joke_duel_entry(chunk_title, chunk), parse_mode="HTML")
 
 
+def telegram_message_not_modified(error: TelegramAPIError) -> bool:
+    return "message is not modified" in str(error).casefold()
+
+
+async def edit_callback_text_if_changed(
+    message: Message,
+    state: dict,
+    text: str,
+    reply_markup,
+    log_context: str,
+) -> None:
+    if state.get("score_text") == text:
+        return
+
+    try:
+        await message.edit_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+        state["score_text"] = text
+    except TelegramAPIError as error:
+        if telegram_message_not_modified(error):
+            state["score_text"] = text
+            return
+        LOGGER.warning("Failed to update %s", log_context, exc_info=True)
+
+
+async def edit_bot_text_if_changed(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    state: dict,
+    text: str,
+    reply_markup,
+    log_context: str,
+) -> None:
+    if state.get("score_text") == text:
+        return
+
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+        state["score_text"] = text
+    except TelegramAPIError as error:
+        if telegram_message_not_modified(error):
+            state["score_text"] = text
+            return
+        LOGGER.warning("Failed to update %s", log_context, exc_info=True)
+
+
 async def send_duel(
     bot: Bot,
     message: Message,
@@ -997,6 +1050,7 @@ async def send_duel(
         duel_id = uuid4().hex
         title = random_duel_start_phrase()
         status = random_duel_status_phrase()
+        score_text = format_duel_score(0, 0, title=title, status=status)
         duel_sessions[duel_id] = {
             "kind": "image",
             "chat_id": chat_id,
@@ -1007,10 +1061,11 @@ async def send_duel(
             "title": title,
             "status": status,
             "expires_at": monotonic() + DUEL_SECONDS,
+            "score_text": score_text,
         }
         try:
             score_message = await message.answer(
-                format_duel_score(0, 0, title=title, status=status),
+                score_text,
                 parse_mode="HTML",
                 reply_markup=duel_vote(duel_id),
             )
@@ -1057,6 +1112,7 @@ async def send_joke_duel(
         duel_id = uuid4().hex
         title = random_joke_duel_start_phrase()
         status = random_joke_duel_status_phrase()
+        score_text = format_joke_duel_score(0, 0, title=title, status=status)
         duel_sessions[duel_id] = {
             "kind": "joke",
             "chat_id": chat_id,
@@ -1067,10 +1123,11 @@ async def send_joke_duel(
             "title": title,
             "status": status,
             "expires_at": monotonic() + JOKE_DUEL_SECONDS,
+            "score_text": score_text,
         }
         try:
             score_message = await message.answer(
-                format_joke_duel_score(0, 0, title=title, status=status),
+                score_text,
                 parse_mode="HTML",
                 reply_markup=joke_duel_vote(duel_id),
             )
@@ -1127,6 +1184,7 @@ async def send_tournament(
         tournament_id = uuid4().hex
         title = random_tournament_start_phrase()
         status = random_tournament_status_phrase()
+        score_text = format_tournament_score([0, 0, 0, 0], title=title, status=status)
         tournament_sessions[tournament_id] = {
             "chat_id": chat_id,
             "records": [record.id for record in candidates],
@@ -1135,10 +1193,11 @@ async def send_tournament(
             "title": title,
             "status": status,
             "expires_at": monotonic() + TOURNAMENT_SECONDS,
+            "score_text": score_text,
         }
         try:
             score_message = await message.answer(
-                format_tournament_score([0, 0, 0, 0], title=title, status=status),
+                score_text,
                 parse_mode="HTML",
                 reply_markup=tournament_vote(tournament_id),
             )
@@ -1427,22 +1486,21 @@ async def update_duel_score_message(
     remaining_seconds: int,
 ) -> None:
     left_votes, right_votes = duel_vote_counts(duel)
-    try:
-        await bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text=format_duel_score(
-                left_votes,
-                right_votes,
-                title=str(duel.get("title") or random_duel_start_phrase()),
-                status=str(duel.get("status") or random_duel_status_phrase()),
-                remaining_seconds=remaining_seconds,
-            ),
-            parse_mode="HTML",
-            reply_markup=duel_vote(duel_id, left_votes, right_votes),
-        )
-    except TelegramAPIError:
-        LOGGER.warning("Failed to update duel timer message", exc_info=True)
+    await edit_bot_text_if_changed(
+        bot,
+        chat_id,
+        message_id,
+        duel,
+        format_duel_score(
+            left_votes,
+            right_votes,
+            title=str(duel.get("title") or random_duel_start_phrase()),
+            status=str(duel.get("status") or random_duel_status_phrase()),
+            remaining_seconds=remaining_seconds,
+        ),
+        duel_vote(duel_id, left_votes, right_votes),
+        "duel timer message",
+    )
 
 
 async def update_joke_duel_score_message(
@@ -1454,22 +1512,21 @@ async def update_joke_duel_score_message(
     remaining_seconds: int,
 ) -> None:
     left_votes, right_votes = duel_vote_counts(duel)
-    try:
-        await bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text=format_joke_duel_score(
-                left_votes,
-                right_votes,
-                title=str(duel.get("title") or random_joke_duel_start_phrase()),
-                status=str(duel.get("status") or random_joke_duel_status_phrase()),
-                remaining_seconds=remaining_seconds,
-            ),
-            parse_mode="HTML",
-            reply_markup=joke_duel_vote(duel_id, left_votes, right_votes),
-        )
-    except TelegramAPIError:
-        LOGGER.warning("Failed to update joke duel timer message", exc_info=True)
+    await edit_bot_text_if_changed(
+        bot,
+        chat_id,
+        message_id,
+        duel,
+        format_joke_duel_score(
+            left_votes,
+            right_votes,
+            title=str(duel.get("title") or random_joke_duel_start_phrase()),
+            status=str(duel.get("status") or random_joke_duel_status_phrase()),
+            remaining_seconds=remaining_seconds,
+        ),
+        joke_duel_vote(duel_id, left_votes, right_votes),
+        "joke duel timer message",
+    )
 
 
 async def update_tournament_score_message(
@@ -1481,21 +1538,20 @@ async def update_tournament_score_message(
     remaining_seconds: int,
 ) -> None:
     vote_counts = tournament_vote_counts(tournament)
-    try:
-        await bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text=format_tournament_score(
-                vote_counts,
-                title=str(tournament.get("title") or random_tournament_start_phrase()),
-                status=str(tournament.get("status") or random_tournament_status_phrase()),
-                remaining_seconds=remaining_seconds,
-            ),
-            parse_mode="HTML",
-            reply_markup=tournament_vote(tournament_id, vote_counts),
-        )
-    except TelegramAPIError:
-        LOGGER.warning("Failed to update tournament timer message", exc_info=True)
+    await edit_bot_text_if_changed(
+        bot,
+        chat_id,
+        message_id,
+        tournament,
+        format_tournament_score(
+            vote_counts,
+            title=str(tournament.get("title") or random_tournament_start_phrase()),
+            status=str(tournament.get("status") or random_tournament_status_phrase()),
+            remaining_seconds=remaining_seconds,
+        ),
+        tournament_vote(tournament_id, vote_counts),
+        "tournament timer message",
+    )
 
 
 def duel_vote_counts(duel: dict) -> tuple[int, int]:

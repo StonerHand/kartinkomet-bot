@@ -80,6 +80,7 @@ class ImagePool:
         self._store = SQLiteDocumentStore(database_path) if database_path else None
         self._records, self._chat_history, self._users, self._duel_stats = self._load()
         self._rebuild_indexes()
+        self._invalidate_cache()
 
     def count(self) -> int:
         return len(self._records)
@@ -152,7 +153,7 @@ class ImagePool:
             return AddResult(added=False)
 
         file_id, file_unique_id = image_data
-        if file_unique_id in self._unique_ids:
+        if file_unique_id in self._unique_ids or file_id in self._file_ids:
             return AddResult(added=False, duplicate=True)
 
         user_id = message.from_user.id if message.from_user else None
@@ -226,7 +227,10 @@ class ImagePool:
         return removed
 
     def stats(self) -> PoolStats:
-        return PoolStats(
+        if self._stats_cache is not None:
+            return self._stats_cache
+
+        self._stats_cache = PoolStats(
             total_images=len(self._records),
             total_shows=sum(record["shown_count"] for record in self._records),
             total_likes=sum(record["likes"] for record in self._records),
@@ -237,6 +241,7 @@ class ImagePool:
             total_tournaments=self._duel_stats["tournaments"],
             tournament_ties=self._duel_stats["tournament_ties"],
         )
+        return self._stats_cache
 
     def record_duel_result(self, *, tied: bool) -> None:
         self._duel_stats["total"] += 1
@@ -268,13 +273,19 @@ class ImagePool:
         return self._uploads_by_user.get(user_id, 0)
 
     def reaction_stats_by_user(self, user_id: int) -> UserReactionStats:
+        cached_stats = self._reaction_stats_cache.get(user_id)
+        if cached_stats is not None:
+            return cached_stats
+
         records = self._records_by_user.get(user_id, [])
-        return UserReactionStats(
+        stats = UserReactionStats(
             uploaded=len(records),
             likes=sum(record["likes"] for record in records),
             dislikes=sum(record["dislikes"] for record in records),
             shown=sum(record["shown_count"] for record in records),
         )
+        self._reaction_stats_cache[user_id] = stats
+        return stats
 
     def user_uploads_in_last_hour(self, user_id: int) -> int:
         cutoff = datetime.now(UTC) - timedelta(hours=1)
@@ -282,10 +293,14 @@ class ImagePool:
         return len(upload_times) - bisect_left(upload_times, cutoff)
 
     def top_uploaders(self, limit: int = 10) -> list[tuple[int, int]]:
-        return sorted(
-            self._uploads_by_user.items(),
-            key=lambda item: (-item[1], item[0]),
-        )[:limit]
+        cached_uploaders = self._top_uploaders_cache.get(limit)
+        if cached_uploaders is None:
+            cached_uploaders = sorted(
+                self._uploads_by_user.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:limit]
+            self._top_uploaders_cache[limit] = cached_uploaders
+        return list(cached_uploaders)
 
     def dedupe_user(self, user_id: int) -> DedupeResult:
         scanned = self._uploads_by_user.get(user_id, 0)
@@ -293,12 +308,15 @@ class ImagePool:
             return DedupeResult(user_id=user_id, scanned=0, removed=0, remaining=0)
 
         seen_unique_ids: set[str] = set()
+        seen_file_ids: set[str] = set()
         kept_records = []
         removed_ids: set[str] = set()
         for record in self._records:
             file_unique_id = record["file_unique_id"]
+            file_id = record["file_id"]
             is_target_user_duplicate = (
-                record.get("added_by") == user_id and file_unique_id in seen_unique_ids
+                record.get("added_by") == user_id
+                and (file_unique_id in seen_unique_ids or file_id in seen_file_ids)
             )
             if is_target_user_duplicate:
                 removed_ids.add(record["id"])
@@ -306,6 +324,7 @@ class ImagePool:
 
             kept_records.append(record)
             seen_unique_ids.add(file_unique_id)
+            seen_file_ids.add(file_id)
         if not removed_ids:
             return DedupeResult(
                 user_id=user_id,
@@ -508,8 +527,11 @@ class ImagePool:
         return None
 
     def _load(self) -> tuple[list[dict], dict[str, list[str]], dict[str, dict], dict[str, int]]:
-        data = self._store.load(IMAGE_DOCUMENT_NAME) if self._store else None
+        data = self._store.load_image_pool() if self._store else None
         needs_write = False
+        if data is None and self._store:
+            data = self._store.load(IMAGE_DOCUMENT_NAME)
+            needs_write = data is not None
 
         if data is None and not self.storage_path.exists():
             duel_stats = self._normalize_duel_stats({})
@@ -544,11 +566,14 @@ class ImagePool:
             needs_write = True
 
         seen_unique_ids: set[str] = set()
+        seen_file_ids: set[str] = set()
         deduped = []
         for record in records:
             uid = record["file_unique_id"]
-            if uid not in seen_unique_ids:
+            file_id = record["file_id"]
+            if uid not in seen_unique_ids and file_id not in seen_file_ids:
                 seen_unique_ids.add(uid)
+                seen_file_ids.add(file_id)
                 deduped.append(record)
         if len(deduped) != len(records):
             records = deduped
@@ -635,10 +660,12 @@ class ImagePool:
 
     def _write(self) -> None:
         self._atomic_write(self._records, self._chat_history, self._users, self._duel_stats)
+        self._invalidate_cache()
 
     def _rebuild_indexes(self) -> None:
         self._record_by_id: dict[str, dict] = {}
         self._unique_ids: set[str] = set()
+        self._file_ids: set[str] = set()
         self._uploads_by_user: dict[int, int] = {}
         self._records_by_user: dict[int, list[dict]] = {}
         self._upload_times_by_user: dict[int, list[datetime]] = {}
@@ -650,6 +677,7 @@ class ImagePool:
     def _index_record(self, record: dict, keep_upload_times_sorted: bool = True) -> None:
         self._record_by_id[record["id"]] = record
         self._unique_ids.add(record["file_unique_id"])
+        self._file_ids.add(record["file_id"])
         if isinstance(record["added_by"], int):
             self._uploads_by_user[record["added_by"]] = (
                 self._uploads_by_user.get(record["added_by"], 0) + 1
@@ -753,7 +781,7 @@ class ImagePool:
             "duel_stats": duel_stats,
         }
         if self._store:
-            self._store.save(IMAGE_DOCUMENT_NAME, payload)
+            self._store.save_image_pool(payload)
             return
 
         temp_path = self.storage_path.with_suffix(f"{self.storage_path.suffix}.tmp")
@@ -762,3 +790,8 @@ class ImagePool:
             file.write("\n")
 
         temp_path.replace(self.storage_path)
+
+    def _invalidate_cache(self) -> None:
+        self._stats_cache: PoolStats | None = None
+        self._top_uploaders_cache: dict[int, list[tuple[int, int]]] = {}
+        self._reaction_stats_cache: dict[int, UserReactionStats] = {}
