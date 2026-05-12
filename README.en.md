@@ -85,14 +85,14 @@ Under a random image:
 
 ```text
 🤙🏻  🖕🏻
-🎲 Ещё
+🎲 Ещё пикчу
 ```
 
 Under a joke:
 
 ```text
 🤙🏻  🖕🏻
-😂 Ещё анекдот
+😂 Ещё шутку
 ```
 
 During private upload:
@@ -238,7 +238,7 @@ Rules mirror the image arena:
 - winner stays in the joke pool
 - loser is removed from the joke pool
 - ties keep both jokes alive
-- final result includes a `😂 Новая дуэль` button
+- final result includes a `🥊 Реванш шуток` button
 
 ## Uploads
 
@@ -273,7 +273,7 @@ Rules:
 - winner stays in the pool
 - loser is removed
 - ties keep both images alive
-- final result includes a `⚔️ Новая дуэль` button
+- final result includes a `⚔️ Реванш пикч` button
 - if Telegram/API stumbles, stale duel state is cleared instead of locking the chat
 
 The duel card stays compact: title, status, one-line score, then a separate timer line. Duel images are sent as an album without captions so the chat does not turn into a wall of text.
@@ -341,8 +341,8 @@ Current counts:
 - `200` empty-pool phrases
 - `100` achievements
 - `600` short image-duel phrases
-- `60` phrases for every joke-duel stage
-- `60` phrases for every tournament stage
+- `80` phrases for every joke-duel stage
+- `80` phrases for every tournament stage
 - jury-rule messages
 
 Image captions are clean, without extra prefixes.
@@ -457,6 +457,7 @@ Joke document:
 - tournament completion writes stats but does not delete images
 - stale duels are cleared on the next start attempt
 - redundant Telegram score edits are skipped, and `message is not modified` no longer pollutes logs
+- duel albums and vote cards retry short Telegram network failures and fall back to separate photos when album delivery fails
 - Telegram API errors are logged and do not crash polling
 
 ## Duplicate Cleanup

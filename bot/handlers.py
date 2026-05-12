@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import random
+from collections.abc import Awaitable, Callable
 from html import escape
 from time import monotonic
-from typing import Literal, TypedDict
+from typing import Literal, TypeVar, TypedDict
 from uuid import uuid4
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -54,8 +55,11 @@ DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
 TELEGRAM_TEXT_CHUNK_SIZE = 3500
 UPLOAD_MARATHON_THRESHOLD = 100
+TELEGRAM_SEND_RETRIES = 3
+TELEGRAM_RETRY_BASE_DELAY = 0.45
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
+T = TypeVar("T")
 
 JOKE_DUEL_START_PHRASES = (
     "Анекдотная заруба в эфире",
@@ -195,9 +199,11 @@ JOKE_DUEL_START_PHRASES = _extend_runtime_phrases(
             "запускает проверку",
             "просит голос",
             "начинает разбор",
+            "вызывает присяжных",
+            "ставит тексты под свет",
         ],
     ),
-    60,
+    80,
 )
 JOKE_DUEL_STATUS_PHRASES = _extend_runtime_phrases(
     JOKE_DUEL_STATUS_PHRASES,
@@ -220,9 +226,11 @@ JOKE_DUEL_STATUS_PHRASES = _extend_runtime_phrases(
             "смотрит строго",
             "решает судьбу шутки",
             "не принимает скуку",
+            "сверит смешное с реальностью",
+            "ведёт протокол смеха",
         ],
     ),
-    60,
+    80,
 )
 JOKE_DUEL_WIN_PHRASES = _extend_runtime_phrases(
     JOKE_DUEL_WIN_PHRASES,
@@ -245,9 +253,11 @@ JOKE_DUEL_WIN_PHRASES = _extend_runtime_phrases(
             "пережил проверку",
             "выиграл народный суд",
             "уходит с овациями",
+            "получает иммунитет",
+            "остаётся на гастролях",
         ],
     ),
-    60,
+    80,
 )
 JOKE_DUEL_TIE_PHRASES = _extend_runtime_phrases(
     JOKE_DUEL_TIE_PHRASES,
@@ -270,9 +280,11 @@ JOKE_DUEL_TIE_PHRASES = _extend_runtime_phrases(
             "пережили таймер",
             "избежали удаления",
             "оставили чат без решения",
+            "дождались амнистии",
+            "выбрались из суда",
         ],
     ),
-    60,
+    80,
 )
 TOURNAMENT_START_PHRASES = _extend_runtime_phrases(
     TOURNAMENT_START_PHRASES,
@@ -295,9 +307,11 @@ TOURNAMENT_START_PHRASES = _extend_runtime_phrases(
             "открывает голосование",
             "запускает витрину",
             "собирает народный рейтинг",
+            "поднимает корону",
+            "выкатывает претендентов",
         ],
     ),
-    60,
+    80,
 )
 TOURNAMENT_STATUS_PHRASES = _extend_runtime_phrases(
     TOURNAMENT_STATUS_PHRASES,
@@ -320,9 +334,11 @@ TOURNAMENT_STATUS_PHRASES = _extend_runtime_phrases(
             "считает голоса",
             "ищет фаворита",
             "делает вид, что тут спорт",
+            "держит витрину открытой",
+            "проверяет силу кнопок",
         ],
     ),
-    60,
+    80,
 )
 TOURNAMENT_WIN_PHRASES = _extend_runtime_phrases(
     TOURNAMENT_WIN_PHRASES,
@@ -345,9 +361,11 @@ TOURNAMENT_WIN_PHRASES = _extend_runtime_phrases(
             "выходит из сетки",
             "становится главным",
             "уходит в историю склада",
+            "берёт витрину",
+            "получает складской титул",
         ],
     ),
-    60,
+    80,
 )
 TOURNAMENT_TIE_PHRASES = _extend_runtime_phrases(
     TOURNAMENT_TIE_PHRASES,
@@ -371,9 +389,11 @@ TOURNAMENT_TIE_PHRASES = _extend_runtime_phrases(
             "оставил всех без короны",
             "сохранил интригу",
             "закрылся без победителя",
+            "не отдал никому витрину",
+            "оставил табло в тумане",
         ],
     ),
-    60,
+    80,
 )
 
 
@@ -1159,11 +1179,74 @@ async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
         if total_chunks > 1:
             chunk_title = f"{title} · часть {index}/{total_chunks}"
 
-        await message.answer(format_joke_duel_entry(chunk_title, chunk), parse_mode="HTML")
+        await telegram_request_with_retry(
+            lambda chunk_title=chunk_title, chunk=chunk: message.answer(
+                format_joke_duel_entry(chunk_title, chunk),
+                parse_mode="HTML",
+            ),
+            f"joke duel entry {index}",
+        )
 
 
 def telegram_message_not_modified(error: TelegramAPIError) -> bool:
     return "message is not modified" in str(error).casefold()
+
+
+async def telegram_request_with_retry(
+    operation: Callable[[], Awaitable[T]],
+    description: str,
+) -> T:
+    for attempt in range(1, TELEGRAM_SEND_RETRIES + 1):
+        try:
+            return await operation()
+        except TelegramNetworkError:
+            if attempt == TELEGRAM_SEND_RETRIES:
+                raise
+            LOGGER.warning(
+                "Telegram network error during %s, retrying %s/%s",
+                description,
+                attempt,
+                TELEGRAM_SEND_RETRIES,
+                exc_info=True,
+            )
+            await asyncio.sleep(TELEGRAM_RETRY_BASE_DELAY * attempt)
+
+    raise RuntimeError(f"Telegram request retry loop ended unexpectedly: {description}")
+
+
+async def send_photo_album_with_fallback(
+    bot: Bot,
+    chat_id: int,
+    file_ids: list[str],
+    description: str,
+) -> bool:
+    try:
+        await telegram_request_with_retry(
+            lambda: bot.send_media_group(
+                chat_id=chat_id,
+                media=[InputMediaPhoto(media=file_id) for file_id in file_ids],
+            ),
+            f"{description} media group",
+        )
+        return True
+    except TelegramAPIError:
+        LOGGER.warning(
+            "Failed to send %s media group, falling back to separate photos",
+            description,
+            exc_info=True,
+        )
+
+    try:
+        for index, file_id in enumerate(file_ids, start=1):
+            await telegram_request_with_retry(
+                lambda file_id=file_id: bot.send_photo(chat_id=chat_id, photo=file_id),
+                f"{description} fallback photo {index}",
+            )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send %s fallback photos", description, exc_info=True)
+        return False
+
+    return True
 
 
 async def edit_callback_text_if_changed(
@@ -1241,24 +1324,15 @@ async def send_duel(
             return "failed"
         left, right = duel_pair
 
-        try:
-            await bot.send_media_group(
-                chat_id=chat_id,
-                media=[
-                    InputMediaPhoto(media=left.file_id),
-                    InputMediaPhoto(media=right.file_id),
-                ],
-            )
-        except TelegramAPIError:
-            LOGGER.warning("Failed to send duel media group, falling back to separate photos", exc_info=True)
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=left.file_id,
-            )
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=right.file_id,
-            )
+        media_sent = await send_photo_album_with_fallback(
+            bot,
+            chat_id,
+            [left.file_id, right.file_id],
+            "image duel",
+        )
+        if not media_sent:
+            await message.answer("⚔️ Дуэль сорвалась. Telegram не отдал картинки")
+            return "failed"
 
         duel_id = uuid4().hex
         title = random_duel_start_phrase()
@@ -1277,10 +1351,13 @@ async def send_duel(
             "score_text": score_text,
         }
         try:
-            score_message = await message.answer(
-                score_text,
-                parse_mode="HTML",
-                reply_markup=duel_vote(duel_id),
+            score_message = await telegram_request_with_retry(
+                lambda: message.answer(
+                    score_text,
+                    parse_mode="HTML",
+                    reply_markup=duel_vote(duel_id),
+                ),
+                "image duel vote message",
             )
         except TelegramAPIError:
             duel_sessions.pop(duel_id, None)
@@ -1339,10 +1416,13 @@ async def send_joke_duel(
             "score_text": score_text,
         }
         try:
-            score_message = await message.answer(
-                score_text,
-                parse_mode="HTML",
-                reply_markup=joke_duel_vote(duel_id),
+            score_message = await telegram_request_with_retry(
+                lambda: message.answer(
+                    score_text,
+                    parse_mode="HTML",
+                    reply_markup=joke_duel_vote(duel_id),
+                ),
+                "joke duel vote message",
             )
         except TelegramAPIError:
             duel_sessions.pop(duel_id, None)
@@ -1381,18 +1461,15 @@ async def send_tournament(
             await message.answer("🏟 Турнир сорвался. Пул не набрал состав")
             return "failed"
 
-        try:
-            await bot.send_media_group(
-                chat_id=chat_id,
-                media=[InputMediaPhoto(media=record.file_id) for record in candidates],
-            )
-        except TelegramAPIError:
-            LOGGER.warning(
-                "Failed to send tournament media group, falling back to separate photos",
-                exc_info=True,
-            )
-            for record in candidates:
-                await bot.send_photo(chat_id=chat_id, photo=record.file_id)
+        media_sent = await send_photo_album_with_fallback(
+            bot,
+            chat_id,
+            [record.file_id for record in candidates],
+            "image tournament",
+        )
+        if not media_sent:
+            await message.answer("🏟 Турнир сорвался. Telegram не отдал картинки")
+            return "failed"
 
         tournament_id = uuid4().hex
         title = random_tournament_start_phrase()
@@ -1409,10 +1486,13 @@ async def send_tournament(
             "score_text": score_text,
         }
         try:
-            score_message = await message.answer(
-                score_text,
-                parse_mode="HTML",
-                reply_markup=tournament_vote(tournament_id),
+            score_message = await telegram_request_with_retry(
+                lambda: message.answer(
+                    score_text,
+                    parse_mode="HTML",
+                    reply_markup=tournament_vote(tournament_id),
+                ),
+                "tournament vote message",
             )
         except TelegramAPIError:
             tournament_sessions.pop(tournament_id, None)

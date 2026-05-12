@@ -1,6 +1,9 @@
+from functools import lru_cache
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
+@lru_cache(maxsize=2)
 def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
     upload_row = [
         InlineKeyboardButton(
@@ -42,6 +45,7 @@ def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+@lru_cache(maxsize=1)
 def upload_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -70,10 +74,11 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
     )
 
 
+@lru_cache(maxsize=1)
 def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⚔️ Новая дуэль", callback_data="duel_new")],
+            [InlineKeyboardButton(text="⚔️ Реванш пикч", callback_data="duel_new")],
         ]
     )
 
@@ -99,10 +104,11 @@ def joke_duel_vote(
     )
 
 
+@lru_cache(maxsize=1)
 def new_joke_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="😂 Новая дуэль", callback_data="joke_duel_new")],
+            [InlineKeyboardButton(text="🥊 Реванш шуток", callback_data="joke_duel_new")],
         ]
     )
 
@@ -138,6 +144,7 @@ def tournament_vote(
     )
 
 
+@lru_cache(maxsize=1)
 def new_tournament() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -152,7 +159,7 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🤙🏻", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
         ],
-        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
+        [InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -174,7 +181,7 @@ def picture_actions_with_counts(
                 callback_data=f"react:dislike:{image_id}",
             ),
         ],
-        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
+        [InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -186,7 +193,7 @@ def joke_actions(joke_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🤙🏻", callback_data=f"joke_react:like:{joke_id}"),
             InlineKeyboardButton(text="🖕🏻", callback_data=f"joke_react:dislike:{joke_id}"),
         ],
-        [InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke")],
+        [InlineKeyboardButton(text="😂 Ещё шутку", callback_data="joke")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -208,7 +215,7 @@ def joke_actions_with_counts(
                 callback_data=f"joke_react:dislike:{joke_id}",
             ),
         ],
-        [InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke")],
+        [InlineKeyboardButton(text="😂 Ещё шутку", callback_data="joke")],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -66,6 +66,7 @@ from bot.keyboards import (
     joke_actions_with_counts,
     joke_duel_vote,
     main_menu,
+    new_duel,
     new_joke_duel,
     new_tournament,
     picture_actions,
@@ -207,14 +208,14 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(len(DUEL_STATUS_PHRASES), 150)
         self.assertEqual(len(DUEL_WIN_PHRASES), 150)
         self.assertEqual(len(DUEL_TIE_PHRASES), 150)
-        self.assertEqual(len(JOKE_DUEL_START_PHRASES), 60)
-        self.assertEqual(len(JOKE_DUEL_STATUS_PHRASES), 60)
-        self.assertEqual(len(JOKE_DUEL_WIN_PHRASES), 60)
-        self.assertEqual(len(JOKE_DUEL_TIE_PHRASES), 60)
-        self.assertEqual(len(TOURNAMENT_START_PHRASES), 60)
-        self.assertEqual(len(TOURNAMENT_STATUS_PHRASES), 60)
-        self.assertEqual(len(TOURNAMENT_WIN_PHRASES), 60)
-        self.assertEqual(len(TOURNAMENT_TIE_PHRASES), 60)
+        self.assertEqual(len(JOKE_DUEL_START_PHRASES), 80)
+        self.assertEqual(len(JOKE_DUEL_STATUS_PHRASES), 80)
+        self.assertEqual(len(JOKE_DUEL_WIN_PHRASES), 80)
+        self.assertEqual(len(JOKE_DUEL_TIE_PHRASES), 80)
+        self.assertEqual(len(TOURNAMENT_START_PHRASES), 80)
+        self.assertEqual(len(TOURNAMENT_STATUS_PHRASES), 80)
+        self.assertEqual(len(TOURNAMENT_WIN_PHRASES), 80)
+        self.assertEqual(len(TOURNAMENT_TIE_PHRASES), 80)
         duel_phrases = "\n".join(
             DUEL_START_PHRASES + DUEL_STATUS_PHRASES + DUEL_WIN_PHRASES + DUEL_TIE_PHRASES
         )
@@ -259,8 +260,8 @@ class BotContractTest(unittest.TestCase):
             for button in row
         ]
 
-        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё"])
-        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё"])
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё пикчу"])
+        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё пикчу"])
 
     def test_joke_reactions_match_picture_reactions(self) -> None:
         buttons = [button.text for row in joke_actions("joke-id").inline_keyboard for button in row]
@@ -270,8 +271,8 @@ class BotContractTest(unittest.TestCase):
             for button in row
         ]
 
-        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё анекдот"])
-        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "😂 Ещё анекдот"])
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё шутку"])
+        self.assertEqual(counted_buttons, ["🤙🏻 2", "🖕🏻 1", "😂 Ещё шутку"])
 
     def test_joke_duel_keyboard_uses_separate_callbacks(self) -> None:
         buttons = [button.text for row in joke_duel_vote("duel-id", 3, 2).inline_keyboard for button in row]
@@ -284,7 +285,12 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(buttons, ["🅰️ Первый · 3", "🅱️ Второй · 2"])
         self.assertEqual(callbacks, ["joke_duel:duel-id:left", "joke_duel:duel-id:right"])
-        self.assertEqual(new_buttons, ["😂 Новая дуэль"])
+        self.assertEqual(new_buttons, ["🥊 Реванш шуток"])
+
+    def test_image_duel_finish_button_uses_revenge_copy(self) -> None:
+        buttons = [button.text for row in new_duel().inline_keyboard for button in row]
+
+        self.assertEqual(buttons, ["⚔️ Реванш пикч"])
 
     def test_tournament_keyboard_uses_four_slots(self) -> None:
         buttons = [button.text for row in tournament_vote("tour-id", [1, 2, 3, 4]).inline_keyboard for button in row]
