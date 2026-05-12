@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом пикч` button or `/pic`, pulls a random joke through `😂 Рандом шуток` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -47,7 +47,6 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 | `/me` | Show your contribution and achievements |
 | `/top` | Show the upload leaderboard |
 | `/count` | Show image and joke counts |
-| `/mood` | Show today's bot mood |
 | `/help` | Show help |
 
 There is intentionally no `/upload` command. Upload commands are explicit: `/upload_pidor` for images and `/upload_joke` for jokes.
@@ -63,21 +62,21 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
-🎲 Пикча        😂 Анекдот
-⚔️ Пикчи        😂 Шутки
-🏟 Турнир       📊 Сводка
+🎲 Рандом пикч      😂 Рандом шуток
+⚔️ Дуэль пикч       🥊 Дуэль шуток
+🏟 Турнир           📊 Сводка склада
 🏆 Топ          🌦 Погода
 👤 Профиль
-📬 Пикчи        📝 Шутки
+📬 Загрузка пикч    📝 Загрузить шутки
 ```
 
 In private chat, uploads move to the top:
 
 ```text
-📥 Пикчи        📝 Шутки
-🎲 Пикча        😂 Анекдот
-⚔️ Пикчи        😂 Шутки
-🏟 Турнир       📊 Сводка
+📥 Загрузить пикчи  📝 Загрузить шутки
+🎲 Рандом пикч      😂 Рандом шуток
+⚔️ Дуэль пикч       🥊 Дуэль шуток
+🏟 Турнир           📊 Сводка склада
 🏆 Топ          🌦 Погода
 👤 Профиль
 ```
@@ -104,7 +103,7 @@ During private upload:
 
 ## Message Design
 
-Messages are compact cards: one title, clear sections, and very little noise. The bot keeps its edge without turning the chat into a blinking billboard.
+Messages are compact cards: one title, 2-4 readable sections, and very little noise. Random drops, uploads, stats, and arenas now speak in one voice: sharp, readable, and not overloaded.
 
 Leaderboard example:
 
@@ -127,7 +126,7 @@ Leaderboard example:
 Stats example:
 
 ```text
-📊 Сводка
+📊 Сводка kartinkomet
 
 📦 Пул
 Пикчи: 3823
@@ -152,6 +151,31 @@ Stats example:
 Дуэль пикч: идёт, 42 сек
 Дуэль шуток: свободно
 Турнир: свободно
+```
+
+Arena example:
+
+```text
+⚔️ Арена пикч
+
+Чат вызван в присяжные
+Кнопочная демократия в режиме суда
+
+Счёт
+🅰️ 2 · 🅱️ 1
+
+Статус
+⏱ 45 сек · 🔥 Ведёт 🅰️
+```
+
+Joke example:
+
+```text
+😂 Анекдот
+
+> Бот спросил у рандома:
+> - Ты уверен?
+> - Уже поздно
 ```
 
 ## Random Selection
@@ -202,7 +226,7 @@ Rules:
 
 ## Joke Duels
 
-`/jokeduel` and the `😂 Шутки` button pick two random jokes and open a `2` minute vote.
+`/jokeduel` and the `🥊 Дуэль шуток` button pick two random jokes and open a `2` minute vote.
 
 Rules mirror the image arena:
 
@@ -221,11 +245,11 @@ Rules mirror the image arena:
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📥 Пикчи` or send `/upload_pidor`.
+2. Press `📥 Загрузить пикчи` or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `📬 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📬 Загрузка пикч` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. It shows the instruction and finish/cancel buttons immediately when upload starts, then quietly counts the result.
 
@@ -254,12 +278,12 @@ Rules:
 
 The duel card stays compact: title, status, one-line score, then a separate timer line. Duel images are sent as an album without captions so the chat does not turn into a wall of text.
 
-There are `400` dedicated short duel phrases:
+There are `600` dedicated short image-duel phrases:
 
-- `100` start titles
-- `100` live statuses
-- `100` winner phrases
-- `100` tie phrases
+- `150` start titles
+- `150` live statuses
+- `150` winner phrases
+- `150` tie phrases
 
 ## Tournaments
 
@@ -311,17 +335,17 @@ All phrases live in `bot/texts.py`.
 
 Current counts:
 
-- `1500` random image captions
-- `150` upload-start phrases
-- `150` upload-finish phrases
-- `150` empty-pool phrases
-- `50` achievements
-- `400` short duel phrases
-- separate short phrases for joke duels
-- daily mood labels
+- `1550` random image captions
+- `200` upload-start phrases
+- `200` upload-finish phrases
+- `200` empty-pool phrases
+- `100` achievements
+- `600` short image-duel phrases
+- `60` phrases for every joke-duel stage
+- `60` phrases for every tournament stage
 - jury-rule messages
 
-Image captions are clean, without mood prefixes.
+Image captions are clean, without extra prefixes.
 
 ## Storage
 
@@ -536,7 +560,7 @@ bot/image_pool.py  # image pool, random picker, reactions, duels, tournaments, i
 bot/joke_pool.py   # separate joke pool
 bot/keyboards.py   # inline keyboards
 bot/storage.py     # SQLite storage: tables, migration, and legacy fallback
-bot/texts.py       # phrases, mood labels, achievements, jury rule
+bot/texts.py       # phrases, achievements, jury rule
 scripts/           # one-off maintenance scripts
 tests/             # contract tests
 requirements.txt   # production bot dependencies

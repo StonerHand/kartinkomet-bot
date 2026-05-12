@@ -4,26 +4,26 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
     upload_row = [
         InlineKeyboardButton(
-            text="📥 Пикчи" if is_private else "📬 Пикчи",
+            text="📥 Загрузить пикчи" if is_private else "📬 Загрузка пикч",
             callback_data="upload",
         ),
         InlineKeyboardButton(
-            text="📝 Шутки",
+            text="📝 Загрузить шутки",
             callback_data="upload_joke",
         ),
     ]
     random_row = [
-        InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
-        InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+        InlineKeyboardButton(text="🎲 Рандом пикч", callback_data="pic"),
+        InlineKeyboardButton(text="😂 Рандом шуток", callback_data="joke"),
     ]
     duel_row = [
-        InlineKeyboardButton(text="⚔️ Пикчи", callback_data="duel_new"),
-        InlineKeyboardButton(text="😂 Шутки", callback_data="joke_duel_new"),
+        InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
+        InlineKeyboardButton(text="🥊 Дуэль шуток", callback_data="joke_duel_new"),
     ]
     utility_rows = [
         [
             InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
-            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
+            InlineKeyboardButton(text="📊 Сводка склада", callback_data="stats"),
         ],
         [
             InlineKeyboardButton(text="🏆 Топ", callback_data="top"),

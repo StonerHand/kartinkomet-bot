@@ -27,7 +27,6 @@ BOT_COMMANDS = [
     BotCommand(command="me", description="мой вклад и достижения"),
     BotCommand(command="top", description="топ загрузчиков"),
     BotCommand(command="count", description="размер общего пула"),
-    BotCommand(command="mood", description="режим дня"),
     BotCommand(command="help", description="справка"),
 ]
 

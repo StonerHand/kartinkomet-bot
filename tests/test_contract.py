@@ -23,6 +23,10 @@ from bot.handlers import (
     duel_remaining_seconds,
     duel_sessions,
     duel_tasks,
+    JOKE_DUEL_START_PHRASES,
+    JOKE_DUEL_STATUS_PHRASES,
+    JOKE_DUEL_TIE_PHRASES,
+    JOKE_DUEL_WIN_PHRASES,
     format_count,
     format_duel_already_active,
     format_duel_score,
@@ -33,7 +37,6 @@ from bot.handlers import (
     format_joke_duel_entry,
     format_joke_duel_result,
     format_joke_duel_score,
-    format_mood,
     format_start,
     format_stats,
     format_top_uploaders,
@@ -49,6 +52,10 @@ from bot.handlers import (
     register_active_duel,
     register_active_tournament,
     split_text_for_telegram,
+    TOURNAMENT_START_PHRASES,
+    TOURNAMENT_STATUS_PHRASES,
+    TOURNAMENT_TIE_PHRASES,
+    TOURNAMENT_WIN_PHRASES,
     tournament_sessions,
     tournament_tasks,
 )
@@ -144,7 +151,6 @@ class BotContractTest(unittest.TestCase):
                 "me",
                 "top",
                 "count",
-                "mood",
                 "help",
             ],
         )
@@ -190,17 +196,25 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(data["chat_history"], {"1": ["keep"]})
 
     def test_text_pool_sizes_stay_intentional(self) -> None:
-        self.assertEqual(len(PICTURE_CAPTIONS), 1500)
-        self.assertEqual(len(UPLOAD_START_PHRASES), 150)
-        self.assertEqual(len(UPLOAD_FINISH_PHRASES), 150)
-        self.assertEqual(len(EMPTY_POOL_PHRASES), 150)
-        self.assertEqual(len(ACHIEVEMENTS), 50)
+        self.assertEqual(len(PICTURE_CAPTIONS), 1550)
+        self.assertEqual(len(UPLOAD_START_PHRASES), 200)
+        self.assertEqual(len(UPLOAD_FINISH_PHRASES), 200)
+        self.assertEqual(len(EMPTY_POOL_PHRASES), 200)
+        self.assertEqual(len(ACHIEVEMENTS), 100)
 
     def test_duel_phrase_pools_have_expected_size(self) -> None:
-        self.assertEqual(len(DUEL_START_PHRASES), 100)
-        self.assertEqual(len(DUEL_STATUS_PHRASES), 100)
-        self.assertEqual(len(DUEL_WIN_PHRASES), 100)
-        self.assertEqual(len(DUEL_TIE_PHRASES), 100)
+        self.assertEqual(len(DUEL_START_PHRASES), 150)
+        self.assertEqual(len(DUEL_STATUS_PHRASES), 150)
+        self.assertEqual(len(DUEL_WIN_PHRASES), 150)
+        self.assertEqual(len(DUEL_TIE_PHRASES), 150)
+        self.assertEqual(len(JOKE_DUEL_START_PHRASES), 60)
+        self.assertEqual(len(JOKE_DUEL_STATUS_PHRASES), 60)
+        self.assertEqual(len(JOKE_DUEL_WIN_PHRASES), 60)
+        self.assertEqual(len(JOKE_DUEL_TIE_PHRASES), 60)
+        self.assertEqual(len(TOURNAMENT_START_PHRASES), 60)
+        self.assertEqual(len(TOURNAMENT_STATUS_PHRASES), 60)
+        self.assertEqual(len(TOURNAMENT_WIN_PHRASES), 60)
+        self.assertEqual(len(TOURNAMENT_TIE_PHRASES), 60)
         duel_phrases = "\n".join(
             DUEL_START_PHRASES + DUEL_STATUS_PHRASES + DUEL_WIN_PHRASES + DUEL_TIE_PHRASES
         )
@@ -216,20 +230,20 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(
             main_buttons,
             [
-                "🎲 Пикча",
-                "😂 Анекдот",
-                "⚔️ Пикчи",
-                "😂 Шутки",
+                "🎲 Рандом пикч",
+                "😂 Рандом шуток",
+                "⚔️ Дуэль пикч",
+                "🥊 Дуэль шуток",
                 "🏟 Турнир",
-                "📊 Сводка",
+                "📊 Сводка склада",
                 "🏆 Топ",
                 "🌦 Погода",
                 "👤 Профиль",
-                "📬 Пикчи",
-                "📝 Шутки",
+                "📬 Загрузка пикч",
+                "📝 Загрузить шутки",
             ],
         )
-        self.assertEqual(private_buttons[:2], ["📥 Пикчи", "📝 Шутки"])
+        self.assertEqual(private_buttons[:2], ["📥 Загрузить пикчи", "📝 Загрузить шутки"])
         self.assertIn("🏟 Турнир", private_buttons)
 
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
@@ -337,11 +351,11 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>⚔️ Арена пикч</b>", score)
         self.assertIn("Суд мемов", score)
         self.assertIn("Чат держит паузу", score)
-        self.assertIn("🅰️ Слева: <b>2</b> · 🅱️ Справа: <b>1</b>\n\n⏱", score)
-        self.assertIn("<b>45 секунд</b>", score)
-        self.assertIn("🔥 🅰️ Ведёт", score)
-        self.assertIn("👑 Выжила: <b>🅰️ слева</b>", format_duel_result(2, 1, "left"))
-        self.assertIn("🗑 Улетела из пула: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🅰️ <b>2</b> · 🅱️ <b>1</b>\n\n<b>Статус</b>", score)
+        self.assertIn("<b>45 сек</b>", score)
+        self.assertIn("🔥 Ведёт 🅰️", score)
+        self.assertIn("👑 Осталась: <b>🅰️ слева</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🗑 Удалена: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
 
     def test_tournament_score_format(self) -> None:
@@ -354,8 +368,8 @@ class BotContractTest(unittest.TestCase):
 
         self.assertIn("<b>🏟 Турнир пикч</b>", score)
         self.assertIn("Сетка пикч", score)
-        self.assertIn("1️⃣ Первая: <b>1</b> · 2️⃣ Вторая: <b>3</b>", score)
-        self.assertIn("<b>77 секунд</b>", score)
+        self.assertIn("1️⃣ <b>1</b> · 2️⃣ <b>3</b>", score)
+        self.assertIn("<b>77 сек</b>", score)
         self.assertIn("👑 Ведёт: <b>2️⃣ вторая</b>", score)
         self.assertIn("👑 Чемпион: <b>2️⃣ вторая</b>", format_tournament_result([1, 3, 0, 2], 1))
         self.assertIn(
@@ -438,32 +452,32 @@ class BotContractTest(unittest.TestCase):
 
             text = format_user_progress(10, pool)
 
-            self.assertIn("<b>📥 Поставки</b>", text)
-            self.assertIn("<b>📊 Реакции на ваши пикчи</b>", text)
-            self.assertIn("<b>🎖 Качество</b>", text)
-            self.assertIn("<b>🎯 Следующий рубеж</b>", text)
+            self.assertIn("<b>📦 Вклад</b>", text)
+            self.assertIn("<b>🤙🏻 Репутация</b>", text)
+            self.assertIn("<b>🎖 Титул</b>", text)
+            self.assertIn("<b>🎯 Следующий ранг</b>", text)
 
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
-        self.assertIn("😂 Анекдот", format_start())
-        self.assertIn("⚔️ Пикчи", format_start())
-        self.assertIn("😂 Шутки", format_start())
+        self.assertIn("😂 Рандом шуток", format_start())
+        self.assertIn("⚔️ Дуэль пикч", format_start())
+        self.assertIn("🥊 Дуэль шуток", format_start())
         self.assertIn("🏟 Турнир", format_start())
-        self.assertIn("📝 Шутки", format_start())
+        self.assertIn("📝 Загрузить шутки", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
-        self.assertIn("<b>😂 Анекдоты</b>", format_help())
+        self.assertIn("<b>🎲 Рандом</b>", format_help())
         self.assertIn("/upload_joke", format_help())
         self.assertIn("/jokeduel", format_help())
         self.assertIn("/tournament", format_help())
-        self.assertIn("<b>⚔️ Дуэли</b>", format_help())
+        self.assertIn("<b>⚔️ Дуэли и турнир</b>", format_help())
         self.assertIn("/weather", format_help())
-        self.assertIn("<b>🧠 Режим дня</b>", format_mood())
-        self.assertIn("Пикчи принимаю только в личке", format_upload_private_only())
+        self.assertNotIn("/mood", format_help())
+        self.assertIn("Загрузка пикч - в личке", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>1000 новых пикч в час</b>", format_upload_limit())
-        self.assertIn("нет открытой загрузки", format_upload_not_active())
+        self.assertIn("Загрузка не открыта", format_upload_not_active())
         self.assertIn("/upload_joke", format_upload_not_active())
-        self.assertIn("Анекдотов пока нет", format_empty_joke_pool())
+        self.assertIn("Блокнот пуст", format_empty_joke_pool())
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
 
     def test_joke_duel_score_and_result_are_quoted(self) -> None:
@@ -477,11 +491,11 @@ class BotContractTest(unittest.TestCase):
         )
 
         self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", entry)
-        self.assertIn("<b>😂⚔️ Арена анекдотов</b>", score)
+        self.assertIn("<b>😂⚔️ Арена шуток</b>", score)
         self.assertIn("Суд шуток", score)
-        self.assertIn("🅰️ Первый: <b>1</b> · 🅱️ Второй: <b>2</b>\n\n⏱", score)
-        self.assertIn("🔥 🅱️ Ведёт", score)
-        self.assertIn("🗑 Улетел из блокнота: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
+        self.assertIn("🅰️ <b>1</b> · 🅱️ <b>2</b>\n\n<b>Статус</b>", score)
+        self.assertIn("🔥 Ведёт 🅱️", score)
+        self.assertIn("🗑 Удалён: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
         self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
 
     def test_joke_duel_defaults_to_two_minutes_and_does_not_trim_text(self) -> None:
@@ -492,8 +506,8 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual("".join(chunks), long_text)
         self.assertGreater(len(chunks), 1)
-        self.assertIn("<b>120 секунд</b>", score)
-        self.assertIn("😂 Шутки", format_start())
+        self.assertIn("<b>120 сек</b>", score)
+        self.assertIn("🥊 Дуэль шуток", format_start())
 
     def test_joke_duel_split_respects_escaped_html_size(self) -> None:
         text = "<&>" * 3000
