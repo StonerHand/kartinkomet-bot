@@ -18,6 +18,8 @@ from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool
 from bot.keyboards import (
     duel_vote,
+    empty_joke_pool_actions,
+    empty_picture_pool_actions,
     joke_actions,
     joke_actions_with_counts,
     joke_duel_vote,
@@ -402,6 +404,7 @@ class UploadSession(TypedDict):
     failed: int
     duplicates: int
     announced_achievements: set[int]
+    achievement_names: list[str]
 
 
 class JokeUploadSession(TypedDict):
@@ -625,6 +628,10 @@ def build_router(
             )
             achievement = achievement_for(message, image_pool, data["announced_achievements"])
             if achievement:
+                if message.from_user is not None:
+                    data["achievement_names"].append(
+                        current_achievement_for(image_pool.count_by_user(message.from_user.id))
+                    )
                 await message.answer(achievement, parse_mode="HTML")
             return
 
@@ -671,6 +678,13 @@ def build_router(
                 format_stats(image_pool, joke_pool, chat_id=callback.message.chat.id),
                 parse_mode="HTML",
             )
+        await callback.answer()
+
+    @router.callback_query(F.data == "menu")
+    async def menu_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await show_menu(callback.message)
         await callback.answer()
 
     @router.callback_query(F.data == "me")
@@ -1123,10 +1137,18 @@ async def send_picture(
         chat_id=destination_chat_id,
     )
     if image is None:
+        is_private = is_private_chat(answer_message) if answer_message else False
+        text = format_empty_picture_pool(RANDOM.choice(EMPTY_POOL_PHRASES), is_private=is_private)
+        reply_markup = empty_picture_pool_actions(is_private=is_private)
         if answer_message:
-            await answer_message.answer(RANDOM.choice(EMPTY_POOL_PHRASES))
+            await answer_message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
         else:
-            await bot.send_message(chat_id=chat_id, text=RANDOM.choice(EMPTY_POOL_PHRASES))
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
         return
 
     await bot.send_photo(
@@ -1156,11 +1178,18 @@ async def send_joke(
         chat_id=chat_id,
     )
     if joke is None:
-        text = format_empty_joke_pool()
+        is_private = is_private_chat(answer_message) if answer_message else False
+        text = format_empty_joke_pool(is_private=is_private)
+        reply_markup = empty_joke_pool_actions(is_private=is_private)
         if answer_message:
-            await answer_message.answer(text, parse_mode="HTML")
+            await answer_message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
         else:
-            await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
         return
 
     await bot.send_message(
@@ -2058,20 +2087,24 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     added = int(data.get("added", 0))
     failed = int(data.get("failed", 0))
     duplicates = int(data.get("duplicates", 0))
+    achievement_names = list(data.get("achievement_names", []))
     await state.clear()
     active_uploads.pop(message.chat.id, None)
 
     lines = [
-        "<b>✅ Пакет принят</b>",
+        "<b>✅ Загрузка закрыта</b>",
         escape(RANDOM.choice(UPLOAD_FINISH_PHRASES)),
         "",
-        "<b>Итог</b>",
-        format_metric("Пикч добавлено", added),
+        "<b>📦 Итог пакета</b>",
+        format_metric("✅ Пикч добавлено", added),
+        format_metric("♻️ Дублей", duplicates),
+        format_metric("🚫 Не принято", failed),
     ]
-    if failed:
-        lines.append(format_metric("Не зашло", failed))
-    if duplicates:
-        lines.append(format_metric("Дубликатов пропущено", duplicates))
+    if achievement_names:
+        lines.append(format_metric("🏅 Новый ранг", achievement_names[-1]))
+    easter_egg = rare_easter_egg()
+    if easter_egg:
+        lines.extend(["", easter_egg])
 
     await message.answer("\n".join(lines), parse_mode="HTML")
 
@@ -2085,16 +2118,17 @@ async def finish_joke_upload(message: Message, state: FSMContext) -> None:
     active_joke_uploads.pop(message.chat.id, None)
 
     lines = [
-        "<b>✅ Шутки приняты</b>",
+        "<b>✅ Загрузка шуток закрыта</b>",
         "Устный фонд пополнен, тамада нервно уважает",
         "",
-        "<b>Итог</b>",
-        format_metric("Анекдотов добавлено", added),
+        "<b>📦 Итог пакета</b>",
+        format_metric("✅ Анекдотов добавлено", added),
+        format_metric("♻️ Баянов", duplicates),
+        format_metric("🚫 Не принято", failed),
     ]
-    if failed:
-        lines.append(format_metric("Не зашло", failed))
-    if duplicates:
-        lines.append(format_metric("Баянов пропущено", duplicates))
+    easter_egg = rare_easter_egg()
+    if easter_egg:
+        lines.extend(["", easter_egg])
 
     await message.answer("\n".join(lines), parse_mode="HTML")
 
@@ -2125,6 +2159,7 @@ def new_upload_session() -> UploadSession:
         "failed": 0,
         "duplicates": 0,
         "announced_achievements": set(),
+        "achievement_names": [],
     }
 
 
@@ -2178,10 +2213,10 @@ async def show_menu(message: Message) -> None:
         else "загрузка открывается в личке"
     )
     await message.answer(
-        "<b>🚨 Пульт от ядерки</b>\n\n"
+        "<b>🎛 Пульт kartinkomet</b>\n\n"
         "<b>🎲 Рандом</b> — пикчи и шутки\n"
         "<b>⚔️ Арены</b> — дуэли и турнир\n"
-        "<b>📊 Склад</b> — сводка, топ, профиль, погода\n"
+        "<b>📦 Склад</b> — сводка, топ, профиль, погода\n"
         f"<b>📥 Загрузка</b> — {upload_note}",
         parse_mode="HTML",
         reply_markup=main_menu(is_private=is_private),
@@ -2206,13 +2241,13 @@ def format_stats(
     pool_lines = [format_metric("Пикчи", stats.total_images)]
     random_lines = [format_metric("Пикчи выданы", stats.total_shows)]
     reaction_lines = [
-        f"Пикчи: <b>{stats.total_likes}</b> 🤙🏻 · <b>{stats.total_dislikes}</b> 🖕🏻",
+        f"Пикчи: 🤙🏻 Одобрено <b>{stats.total_likes}</b> · 🖕🏻 Народный суд <b>{stats.total_dislikes}</b>",
     ]
     if joke_stats is not None:
         pool_lines.append(format_metric("Анекдоты", joke_stats.total_jokes))
         random_lines.append(format_metric("Анекдоты выданы", joke_stats.total_shows))
         reaction_lines.append(
-            f"Анекдоты: <b>{joke_stats.total_likes}</b> 🤙🏻 · <b>{joke_stats.total_dislikes}</b> 🖕🏻"
+            f"Анекдоты: 🤙🏻 Одобрено <b>{joke_stats.total_likes}</b> · 🖕🏻 Народный суд <b>{joke_stats.total_dislikes}</b>"
         )
 
     sections = [
@@ -2227,7 +2262,7 @@ def format_stats(
             format_metric("Турниры", stats.total_tournaments),
             format_metric("Турниры без чемпиона", stats.tournament_ties),
         ),
-        format_section("🤙🏻 Реакции", *reaction_lines),
+        format_section("⚖️ Реакции", *reaction_lines),
     ]
     if chat_id is not None:
         sections.append(format_section("🟢 Активные игры", *format_active_duel_lines(chat_id)))
@@ -2268,10 +2303,10 @@ def active_tournament_status(chat_id: int) -> str:
 
 def format_start() -> str:
     return (
-        "<b>👋 Я @kartinkomet_bot</b>\n\n"
-        "Общий склад пикч и анекдотов: рандом, дуэли, турниры, реакции и личный вклад "
-        "без лишней мишуры\n\n"
-        "<b>🎛 Быстрый запуск</b>\n"
+        "<b>👋 @kartinkomet_bot на связи</b>\n\n"
+        "Общий склад пикч и анекдотов без лишней мишуры: рандом, арены, реакции, топы "
+        "и личный вклад\n\n"
+        "<b>🚀 Быстрый запуск</b>\n"
         "<code>🎲 Рандом пикч</code> / <code>😂 Рандом шуток</code>\n"
         "<code>⚔️ Дуэль пикч</code> / <code>🥊 Дуэль шуток</code>\n"
         "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
@@ -2330,7 +2365,7 @@ def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
         else ""
     )
     return (
-        "<b>📦 Общий пул</b>\n\n"
+        "<b>📦 Склад</b>\n\n"
         f"{format_metric('Пикчи', image_pool.count())}"
         f"{joke_line}"
     )
@@ -2349,10 +2384,10 @@ async def send_weather(message: Message) -> None:
 
 def format_upload_private_only() -> str:
     return (
-        "<b>📬 Загрузка пикч - в личке</b>\n\n"
+        "<b>📬 Загрузка пикч — в личке</b>\n\n"
         "В группе оставляем рандом, арены и сводку. Файлы лучше принимать один на один: "
         "так Telegram отдаёт их боту стабильнее\n\n"
-        "<b>Маршрут</b>\n"
+        "<b>Что делать</b>\n"
         "Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
         "Кидайте пикчи туда"
@@ -2361,23 +2396,23 @@ def format_upload_private_only() -> str:
 
 def format_upload_opened(intro: str) -> str:
     return (
-        "<b>📥 Пикчи принимаю</b>\n\n"
+        "<b>📥 Приём пикч открыт</b>\n\n"
         f"{escape(intro)}\n\n"
-        "<b>Формат</b>\n"
-        "Одна пикча, пачка, альбом или пересланные изображения\n\n"
-        "<b>Финиш</b>\n"
+        "<b>Что кидать</b>\n"
+        "Фото, пачку, альбом или пересланные изображения\n\n"
+        "<b>Управление</b>\n"
         "<code>✅ Закончить</code> - сохранить пакет\n"
-        "<code>❌ Отмена</code> - закрыть без сводки"
+        "<code>❌ Отмена</code> - закрыть без отчёта"
     )
 
 
 def format_joke_upload_opened() -> str:
     return (
-        "<b>📝 Шутки принимаю</b>\n\n"
-        "Отправляйте шутки обычным текстом. Один анекдот — одно сообщение\n\n"
-        "<b>Финиш</b>\n"
+        "<b>📝 Приём шуток открыт</b>\n\n"
+        "Отправляйте обычный текст. Один анекдот — одно сообщение\n\n"
+        "<b>Управление</b>\n"
         "<code>✅ Закончить</code> - сохранить пакет\n"
-        "<code>❌ Отмена</code> - закрыть без сводки"
+        "<code>❌ Отмена</code> - закрыть без отчёта"
     )
 
 
@@ -2430,10 +2465,31 @@ def format_invalid_file() -> str:
     )
 
 
-def format_empty_joke_pool() -> str:
+def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
+    action = (
+        "Нажмите <code>📥 Загрузить пикчи</code> и кидайте пакет сюда"
+        if is_private
+        else "Нажмите <code>📬 Как загрузить пикчи</code> и бот покажет маршрут в личку"
+    )
     return (
-        "<b>😂 Блокнот пуст</b>\n\n"
-        f"Откройте личку с ботом и отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>"
+        "<b>📭 Склад пикч пуст</b>\n\n"
+        f"{escape(phrase)}\n\n"
+        "<b>Что делать</b>\n"
+        f"{action}"
+    )
+
+
+def format_empty_joke_pool(is_private: bool = False) -> str:
+    action = (
+        "Нажмите <code>📝 Загрузить шутки</code> и отправляйте тексты сюда"
+        if is_private
+        else "Нажмите <code>📬 Как загрузить шутки</code> и бот покажет маршрут в личку"
+    )
+    return (
+        "<b>📭 Блокнот шуток пуст</b>\n\n"
+        "Пока тут тишина, как на корпоративе без микрофона\n\n"
+        "<b>Что делать</b>\n"
+        f"{action}"
     )
 
 
@@ -2471,9 +2527,9 @@ def format_invalid_joke_command() -> str:
 
 def format_joke_upload_private_only() -> str:
     return (
-        "<b>📬 Загрузка шуток - в личке</b>\n\n"
+        "<b>📬 Загрузка шуток — в личке</b>\n\n"
         "В группе оставляем выдачу, сводку и арены. Блокнот пополняется один на один\n\n"
-        "<b>Маршрут</b>\n"
+        "<b>Что делать</b>\n"
         "Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"Отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>\n"
         "Кидайте анекдоты текстом"
@@ -2549,9 +2605,9 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
         format_metric("Загружено пикч", uploaded_count),
         format_metric("Ранг", current_achievement),
         "",
-        "<b>🤙🏻 Репутация</b>",
-        format_metric("Одобрений", reaction_stats.likes),
-        format_metric("Пальцев", reaction_stats.dislikes),
+        "<b>⚖️ Реакции</b>",
+        format_metric("🤙🏻 Одобрено", reaction_stats.likes),
+        format_metric("🖕🏻 Народный суд", reaction_stats.dislikes),
         format_metric("Показов в рандоме", reaction_stats.shown),
         "",
         "<b>🎖 Титул</b>",
@@ -2628,6 +2684,23 @@ def next_achievement_for(uploaded_count: int) -> tuple[int, str] | None:
 
 def random_picture_caption() -> str:
     return RANDOM.choice(PICTURE_CAPTIONS)
+
+
+def rare_easter_egg() -> str | None:
+    if RANDOM.randrange(20) != 0:
+        return None
+
+    return escape(
+        RANDOM.choice(
+            (
+                "Склад тихо хлопнул дверью холодильника",
+                "Рандом сделал вид, что всё под контролем",
+                "Кнопки переглянулись и промолчали",
+                "Архив пополнился и немного осмелел",
+                "Где-то в логах стало уютнее",
+            )
+        )
+    )
 
 
 def quality_title(stats) -> str:

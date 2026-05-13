@@ -57,6 +57,40 @@ def upload_menu() -> InlineKeyboardMarkup:
     )
 
 
+def empty_picture_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📥 Загрузить пикчи" if is_private else "📬 Как загрузить пикчи",
+                    callback_data="upload",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="😂 Рандом шуток", callback_data="joke"),
+                InlineKeyboardButton(text="🎛 Меню", callback_data="menu"),
+            ],
+        ]
+    )
+
+
+def empty_joke_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📝 Загрузить шутки" if is_private else "📬 Как загрузить шутки",
+                    callback_data="upload_joke",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="🎲 Рандом пикч", callback_data="pic"),
+                InlineKeyboardButton(text="🎛 Меню", callback_data="menu"),
+            ],
+        ]
+    )
+
+
 def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

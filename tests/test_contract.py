@@ -29,9 +29,10 @@ from bot.handlers import (
     JOKE_DUEL_WIN_PHRASES,
     format_count,
     format_duel_already_active,
-    format_duel_score,
     format_duel_result,
+    format_duel_score,
     format_empty_joke_pool,
+    format_empty_picture_pool,
     format_help,
     format_joke,
     format_joke_duel_entry,
@@ -63,6 +64,8 @@ from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool, normalize_joke_text
 from bot.keyboards import (
     duel_vote,
+    empty_joke_pool_actions,
+    empty_picture_pool_actions,
     joke_actions,
     joke_actions_with_counts,
     joke_duel_vote,
@@ -252,6 +255,39 @@ class BotContractTest(unittest.TestCase):
         upload_buttons = [button.text for row in upload_menu().inline_keyboard for button in row]
 
         self.assertEqual(upload_buttons, ["✅ Закончить", "❌ Отмена"])
+
+    def test_empty_pool_keyboards_offer_next_step(self) -> None:
+        picture_group_buttons = [
+            button.text
+            for row in empty_picture_pool_actions(is_private=False).inline_keyboard
+            for button in row
+        ]
+        picture_private_buttons = [
+            button.text
+            for row in empty_picture_pool_actions(is_private=True).inline_keyboard
+            for button in row
+        ]
+        joke_group_buttons = [
+            button.text
+            for row in empty_joke_pool_actions(is_private=False).inline_keyboard
+            for button in row
+        ]
+        joke_private_buttons = [
+            button.text
+            for row in empty_joke_pool_actions(is_private=True).inline_keyboard
+            for button in row
+        ]
+
+        self.assertEqual(
+            picture_group_buttons,
+            ["📬 Как загрузить пикчи", "😂 Рандом шуток", "🎛 Меню"],
+        )
+        self.assertEqual(picture_private_buttons[0], "📥 Загрузить пикчи")
+        self.assertEqual(
+            joke_group_buttons,
+            ["📬 Как загрузить шутки", "🎲 Рандом пикч", "🎛 Меню"],
+        )
+        self.assertEqual(joke_private_buttons[0], "📝 Загрузить шутки")
 
     def test_picture_reactions_use_two_buttons_only(self) -> None:
         buttons = [button.text for row in picture_actions("image-id").inline_keyboard for button in row]
@@ -466,12 +502,14 @@ class BotContractTest(unittest.TestCase):
             text = format_user_progress(10, pool)
 
             self.assertIn("<b>📦 Вклад</b>", text)
-            self.assertIn("<b>🤙🏻 Репутация</b>", text)
+            self.assertIn("<b>⚖️ Реакции</b>", text)
+            self.assertIn("🤙🏻 Одобрено", text)
+            self.assertIn("🖕🏻 Народный суд", text)
             self.assertIn("<b>🎖 Титул</b>", text)
             self.assertIn("<b>🎯 Следующий ранг</b>", text)
 
     def test_core_command_texts_are_grouped(self) -> None:
-        self.assertIn("<b>👋 Я @kartinkomet_bot</b>", format_start())
+        self.assertIn("<b>👋 @kartinkomet_bot на связи</b>", format_start())
         self.assertIn("😂 Рандом шуток", format_start())
         self.assertIn("⚔️ Дуэль пикч", format_start())
         self.assertIn("🥊 Дуэль шуток", format_start())
@@ -485,12 +523,16 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>⚔️ Дуэли и турнир</b>", format_help())
         self.assertIn("/weather", format_help())
         self.assertNotIn("/mood", format_help())
-        self.assertIn("Загрузка пикч - в личке", format_upload_private_only())
+        self.assertIn("Загрузка пикч — в личке", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>1000 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
         self.assertIn("/upload_joke", format_upload_not_active())
-        self.assertIn("Блокнот пуст", format_empty_joke_pool())
+        self.assertIn("Склад пикч пуст", format_empty_picture_pool("Пусто <тест>"))
+        self.assertIn("Пусто &lt;тест&gt;", format_empty_picture_pool("Пусто <тест>"))
+        self.assertIn("Как загрузить пикчи", format_empty_picture_pool("Пусто"))
+        self.assertIn("Блокнот шуток пуст", format_empty_joke_pool())
+        self.assertIn("Загрузить шутки", format_empty_joke_pool(is_private=True))
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
 
     def test_joke_duel_score_and_result_are_quoted(self) -> None:
