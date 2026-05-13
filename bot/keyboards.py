@@ -3,8 +3,13 @@ from functools import lru_cache
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
-@lru_cache(maxsize=2)
-def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
+@lru_cache(maxsize=16)
+def main_menu(
+    is_private: bool = False,
+    image_duel_active: bool = False,
+    joke_duel_active: bool = False,
+    tournament_active: bool = False,
+) -> InlineKeyboardMarkup:
     upload_row = [
         InlineKeyboardButton(
             text="📥 Загрузить пикчи" if is_private else "📬 Загрузка пикч",
@@ -20,12 +25,21 @@ def main_menu(is_private: bool = False) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="😂 Рандом шуток", callback_data="joke"),
     ]
     duel_row = [
-        InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new"),
-        InlineKeyboardButton(text="🥊 Дуэль шуток", callback_data="joke_duel_new"),
+        InlineKeyboardButton(
+            text="⚔️ Пикчи · идёт" if image_duel_active else "⚔️ Дуэль пикч",
+            callback_data="duel_new",
+        ),
+        InlineKeyboardButton(
+            text="🥊 Шутки · идёт" if joke_duel_active else "🥊 Дуэль шуток",
+            callback_data="joke_duel_new",
+        ),
     ]
     utility_rows = [
         [
-            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
+            InlineKeyboardButton(
+                text="🏟 Турнир · идёт" if tournament_active else "🏟 Турнир",
+                callback_data="tournament_new",
+            ),
             InlineKeyboardButton(text="📊 Сводка склада", callback_data="stats"),
         ],
         [

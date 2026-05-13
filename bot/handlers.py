@@ -453,7 +453,7 @@ def build_router(
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        await show_menu(message)
+        await show_menu(message, image_pool, joke_pool)
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
@@ -463,7 +463,7 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await show_menu(message)
+        await show_menu(message, image_pool, joke_pool)
 
     @router.message(Command("pic"))
     @router.channel_post(Command("pic"))
@@ -684,7 +684,7 @@ def build_router(
     async def menu_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await show_menu(callback.message)
+            await show_menu(callback.message, image_pool, joke_pool)
         await callback.answer()
 
     @router.callback_query(F.data == "me")
@@ -2205,21 +2205,34 @@ def parse_user_id_argument(message: Message) -> int | None:
     return int(raw_user_id)
 
 
-async def show_menu(message: Message) -> None:
+async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool) -> None:
     is_private = is_private_chat(message)
     upload_note = (
         "загрузка доступна прямо здесь"
         if is_private
         else "загрузка открывается в личке"
     )
+    chat_id = message.chat.id
+    image_duel_active = active_duel_id_for_chat(chat_id, "image") is not None
+    joke_duel_active = active_duel_id_for_chat(chat_id, "joke") is not None
+    tournament_active = active_tournament_id_for_chat(chat_id) is not None
     await message.answer(
         "<b>🎛 Пульт kartinkomet</b>\n\n"
-        "<b>🎲 Рандом</b> — пикчи и шутки\n"
-        "<b>⚔️ Арены</b> — дуэли и турнир\n"
-        "<b>📦 Склад</b> — сводка, топ, профиль, погода\n"
-        f"<b>📥 Загрузка</b> — {upload_note}",
+        "<b>📦 Склад</b>\n"
+        f"Пикчи: <b>{image_pool.count()}</b> · Анекдоты: <b>{joke_pool.count()}</b>\n\n"
+        "<b>🟢 Арены</b>\n"
+        f"Пикчи: <b>{active_duel_status(chat_id, 'image')}</b> · "
+        f"Шутки: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
+        f"Турнир: <b>{active_tournament_status(chat_id)}</b>\n\n"
+        "<b>📥 Загрузка</b>\n"
+        f"{upload_note}",
         parse_mode="HTML",
-        reply_markup=main_menu(is_private=is_private),
+        reply_markup=main_menu(
+            is_private=is_private,
+            image_duel_active=image_duel_active,
+            joke_duel_active=joke_duel_active,
+            tournament_active=tournament_active,
+        ),
     )
 
 
@@ -2252,10 +2265,11 @@ def format_stats(
 
     sections = [
         "<b>📊 Сводка kartinkomet</b>",
-        format_section("📦 Пул", *pool_lines),
-        format_section("🎲 Рандом", *random_lines),
+        "Склад, выдача и народный суд без бухгалтерского занудства",
+        format_section("📦 Склад", *pool_lines),
+        format_section("🎲 Выдача", *random_lines),
         format_section(
-            "⚔️ Игры",
+            "⚔️ Арены",
             format_metric("Дуэли", stats.total_duels),
             format_metric("Удалений после дуэлей", stats.duel_executions),
             format_metric("Мирных дуэлей", stats.duel_ties),
@@ -2366,6 +2380,8 @@ def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
     )
     return (
         "<b>📦 Склад</b>\n\n"
+        "Короткая инвентаризация общего хаоса\n\n"
+        "<b>Контент</b>\n"
         f"{format_metric('Пикчи', image_pool.count())}"
         f"{joke_line}"
     )
@@ -2474,7 +2490,7 @@ def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
     return (
         "<b>📭 Склад пикч пуст</b>\n\n"
         f"{escape(phrase)}\n\n"
-        "<b>Что делать</b>\n"
+        "<b>Маршрут</b>\n"
         f"{action}"
     )
 
@@ -2488,7 +2504,7 @@ def format_empty_joke_pool(is_private: bool = False) -> str:
     return (
         "<b>📭 Блокнот шуток пуст</b>\n\n"
         "Пока тут тишина, как на корпоративе без микрофона\n\n"
-        "<b>Что делать</b>\n"
+        "<b>Маршрут</b>\n"
         f"{action}"
     )
 
@@ -2599,7 +2615,8 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     next_achievement = next_achievement_for(uploaded_count)
     combo_achievements = combo_achievements_for(reaction_stats)
     lines = [
-        "<b>👤 Профиль игрока</b>",
+        "<b>👤 Карточка игрока</b>",
+        "Личный след в общем складе",
         "",
         "<b>📦 Вклад</b>",
         format_metric("Загружено пикч", uploaded_count),
@@ -2641,18 +2658,18 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     if not top_uploaders:
         return (
             "<b>🏆 Топ загрузчиков пикч</b>\n\n"
-            "Пьедестал пуст. Пока никто не занёс пикчи в общий котёл"
+            "Элита склада пока пустует. Кто-то должен занести первую пикчу"
         )
 
     lines = ["<b>🏆 Топ загрузчиков пикч</b>", ""]
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
         if position == 1:
-            lines.append("<b>👑 Пьедестал</b>")
+            lines.append("<b>👑 Элита склада</b>")
             lines.append("")
         if position == 4:
             lines.append("")
-            lines.append("<b>📦 Остальные поставщики</b>")
+            lines.append("<b>📦 Рабочий класс</b>")
             lines.append("")
 
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
@@ -2758,21 +2775,21 @@ def format_duel_score(
 def format_duel_result(left_votes: int, right_votes: int, winner: str | None) -> str:
     if winner is None:
         phrase = random_duel_tie_phrase()
-        verdict = "⚖️ Ничья. Обе пикчи остаются в пуле"
+        verdict = "⚖️ Ничья\n📦 Обе пикчи остаются на складе"
     elif winner == "left":
         phrase = random_duel_win_phrase()
-        verdict = "👑 Осталась: <b>🅰️ первая</b>\n🗑 Удалена: <b>🅱️ вторая</b>"
+        verdict = "🏆 Победитель: <b>🅰️ первая</b>\n🗑 Удалена: <b>🅱️ вторая</b>"
     else:
         phrase = random_duel_win_phrase()
-        verdict = "👑 Осталась: <b>🅱️ вторая</b>\n🗑 Удалена: <b>🅰️ первая</b>"
+        verdict = "🏆 Победитель: <b>🅱️ вторая</b>\n🗑 Удалена: <b>🅰️ первая</b>"
 
     return (
-        "<b>🏁 Вердикт арены</b>\n\n"
+        "<b>⚖️ Приговор арены</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
-        "<b>Решение</b>\n"
+        "<b>Вердикт</b>\n"
         f"{verdict}"
     )
 
@@ -2811,21 +2828,21 @@ def format_joke_duel_result(
 ) -> str:
     if winner is None:
         phrase = random_joke_duel_tie_phrase()
-        verdict = "⚖️ Ничья. Оба анекдота остаются в блокноте"
+        verdict = "⚖️ Ничья\n📒 Оба анекдота остаются в блокноте"
     elif winner == "left":
         phrase = random_joke_duel_win_phrase()
-        verdict = "👑 Остался: <b>🅰️ первый</b>\n🗑 Удалён: <b>🅱️ второй</b>"
+        verdict = "🏆 Победитель: <b>🅰️ первый</b>\n🗑 Удалён: <b>🅱️ второй</b>"
     else:
         phrase = random_joke_duel_win_phrase()
-        verdict = "👑 Остался: <b>🅱️ второй</b>\n🗑 Удалён: <b>🅰️ первый</b>"
+        verdict = "🏆 Победитель: <b>🅱️ второй</b>\n🗑 Удалён: <b>🅰️ первый</b>"
 
     return (
-        "<b>🏁 Вердикт арены шуток</b>\n\n"
+        "<b>⚖️ Приговор арены шуток</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
-        "<b>Решение</b>\n"
+        "<b>Вердикт</b>\n"
         f"{verdict}"
     )
 
@@ -2858,18 +2875,18 @@ def format_tournament_score(
 def format_tournament_result(votes: list[int], winner: int | None) -> str:
     if winner is None:
         phrase = random_tournament_tie_phrase()
-        verdict = "⚖️ Чемпион не выбран. Все пикчи остаются в пуле"
+        verdict = "⚖️ Чемпион не выбран\n📦 Все пикчи остаются на складе"
     else:
         phrase = random_tournament_win_phrase()
-        verdict = f"👑 Чемпион: <b>{tournament_option_label(winner)}</b>\n📦 Остальные остаются в пуле"
+        verdict = f"👑 Чемпион: <b>{tournament_option_label(winner)}</b>\n📦 Остальные остаются на складе"
 
     return (
-        "<b>🏁 Финал турнира</b>\n\n"
+        "<b>🏁 Финал витрины</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
         f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
         f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
-        "<b>Решение</b>\n"
+        "<b>Итог</b>\n"
         f"{verdict}"
     )
 

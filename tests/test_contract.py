@@ -251,6 +251,21 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(private_buttons[:2], ["📥 Загрузить пикчи", "📝 Загрузить шутки"])
         self.assertIn("🏟 Турнир", private_buttons)
 
+    def test_main_keyboard_can_show_active_arena_state(self) -> None:
+        buttons = [
+            button.text
+            for row in main_menu(
+                image_duel_active=True,
+                joke_duel_active=True,
+                tournament_active=True,
+            ).inline_keyboard
+            for button in row
+        ]
+
+        self.assertIn("⚔️ Пикчи · идёт", buttons)
+        self.assertIn("🥊 Шутки · идёт", buttons)
+        self.assertIn("🏟 Турнир · идёт", buttons)
+
     def test_upload_keyboard_has_finish_and_cancel(self) -> None:
         upload_buttons = [button.text for row in upload_menu().inline_keyboard for button in row]
 
@@ -397,9 +412,9 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("🅰️ Первый: <b>2</b>\n🅱️ Второй: <b>1</b>\n\n<b>Статус</b>", score)
         self.assertIn("<b>45 сек</b>", score)
         self.assertIn("🔥 Ведёт 🅰️", score)
-        self.assertIn("👑 Осталась: <b>🅰️ первая</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🏆 Победитель: <b>🅰️ первая</b>", format_duel_result(2, 1, "left"))
         self.assertIn("🗑 Удалена: <b>🅱️ вторая</b>", format_duel_result(2, 1, "left"))
-        self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
+        self.assertIn("📦 Обе пикчи остаются на складе", format_duel_result(1, 1, None))
 
     def test_duel_vote_keyboard_matches_score_labels(self) -> None:
         buttons = [button.text for row in duel_vote("duel-id", 2, 1).inline_keyboard for button in row]
@@ -422,7 +437,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("👑 Ведёт: <b>2️⃣ Вторая</b>", score)
         self.assertIn("👑 Чемпион: <b>2️⃣ Вторая</b>", format_tournament_result([1, 3, 0, 2], 1))
         self.assertIn(
-            "⚖️ Чемпион не выбран. Все пикчи остаются в пуле",
+            "📦 Все пикчи остаются на складе",
             format_tournament_result([1, 1, 0, 0], None),
         )
 
@@ -551,7 +566,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("🅰️ Первый: <b>1</b>\n🅱️ Второй: <b>2</b>\n\n<b>Статус</b>", score)
         self.assertIn("🔥 Ведёт 🅱️", score)
         self.assertIn("🗑 Удалён: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
-        self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
+        self.assertIn("📒 Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
 
     def test_joke_duel_defaults_to_two_minutes_and_does_not_trim_text(self) -> None:
         long_text = "а" * 8000
@@ -590,6 +605,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("пасмурно", text)
         self.assertIn("+12°C", text)
         self.assertIn("42%", text)
+        self.assertIn("<b>Вердикт</b>", text)
 
     def test_weather_payload_parser(self) -> None:
         payload = {
@@ -891,7 +907,7 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.duel_ties, 1)
             self.assertEqual(stats.total_tournaments, 2)
             self.assertEqual(stats.tournament_ties, 1)
-            self.assertIn("<b>⚔️ Игры</b>", format_stats(pool))
+            self.assertIn("<b>⚔️ Арены</b>", format_stats(pool))
             self.assertIn("Удалений после дуэлей: <b>1</b>", format_stats(pool))
             self.assertIn("Турниры: <b>2</b>", format_stats(pool))
 
@@ -1054,7 +1070,7 @@ class ImagePoolTest(unittest.TestCase):
 
             self.assertEqual(pool.user_label(10), "artem")
             top_text = format_top_uploaders(pool)
-            self.assertIn("<b>👑 Пьедестал</b>", top_text)
+            self.assertIn("<b>👑 Элита склада</b>", top_text)
             self.assertIn("🥇 <b>artem</b> — <b>1</b> пикч", top_text)
             self.assertNotIn("@artem", top_text)
 

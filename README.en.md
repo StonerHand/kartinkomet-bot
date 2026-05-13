@@ -70,6 +70,13 @@ Main panel:
 📬 Загрузка пикч    📝 Загрузить шутки
 ```
 
+If an arena is already busy, the button says so:
+
+```text
+⚔️ Пикчи · идёт    🥊 Шутки · идёт
+🏟 Турнир · идёт
+```
+
 In private chat, uploads move to the top:
 
 ```text
@@ -110,13 +117,13 @@ Leaderboard example:
 ```text
 🏆 Топ загрузчиков пикч
 
-👑 Пьедестал
+👑 Элита склада
 
 🥇 TakaKenshi — 3441 пикч · картинный монополист
 🥈 Art_Denisovich — 242 пикч · архитектор мемного склада
 🥉 Михаил — 49 пикч · человек с подозрительной галереей
 
-📦 Остальные поставщики
+📦 Рабочий класс
 
 4. asobi_seksu — 46 пикч · человек с подозрительной галереей
 5. fata11st — 1 пикч · первый вброс
@@ -128,15 +135,15 @@ Stats example:
 ```text
 📊 Сводка kartinkomet
 
-📦 Пул
+📦 Склад
 Пикчи: 3823
 Анекдоты: 128
 
-🎲 Рандом
+🎲 Выдача
 Пикчи выданы: 2410
 Анекдоты выданы: 54
 
-⚔️ Игры
+⚔️ Арены
 Дуэли: 37
 Удалений после дуэлей: 29
 Мирных дуэлей: 8
@@ -167,6 +174,38 @@ Arena example:
 
 Статус
 ⏱ 45 сек · 🔥 Ведёт 🅰️
+```
+
+Duel result example:
+
+```text
+⚖️ Приговор арены
+
+Рандом записал приговор. Победитель остаётся на складе
+
+Счёт
+🅰️ Первый: 4
+🅱️ Второй: 1
+
+Вердикт
+🏆 Победитель: 🅰️ первая
+🗑 Удалена: 🅱️ вторая
+```
+
+Menu example:
+
+```text
+🎛 Пульт kartinkomet
+
+📦 Склад
+Пикчи: 3823 · Анекдоты: 128
+
+🟢 Арены
+Пикчи: свободно · Шутки: идёт, 82 сек
+Турнир: свободно
+
+📥 Загрузка
+загрузка открывается в личке
 ```
 
 Joke example:
@@ -241,7 +280,7 @@ Jokes follow the same idea: the bot keeps per-chat delivery history, chooses fro
 
 Weather data is fetched without an API key. Users do not pick or type a city.
 
-The response is a clean card with temperature, feels-like value, sky state, daily range, precipitation, and wind. Weather is cached for `10` minutes so repeated button taps do not hit the external API every time.
+The response is a clean card with temperature, feels-like value, sky state, daily range, precipitation, wind, and a short verdict. Weather is cached for `10` minutes so repeated button taps do not hit the external API every time.
 
 ## Jokes
 

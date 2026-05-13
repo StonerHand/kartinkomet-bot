@@ -158,6 +158,7 @@ def parse_weather_report(payload: dict[str, Any]) -> WeatherReport:
 def format_weather_report(report: WeatherReport) -> str:
     condition = WEATHER_CODES.get(report.weather_code, f"код погоды {report.weather_code}")
     emoji = WEATHER_EMOJIS.get(report.weather_code, "🌦")
+    verdict = weather_verdict(report)
     rain_line = (
         "• Осадки: <b>нет данных</b>"
         if report.precipitation_probability is None
@@ -174,7 +175,9 @@ def format_weather_report(report: WeatherReport) -> str:
         f"• Коридор: <b>{format_degrees(report.daily_min)}</b> → "
         f"<b>{format_degrees(report.daily_max)}</b>\n"
         f"{rain_line}\n"
-        f"• Ветер: <b>{report.wind_speed:.0f} км/ч</b>"
+        f"• Ветер: <b>{report.wind_speed:.0f} км/ч</b>\n\n"
+        "<b>Вердикт</b>\n"
+        f"{escape(verdict)}"
     )
 
 
@@ -187,6 +190,25 @@ def format_weather_error() -> str:
 
 def format_degrees(value: float) -> str:
     return f"{value:+.0f}°C"
+
+
+def weather_verdict(report: WeatherReport) -> str:
+    if report.weather_code in {95, 96, 99}:
+        return "небо шумит, геройствовать без нужды не надо"
+    if report.weather_code in {61, 63, 65, 66, 67, 80, 81, 82}:
+        return "зонт не понты, сегодня он почти броня"
+    if report.weather_code in {71, 73, 75, 77, 85, 86}:
+        return "снег включён, обувь выбирай без самоуважения"
+    if report.wind_speed >= 30:
+        return "ветер бодрый, кепку держать руками"
+    if report.apparent_temperature <= 0:
+        return "холод кусается, куртку не игнорируй"
+    if report.apparent_temperature >= 28:
+        return "жара давит, воду держи ближе к телу"
+    if report.weather_code in {0, 1}:
+        return "погода ведёт себя прилично, подозрительно даже"
+
+    return "можно жить, но без лишнего героизма"
 
 
 def _optional_int(values: object) -> int | None:
