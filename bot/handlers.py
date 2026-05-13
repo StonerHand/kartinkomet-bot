@@ -2675,7 +2675,8 @@ def format_duel_score(
         f"{escape(title or random_duel_start_phrase())}\n"
         f"{escape(status or random_duel_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ <b>{left_votes}</b> · 🅱️ <b>{right_votes}</b>\n\n"
+        f"🅰️ Первый: <b>{left_votes}</b>\n"
+        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Статус</b>\n"
         f"⏱ <b>{seconds_left} сек</b> · {verdict}"
     )
@@ -2687,16 +2688,17 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
         verdict = "⚖️ Ничья. Обе пикчи остаются в пуле"
     elif winner == "left":
         phrase = random_duel_win_phrase()
-        verdict = "👑 Осталась: <b>🅰️ слева</b>\n🗑 Удалена: <b>🅱️ справа</b>"
+        verdict = "👑 Осталась: <b>🅰️ первая</b>\n🗑 Удалена: <b>🅱️ вторая</b>"
     else:
         phrase = random_duel_win_phrase()
-        verdict = "👑 Осталась: <b>🅱️ справа</b>\n🗑 Удалена: <b>🅰️ слева</b>"
+        verdict = "👑 Осталась: <b>🅱️ вторая</b>\n🗑 Удалена: <b>🅰️ первая</b>"
 
     return (
         "<b>🏁 Вердикт арены</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ <b>{left_votes}</b> · 🅱️ <b>{right_votes}</b>\n\n"
+        f"🅰️ Первый: <b>{left_votes}</b>\n"
+        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Решение</b>\n"
         f"{verdict}"
     )
@@ -2722,7 +2724,8 @@ def format_joke_duel_score(
         f"{escape(title or random_joke_duel_start_phrase())}\n"
         f"{escape(status or random_joke_duel_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ <b>{left_votes}</b> · 🅱️ <b>{right_votes}</b>\n\n"
+        f"🅰️ Первый: <b>{left_votes}</b>\n"
+        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Статус</b>\n"
         f"⏱ <b>{seconds_left} сек</b> · {verdict}"
     )
@@ -2747,7 +2750,8 @@ def format_joke_duel_result(
         "<b>🏁 Вердикт арены шуток</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ <b>{left_votes}</b> · 🅱️ <b>{right_votes}</b>\n\n"
+        f"🅰️ Первый: <b>{left_votes}</b>\n"
+        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Решение</b>\n"
         f"{verdict}"
     )
@@ -2771,8 +2775,8 @@ def format_tournament_score(
         f"{escape(title or random_tournament_start_phrase())}\n"
         f"{escape(status or random_tournament_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
-        f"1️⃣ <b>{votes[0]}</b> · 2️⃣ <b>{votes[1]}</b>\n"
-        f"3️⃣ <b>{votes[2]}</b> · 4️⃣ <b>{votes[3]}</b>\n\n"
+        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
+        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
         "<b>Статус</b>\n"
         f"⏱ <b>{seconds_left} сек</b> · {verdict}"
     )
@@ -2790,15 +2794,15 @@ def format_tournament_result(votes: list[int], winner: int | None) -> str:
         "<b>🏁 Финал турнира</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
-        f"1️⃣ <b>{votes[0]}</b> · 2️⃣ <b>{votes[1]}</b>\n"
-        f"3️⃣ <b>{votes[2]}</b> · 4️⃣ <b>{votes[3]}</b>\n\n"
+        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
+        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
         "<b>Решение</b>\n"
         f"{verdict}"
     )
 
 
 def tournament_option_label(index: int) -> str:
-    labels = ["1️⃣ первая", "2️⃣ вторая", "3️⃣ третья", "4️⃣ четвёртая"]
+    labels = ["1️⃣ Первая", "2️⃣ Вторая", "3️⃣ Третья", "4️⃣ Четвёртая"]
     return labels[index]
 
 

@@ -62,11 +62,11 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"🅰️ Слева · {left_votes}",
+                    text=f"🅰️ Первый: {left_votes}",
                     callback_data=f"duel:{duel_id}:left",
                 ),
                 InlineKeyboardButton(
-                    text=f"🅱️ Справа · {right_votes}",
+                    text=f"🅱️ Второй: {right_votes}",
                     callback_data=f"duel:{duel_id}:right",
                 ),
             ],
@@ -92,11 +92,11 @@ def joke_duel_vote(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"🅰️ Первый · {left_votes}",
+                    text=f"🅰️ Первый: {left_votes}",
                     callback_data=f"joke_duel:{duel_id}:left",
                 ),
                 InlineKeyboardButton(
-                    text=f"🅱️ Второй · {right_votes}",
+                    text=f"🅱️ Второй: {right_votes}",
                     callback_data=f"joke_duel:{duel_id}:right",
                 ),
             ],
@@ -122,21 +122,21 @@ def tournament_vote(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"1️⃣ Первая · {counts[0]}",
+                    text=f"1️⃣ Первая: {counts[0]}",
                     callback_data=f"tournament:{tournament_id}:0",
                 ),
                 InlineKeyboardButton(
-                    text=f"2️⃣ Вторая · {counts[1]}",
+                    text=f"2️⃣ Вторая: {counts[1]}",
                     callback_data=f"tournament:{tournament_id}:1",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text=f"3️⃣ Третья · {counts[2]}",
+                    text=f"3️⃣ Третья: {counts[2]}",
                     callback_data=f"tournament:{tournament_id}:2",
                 ),
                 InlineKeyboardButton(
-                    text=f"4️⃣ Четвёртая · {counts[3]}",
+                    text=f"4️⃣ Четвёртая: {counts[3]}",
                     callback_data=f"tournament:{tournament_id}:3",
                 ),
             ],

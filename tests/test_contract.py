@@ -62,6 +62,7 @@ from bot.handlers import (
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool, normalize_joke_text
 from bot.keyboards import (
+    duel_vote,
     joke_actions,
     joke_actions_with_counts,
     joke_duel_vote,
@@ -283,7 +284,7 @@ class BotContractTest(unittest.TestCase):
         ]
         new_buttons = [button.text for row in new_joke_duel().inline_keyboard for button in row]
 
-        self.assertEqual(buttons, ["🅰️ Первый · 3", "🅱️ Второй · 2"])
+        self.assertEqual(buttons, ["🅰️ Первый: 3", "🅱️ Второй: 2"])
         self.assertEqual(callbacks, ["joke_duel:duel-id:left", "joke_duel:duel-id:right"])
         self.assertEqual(new_buttons, ["🥊 Реванш шуток"])
 
@@ -303,7 +304,7 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(
             buttons,
-            ["1️⃣ Первая · 1", "2️⃣ Вторая · 2", "3️⃣ Третья · 3", "4️⃣ Четвёртая · 4"],
+            ["1️⃣ Первая: 1", "2️⃣ Вторая: 2", "3️⃣ Третья: 3", "4️⃣ Четвёртая: 4"],
         )
         self.assertEqual(
             callbacks,
@@ -357,12 +358,17 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<b>⚔️ Арена пикч</b>", score)
         self.assertIn("Суд мемов", score)
         self.assertIn("Чат держит паузу", score)
-        self.assertIn("🅰️ <b>2</b> · 🅱️ <b>1</b>\n\n<b>Статус</b>", score)
+        self.assertIn("🅰️ Первый: <b>2</b>\n🅱️ Второй: <b>1</b>\n\n<b>Статус</b>", score)
         self.assertIn("<b>45 сек</b>", score)
         self.assertIn("🔥 Ведёт 🅰️", score)
-        self.assertIn("👑 Осталась: <b>🅰️ слева</b>", format_duel_result(2, 1, "left"))
-        self.assertIn("🗑 Удалена: <b>🅱️ справа</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("👑 Осталась: <b>🅰️ первая</b>", format_duel_result(2, 1, "left"))
+        self.assertIn("🗑 Удалена: <b>🅱️ вторая</b>", format_duel_result(2, 1, "left"))
         self.assertIn("⚖️ Ничья. Обе пикчи остаются в пуле", format_duel_result(1, 1, None))
+
+    def test_duel_vote_keyboard_matches_score_labels(self) -> None:
+        buttons = [button.text for row in duel_vote("duel-id", 2, 1).inline_keyboard for button in row]
+
+        self.assertEqual(buttons, ["🅰️ Первый: 2", "🅱️ Второй: 1"])
 
     def test_tournament_score_format(self) -> None:
         score = format_tournament_score(
@@ -374,10 +380,11 @@ class BotContractTest(unittest.TestCase):
 
         self.assertIn("<b>🏟 Турнир пикч</b>", score)
         self.assertIn("Сетка пикч", score)
-        self.assertIn("1️⃣ <b>1</b> · 2️⃣ <b>3</b>", score)
+        self.assertIn("1️⃣ Первая: <b>1</b> · 2️⃣ Вторая: <b>3</b>", score)
+        self.assertIn("3️⃣ Третья: <b>0</b> · 4️⃣ Четвёртая: <b>2</b>", score)
         self.assertIn("<b>77 сек</b>", score)
-        self.assertIn("👑 Ведёт: <b>2️⃣ вторая</b>", score)
-        self.assertIn("👑 Чемпион: <b>2️⃣ вторая</b>", format_tournament_result([1, 3, 0, 2], 1))
+        self.assertIn("👑 Ведёт: <b>2️⃣ Вторая</b>", score)
+        self.assertIn("👑 Чемпион: <b>2️⃣ Вторая</b>", format_tournament_result([1, 3, 0, 2], 1))
         self.assertIn(
             "⚖️ Чемпион не выбран. Все пикчи остаются в пуле",
             format_tournament_result([1, 1, 0, 0], None),
@@ -499,7 +506,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", entry)
         self.assertIn("<b>😂⚔️ Арена шуток</b>", score)
         self.assertIn("Суд шуток", score)
-        self.assertIn("🅰️ <b>1</b> · 🅱️ <b>2</b>\n\n<b>Статус</b>", score)
+        self.assertIn("🅰️ Первый: <b>1</b>\n🅱️ Второй: <b>2</b>\n\n<b>Статус</b>", score)
         self.assertIn("🔥 Ведёт 🅱️", score)
         self.assertIn("🗑 Удалён: <b>🅰️ первый</b>", format_joke_duel_result(1, 2, "right"))
         self.assertIn("⚖️ Ничья. Оба анекдота остаются в блокноте", format_joke_duel_result(1, 1, None))
