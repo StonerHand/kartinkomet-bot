@@ -504,7 +504,7 @@ class BotContractTest(unittest.TestCase):
         )
 
         self.assertIn("<blockquote>Первый &lt;текст&gt;</blockquote>", entry)
-        self.assertIn("<b>😂⚔️ Арена шуток</b>", score)
+        self.assertIn("<b>🥊 Арена шуток</b>", score)
         self.assertIn("Суд шуток", score)
         self.assertIn("🅰️ Первый: <b>1</b>\n🅱️ Второй: <b>2</b>\n\n<b>Статус</b>", score)
         self.assertIn("🔥 Ведёт 🅱️", score)

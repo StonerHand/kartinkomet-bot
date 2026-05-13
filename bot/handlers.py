@@ -2720,7 +2720,7 @@ def format_joke_duel_score(
 
     seconds_left = JOKE_DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
     return (
-        "<b>😂⚔️ Арена шуток</b>\n\n"
+        "<b>🥊 Арена шуток</b>\n\n"
         f"{escape(title or random_joke_duel_start_phrase())}\n"
         f"{escape(status or random_joke_duel_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
