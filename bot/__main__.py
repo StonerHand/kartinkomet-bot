@@ -12,22 +12,20 @@ from bot.joke_pool import JokePool
 
 
 BOT_COMMANDS = [
-    BotCommand(command="pic", description="рандомная пикча"),
-    BotCommand(command="joke", description="рандомный анекдот"),
-    BotCommand(command="duel", description="дуэль двух пикч"),
-    BotCommand(command="jokeduel", description="дуэль двух анекдотов"),
+    BotCommand(command="start", description="запустить картинный реактор"),
+    BotCommand(command="menu", description="открыть главный пульт"),
+    BotCommand(command="pic", description="выдать случайную пикчу"),
+    BotCommand(command="joke", description="достать случайный анекдот"),
+    BotCommand(command="duel", description="устроить дуэль пикч"),
+    BotCommand(command="jokeduel", description="устроить дуэль анекдотов"),
     BotCommand(command="tournament", description="турнир четырёх пикч"),
-    BotCommand(command="weather", description="погода в Малой Токмачке"),
-    BotCommand(command="menu", description="пульт управления"),
-    BotCommand(command="upload_pidor", description="загрузка пикч в личке"),
-    BotCommand(command="upload_joke", description="загрузка анекдотов в личке"),
-    BotCommand(command="done", description="закончить загрузку"),
-    BotCommand(command="cancel", description="отменить загрузку"),
-    BotCommand(command="stats", description="общая сводка"),
-    BotCommand(command="me", description="мой вклад и достижения"),
-    BotCommand(command="top", description="топ загрузчиков"),
-    BotCommand(command="count", description="размер общего пула"),
-    BotCommand(command="help", description="справка"),
+    BotCommand(command="weather", description="погода Малой Токмачки"),
+    BotCommand(command="upload_pidor", description="загрузить пикчи в личке"),
+    BotCommand(command="upload_joke", description="загрузить анекдоты в личке"),
+    BotCommand(command="stats", description="сводка склада"),
+    BotCommand(command="me", description="моя карточка игрока"),
+    BotCommand(command="top", description="топ поставщиков пикч"),
+    BotCommand(command="help", description="карта команд"),
 ]
 
 

@@ -30,26 +30,32 @@ The bot does not store image files on the server. It stores Telegram `file_id` a
 
 ## Commands
 
+The public Telegram command menu stays short: only the commands people are likely to launch by hand.
+
 | Command | Action |
 | --- | --- |
-| `/pic` | Send a random image |
-| `/joke` | Send a random joke |
-| `/duel` | Start a duel between two random images |
-| `/jokeduel` | Start a duel between two random jokes |
-| `/tournament` | Start a four-image tournament |
-| `/weather` | Show weather for Mala Tokmachka |
+| `/start` | Start the image reactor |
 | `/menu` | Open the main control panel |
-| `/upload_pidor` | Start upload mode in private chat |
-| `/upload_joke` | Start joke upload mode in private chat |
-| `/done` | Finish upload mode |
-| `/cancel` | Cancel upload mode |
-| `/stats` | Show pool, random, duel, and reaction stats |
-| `/me` | Show your contribution and achievements |
-| `/top` | Show the upload leaderboard |
-| `/count` | Show image and joke counts |
-| `/help` | Show help |
+| `/pic` | Pull a random image from the warehouse |
+| `/joke` | Pull a random joke from the notebook |
+| `/duel` | Start an image duel |
+| `/jokeduel` | Start a joke duel |
+| `/tournament` | Start a four-image tournament |
+| `/weather` | Show Mala Tokmachka weather |
+| `/upload_pidor` | Upload images in private chat |
+| `/upload_joke` | Upload jokes in private chat |
+| `/stats` | Show warehouse and arena stats |
+| `/me` | Show your player card |
+| `/top` | Show the image supplier leaderboard |
+| `/help` | Show the command map |
 
 There is intentionally no `/upload` command. Upload commands are explicit: `/upload_pidor` for images and `/upload_joke` for jokes.
+
+Working, but hidden from the public command menu:
+
+- `/done` - finish the current upload session
+- `/cancel` - cancel the current upload session
+- `/count` - quick image and joke counter
 
 Hidden maintenance commands:
 

@@ -141,24 +141,23 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(
             commands,
             [
+                "start",
+                "menu",
                 "pic",
                 "joke",
                 "duel",
                 "jokeduel",
                 "tournament",
                 "weather",
-                "menu",
                 "upload_pidor",
                 "upload_joke",
-                "done",
-                "cancel",
                 "stats",
                 "me",
                 "top",
-                "count",
                 "help",
             ],
         )
+        self.assertIn("start", commands)
         self.assertIn("upload_pidor", commands)
         self.assertIn("upload_joke", commands)
         self.assertIn("joke", commands)
@@ -168,6 +167,9 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("jokeduel", commands)
         self.assertIn("tournament", commands)
         self.assertNotIn("upload", commands)
+        self.assertNotIn("done", commands)
+        self.assertNotIn("cancel", commands)
+        self.assertNotIn("count", commands)
         self.assertNotIn("addpack_pidor", commands)
         self.assertNotIn("dedupe_user", commands)
 
@@ -531,12 +533,13 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("🏟 Турнир", format_start())
         self.assertIn("📝 Загрузить шутки", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
-        self.assertIn("<b>🎲 Рандом</b>", format_help())
+        self.assertIn("<b>🎲 Выдача</b>", format_help())
         self.assertIn("/upload_joke", format_help())
         self.assertIn("/jokeduel", format_help())
         self.assertIn("/tournament", format_help())
-        self.assertIn("<b>⚔️ Дуэли и турнир</b>", format_help())
+        self.assertIn("<b>⚔️ Арены</b>", format_help())
         self.assertIn("/weather", format_help())
+        self.assertIn("Внутри загрузки", format_help())
         self.assertNotIn("/mood", format_help())
         self.assertIn("Загрузка пикч — в личке", format_upload_private_only())
         self.assertIn("/upload_pidor", format_upload_private_only())
