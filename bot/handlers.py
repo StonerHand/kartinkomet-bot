@@ -42,7 +42,6 @@ from bot.texts import (
     EMPTY_POOL_PHRASES,
     JURY_THRESHOLDS,
     PICTURE_CAPTIONS,
-    UPLOAD_FINISH_PHRASES,
     UPLOAD_START_PHRASES,
 )
 from bot.weather import format_weather_error, format_weather_report, get_mala_tokmachka_weather
@@ -800,7 +799,12 @@ def build_router(
                 image_pool.delete(image.id)
                 try:
                     await callback.message.edit_reply_markup(reply_markup=None)
-                    await callback.message.reply("Два средних пальца. Пикча удалена из пула")
+                    await callback.message.reply(
+                        "<b>⚖️ Народный суд</b>\n\n"
+                        "🖕🏻 <b>2</b> голоса\n"
+                        "🗑 Пикча удалена со склада",
+                        parse_mode="HTML",
+                    )
                 except TelegramAPIError:
                     LOGGER.warning("Failed to mark auto-deleted image message", exc_info=True)
                 await callback.answer("Народный суд сработал")
@@ -848,7 +852,12 @@ def build_router(
                 joke_pool.delete(joke.id)
                 try:
                     await callback.message.edit_reply_markup(reply_markup=None)
-                    await callback.message.reply("Два средних пальца. Анекдот удалён из пула")
+                    await callback.message.reply(
+                        "<b>⚖️ Народный суд</b>\n\n"
+                        "🖕🏻 <b>2</b> голоса\n"
+                        "🗑 Анекдот удалён из блокнота",
+                        parse_mode="HTML",
+                    )
                 except TelegramAPIError:
                     LOGGER.warning("Failed to mark auto-deleted joke message", exc_info=True)
                 await callback.answer("Народный суд сработал")
@@ -1154,7 +1163,8 @@ async def send_picture(
     await bot.send_photo(
         chat_id=destination_chat_id,
         photo=image.file_id,
-        caption=random_picture_caption(),
+        caption=format_picture_caption(image),
+        parse_mode="HTML",
         reply_markup=picture_actions(image.id),
     )
 
@@ -1194,7 +1204,7 @@ async def send_joke(
 
     await bot.send_message(
         chat_id=chat_id,
-        text=format_joke(joke.text),
+        text=format_joke(joke.text, likes=joke.likes, dislikes=joke.dislikes),
         parse_mode="HTML",
         reply_markup=joke_actions(joke.id),
     )
@@ -2093,10 +2103,10 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
 
     lines = [
         "<b>✅ Загрузка закрыта</b>",
-        escape(RANDOM.choice(UPLOAD_FINISH_PHRASES)),
+        "Пакет разобран и припаркован на складе",
         "",
         "<b>📦 Итог пакета</b>",
-        format_metric("✅ Пикч добавлено", added),
+        format_metric("✅ Добавлено", added),
         format_metric("♻️ Дублей", duplicates),
         format_metric("🚫 Не принято", failed),
     ]
@@ -2119,10 +2129,10 @@ async def finish_joke_upload(message: Message, state: FSMContext) -> None:
 
     lines = [
         "<b>✅ Загрузка шуток закрыта</b>",
-        "Устный фонд пополнен, тамада нервно уважает",
+        "Блокнот обновлён, лишнее отсеяно",
         "",
         "<b>📦 Итог пакета</b>",
-        format_metric("✅ Анекдотов добавлено", added),
+        format_metric("✅ Добавлено", added),
         format_metric("♻️ Баянов", duplicates),
         format_metric("🚫 Не принято", failed),
     ]
@@ -2208,14 +2218,17 @@ def parse_user_id_argument(message: Message) -> int | None:
 async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool) -> None:
     is_private = is_private_chat(message)
     upload_note = (
-        "загрузка доступна прямо здесь"
+        "личка открыта, можно заносить контент"
         if is_private
-        else "загрузка открывается в личке"
+        else "в группе только пульт, загрузка уходит в личку"
     )
     chat_id = message.chat.id
-    image_duel_active = active_duel_id_for_chat(chat_id, "image") is not None
-    joke_duel_active = active_duel_id_for_chat(chat_id, "joke") is not None
-    tournament_active = active_tournament_id_for_chat(chat_id) is not None
+    image_duel_seconds = active_duel_seconds(chat_id, "image")
+    joke_duel_seconds = active_duel_seconds(chat_id, "joke")
+    tournament_seconds = active_tournament_seconds(chat_id)
+    image_duel_active = image_duel_seconds is not None
+    joke_duel_active = joke_duel_seconds is not None
+    tournament_active = tournament_seconds is not None
     await message.answer(
         "<b>🎛 Пульт kartinkomet</b>\n\n"
         "<b>📦 Склад</b>\n"
@@ -2232,6 +2245,9 @@ async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool
             image_duel_active=image_duel_active,
             joke_duel_active=joke_duel_active,
             tournament_active=tournament_active,
+            image_duel_seconds=image_duel_seconds,
+            joke_duel_seconds=joke_duel_seconds,
+            tournament_seconds=tournament_seconds,
         ),
     )
 
@@ -2252,34 +2268,33 @@ def format_stats(
     stats = image_pool.stats()
     joke_stats = joke_pool.stats() if joke_pool else None
     pool_lines = [format_metric("Пикчи", stats.total_images)]
-    random_lines = [format_metric("Пикчи выданы", stats.total_shows)]
+    random_lines = [format_metric("Пикчи", stats.total_shows)]
     reaction_lines = [
-        f"Пикчи: 🤙🏻 Одобрено <b>{stats.total_likes}</b> · 🖕🏻 Народный суд <b>{stats.total_dislikes}</b>",
+        f"Пикчи: 🤙🏻 <b>{stats.total_likes}</b> · 🖕🏻 <b>{stats.total_dislikes}</b>",
     ]
     if joke_stats is not None:
         pool_lines.append(format_metric("Анекдоты", joke_stats.total_jokes))
-        random_lines.append(format_metric("Анекдоты выданы", joke_stats.total_shows))
+        random_lines.append(format_metric("Анекдоты", joke_stats.total_shows))
         reaction_lines.append(
-            f"Анекдоты: 🤙🏻 Одобрено <b>{joke_stats.total_likes}</b> · 🖕🏻 Народный суд <b>{joke_stats.total_dislikes}</b>"
+            f"Анекдоты: 🤙🏻 <b>{joke_stats.total_likes}</b> · 🖕🏻 <b>{joke_stats.total_dislikes}</b>"
         )
 
     sections = [
-        "<b>📊 Сводка kartinkomet</b>",
-        "Склад, выдача и народный суд без бухгалтерского занудства",
-        format_section("📦 Склад", *pool_lines),
+        "<b>📊 Сводка склада</b>",
+        format_section("📦 Контент", *pool_lines),
         format_section("🎲 Выдача", *random_lines),
         format_section(
             "⚔️ Арены",
             format_metric("Дуэли", stats.total_duels),
-            format_metric("Удалений после дуэлей", stats.duel_executions),
-            format_metric("Мирных дуэлей", stats.duel_ties),
+            format_metric("Казней", stats.duel_executions),
+            format_metric("Мирных исходов", stats.duel_ties),
             format_metric("Турниры", stats.total_tournaments),
-            format_metric("Турниры без чемпиона", stats.tournament_ties),
+            format_metric("Без чемпиона", stats.tournament_ties),
         ),
         format_section("⚖️ Реакции", *reaction_lines),
     ]
     if chat_id is not None:
-        sections.append(format_section("🟢 Активные игры", *format_active_duel_lines(chat_id)))
+        sections.append(format_section("🟢 Сейчас", *format_active_duel_lines(chat_id)))
     return "\n\n".join(sections)
 
 
@@ -2291,41 +2306,62 @@ def format_active_duel_lines(chat_id: int) -> list[str]:
     ]
 
 
-def active_duel_status(chat_id: int, kind: DuelKind) -> str:
+def format_timer(seconds: int) -> str:
+    safe_seconds = max(0, seconds)
+    minutes, seconds_left = divmod(safe_seconds, 60)
+    return f"{minutes:02d}:{seconds_left:02d}"
+
+
+def active_duel_seconds(chat_id: int, kind: DuelKind) -> int | None:
     duel_id = active_duel_id_for_chat(chat_id, kind)
     if duel_id is None:
-        return "свободно"
+        return None
 
     duel = duel_sessions.get(duel_id)
     if not duel:
-        return "свободно"
+        return None
 
-    return f"идёт, {duel_remaining_seconds(duel)} сек"
+    return duel_remaining_seconds(duel)
 
 
-def active_tournament_status(chat_id: int) -> str:
+def active_tournament_seconds(chat_id: int) -> int | None:
     tournament_id = active_tournament_id_for_chat(chat_id)
     if tournament_id is None:
-        return "свободно"
+        return None
 
     tournament = tournament_sessions.get(tournament_id)
     if not tournament:
+        return None
+
+    return tournament_remaining_seconds(tournament)
+
+
+def active_duel_status(chat_id: int, kind: DuelKind) -> str:
+    seconds = active_duel_seconds(chat_id, kind)
+    if seconds is None:
         return "свободно"
 
-    return f"идёт, {tournament_remaining_seconds(tournament)} сек"
+    return f"идёт {format_timer(seconds)}"
+
+
+def active_tournament_status(chat_id: int) -> str:
+    seconds = active_tournament_seconds(chat_id)
+    if seconds is None:
+        return "свободно"
+
+    return f"идёт {format_timer(seconds)}"
 
 
 def format_start() -> str:
     return (
         "<b>👋 @kartinkomet_bot на связи</b>\n\n"
-        "Общий склад пикч и анекдотов без лишней мишуры: рандом, арены, реакции, топы "
-        "и личный вклад\n\n"
-        "<b>🚀 Быстрый запуск</b>\n"
-        "<code>🎲 Рандом пикч</code> / <code>😂 Рандом шуток</code>\n"
+        "Склад пикч и анекдотов, арены для голосований и народный суд без лишней мишуры\n\n"
+        "<b>🎛 Быстрый старт</b>\n"
+        "<code>🎲 Пикча</code> / <code>😂 Шутка</code>\n"
         "<code>⚔️ Дуэль пикч</code> / <code>🥊 Дуэль шуток</code>\n"
         "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
         "<b>📥 Загрузка</b>\n"
-        "<code>📥 Загрузить пикчи</code> и <code>📝 Загрузить шутки</code> работают в личке"
+        "<code>📥 Пикчи</code> и <code>📝 Шутки</code> работают в личке"
     )
 
 
@@ -2380,7 +2416,6 @@ def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> st
     )
     return (
         "<b>📦 Склад</b>\n\n"
-        "Короткая инвентаризация общего хаоса\n\n"
         "<b>Контент</b>\n"
         f"{format_metric('Пикчи', image_pool.count())}"
         f"{joke_line}"
@@ -2400,10 +2435,9 @@ async def send_weather(message: Message) -> None:
 
 def format_upload_private_only() -> str:
     return (
-        "<b>📬 Загрузка пикч — в личке</b>\n\n"
-        "В группе оставляем рандом, арены и сводку. Файлы лучше принимать один на один: "
-        "так Telegram отдаёт их боту стабильнее\n\n"
-        "<b>Что делать</b>\n"
+        "<b>📬 Пикчи принимаются в личке</b>\n\n"
+        "В группе остаются выдача, арены и сводка. Пикчи принимаю один на один, так стабильнее\n\n"
+        "<b>Маршрут</b>\n"
         "Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
         "Кидайте пикчи туда"
@@ -2417,8 +2451,8 @@ def format_upload_opened(intro: str) -> str:
         "<b>Что кидать</b>\n"
         "Фото, пачку, альбом или пересланные изображения\n\n"
         "<b>Управление</b>\n"
-        "<code>✅ Закончить</code> - сохранить пакет\n"
-        "<code>❌ Отмена</code> - закрыть без отчёта"
+        "<code>✅ Закончить</code> — сохранить пакет\n"
+        "<code>❌ Отмена</code> — закрыть без отчёта"
     )
 
 
@@ -2427,8 +2461,8 @@ def format_joke_upload_opened() -> str:
         "<b>📝 Приём шуток открыт</b>\n\n"
         "Отправляйте обычный текст. Один анекдот — одно сообщение\n\n"
         "<b>Управление</b>\n"
-        "<code>✅ Закончить</code> - сохранить пакет\n"
-        "<code>❌ Отмена</code> - закрыть без отчёта"
+        "<code>✅ Закончить</code> — сохранить пакет\n"
+        "<code>❌ Отмена</code> — закрыть без отчёта"
     )
 
 
@@ -2483,13 +2517,14 @@ def format_invalid_file() -> str:
 
 def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
     action = (
-        "Нажмите <code>📥 Загрузить пикчи</code> и кидайте пакет сюда"
+        "Нажмите <code>📥 Пикчи</code> и кидайте пакет сюда"
         if is_private
         else "Нажмите <code>📬 Как загрузить пикчи</code> и бот покажет маршрут в личку"
     )
     return (
         "<b>📭 Склад пикч пуст</b>\n\n"
-        f"{escape(phrase)}\n\n"
+        f"{escape(phrase)}\n"
+        "На полках пока только пыль и ожидание\n\n"
         "<b>Маршрут</b>\n"
         f"{action}"
     )
@@ -2497,22 +2532,23 @@ def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
 
 def format_empty_joke_pool(is_private: bool = False) -> str:
     action = (
-        "Нажмите <code>📝 Загрузить шутки</code> и отправляйте тексты сюда"
+        "Нажмите <code>📝 Шутки</code> и отправляйте тексты сюда"
         if is_private
         else "Нажмите <code>📬 Как загрузить шутки</code> и бот покажет маршрут в личку"
     )
     return (
         "<b>📭 Блокнот шуток пуст</b>\n\n"
-        "Пока тут тишина, как на корпоративе без микрофона\n\n"
+        "Пока тут тишина. Блокнот ждёт первый нормальный заход\n\n"
         "<b>Маршрут</b>\n"
         f"{action}"
     )
 
 
-def format_joke(text: str) -> str:
+def format_joke(text: str, likes: int = 0, dislikes: int = 0) -> str:
     return (
         "<b>😂 Анекдот</b>\n\n"
-        f"<blockquote>{escape(text)}</blockquote>"
+        f"<blockquote>{escape(text)}</blockquote>\n"
+        f"<code>🤙🏻 {likes} · 🖕🏻 {dislikes}</code>"
     )
 
 
@@ -2616,16 +2652,15 @@ def format_user_progress(user_id: int, image_pool: ImagePool) -> str:
     combo_achievements = combo_achievements_for(reaction_stats)
     lines = [
         "<b>👤 Карточка игрока</b>",
-        "Личный след в общем складе",
+        "Ваш след на складе",
         "",
         "<b>📦 Вклад</b>",
-        format_metric("Загружено пикч", uploaded_count),
+        format_metric("Пикчи", uploaded_count),
         format_metric("Ранг", current_achievement),
         "",
         "<b>⚖️ Реакции</b>",
-        format_metric("🤙🏻 Одобрено", reaction_stats.likes),
-        format_metric("🖕🏻 Народный суд", reaction_stats.dislikes),
-        format_metric("Показов в рандоме", reaction_stats.shown),
+        f"🤙🏻 <b>{reaction_stats.likes}</b> · 🖕🏻 <b>{reaction_stats.dislikes}</b>",
+        format_metric("Показы", reaction_stats.shown),
         "",
         "<b>🎖 Титул</b>",
         format_metric("Качество", quality_title(reaction_stats)),
@@ -2657,19 +2692,19 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     top_uploaders = image_pool.top_uploaders(limit=limit)
     if not top_uploaders:
         return (
-            "<b>🏆 Топ загрузчиков пикч</b>\n\n"
-            "Элита склада пока пустует. Кто-то должен занести первую пикчу"
+            "<b>🏆 Топ поставщиков</b>\n\n"
+            "Пьедестал пока пустует. Кто-то должен занести первую пикчу"
         )
 
-    lines = ["<b>🏆 Топ загрузчиков пикч</b>", ""]
+    lines = ["<b>🏆 Топ поставщиков</b>", ""]
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
         if position == 1:
-            lines.append("<b>👑 Элита склада</b>")
+            lines.append("<b>👑 Элита</b>")
             lines.append("")
         if position == 4:
             lines.append("")
-            lines.append("<b>📦 Рабочий класс</b>")
+            lines.append("<b>📦 Складская смена</b>")
             lines.append("")
 
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."
@@ -2701,6 +2736,13 @@ def next_achievement_for(uploaded_count: int) -> tuple[int, str] | None:
 
 def random_picture_caption() -> str:
     return RANDOM.choice(PICTURE_CAPTIONS)
+
+
+def format_picture_caption(image) -> str:
+    return (
+        f"{escape(random_picture_caption())}\n\n"
+        f"<code>🤙🏻 {image.likes} · 🖕🏻 {image.dislikes}</code>"
+    )
 
 
 def rare_easter_egg() -> str | None:
@@ -2768,7 +2810,7 @@ def format_duel_score(
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Статус</b>\n"
-        f"⏱ <b>{seconds_left} сек</b> · {verdict}"
+        f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
     )
 
 
@@ -2817,7 +2859,7 @@ def format_joke_duel_score(
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
         "<b>Статус</b>\n"
-        f"⏱ <b>{seconds_left} сек</b> · {verdict}"
+        f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
     )
 
 
@@ -2868,7 +2910,7 @@ def format_tournament_score(
         f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
         f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
         "<b>Статус</b>\n"
-        f"⏱ <b>{seconds_left} сек</b> · {verdict}"
+        f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
     )
 
 

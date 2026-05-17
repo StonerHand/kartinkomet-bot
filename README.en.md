@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Рандом пикч` button or `/pic`, pulls a random joke through `😂 Рандом шуток` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Шутка` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -68,29 +68,29 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
-🎲 Рандом пикч      😂 Рандом шуток
+🎲 Пикча            😂 Шутка
 ⚔️ Дуэль пикч       🥊 Дуэль шуток
-🏟 Турнир           📊 Сводка склада
-🏆 Топ          🌦 Погода
+🏟 Турнир           📊 Сводка
+🏆 Топ              🌦 Погода
 👤 Профиль
-📬 Загрузка пикч    📝 Загрузить шутки
+📬 Пикчи            📝 Шутки
 ```
 
 If an arena is already busy, the button says so:
 
 ```text
-⚔️ Пикчи · идёт    🥊 Шутки · идёт
-🏟 Турнир · идёт
+⚔️ Пикчи · 00:42    🥊 Шутки · 01:16
+🏟 Турнир · 01:30
 ```
 
 In private chat, uploads move to the top:
 
 ```text
-📥 Загрузить пикчи  📝 Загрузить шутки
-🎲 Рандом пикч      😂 Рандом шуток
+📥 Пикчи            📝 Шутки
+🎲 Пикча            😂 Шутка
 ⚔️ Дуэль пикч       🥊 Дуэль шуток
-🏟 Турнир           📊 Сводка склада
-🏆 Топ          🌦 Погода
+🏟 Турнир           📊 Сводка
+🏆 Топ              🌦 Погода
 👤 Профиль
 ```
 
@@ -98,14 +98,14 @@ Under a random image:
 
 ```text
 🤙🏻  🖕🏻
-🎲 Ещё пикчу
+🎲 Ещё
 ```
 
 Under a joke:
 
 ```text
 🤙🏻  🖕🏻
-😂 Ещё шутку
+😂 Ещё
 ```
 
 During private upload:
@@ -121,15 +121,15 @@ Messages are compact cards: one title, 2-4 readable sections, and very little no
 Leaderboard example:
 
 ```text
-🏆 Топ загрузчиков пикч
+🏆 Топ поставщиков
 
-👑 Элита склада
+👑 Элита
 
 🥇 TakaKenshi — 3441 пикч · картинный монополист
 🥈 Art_Denisovich — 242 пикч · архитектор мемного склада
 🥉 Михаил — 49 пикч · человек с подозрительной галереей
 
-📦 Рабочий класс
+📦 Складская смена
 
 4. asobi_seksu — 46 пикч · человек с подозрительной галереей
 5. fata11st — 1 пикч · первый вброс
@@ -139,29 +139,29 @@ Leaderboard example:
 Stats example:
 
 ```text
-📊 Сводка kartinkomet
+📊 Сводка склада
 
-📦 Склад
+📦 Контент
 Пикчи: 3823
 Анекдоты: 128
 
 🎲 Выдача
-Пикчи выданы: 2410
-Анекдоты выданы: 54
+Пикчи: 2410
+Анекдоты: 54
 
 ⚔️ Арены
 Дуэли: 37
-Удалений после дуэлей: 29
-Мирных дуэлей: 8
+Казней: 29
+Мирных исходов: 8
 Турниры: 12
-Турниры без чемпиона: 3
+Без чемпиона: 3
 
 ⚖️ Реакции
-Пикчи: 🤙🏻 Одобрено 988 · 🖕🏻 Народный суд 133
-Анекдоты: 🤙🏻 Одобрено 19 · 🖕🏻 Народный суд 3
+Пикчи: 🤙🏻 988 · 🖕🏻 133
+Анекдоты: 🤙🏻 19 · 🖕🏻 3
 
-🟢 Активные игры
-Дуэль пикч: идёт, 42 сек
+🟢 Сейчас
+Дуэль пикч: идёт 00:42
 Дуэль шуток: свободно
 Турнир: свободно
 ```
@@ -179,7 +179,7 @@ Arena example:
 🅱️ Второй: 1
 
 Статус
-⏱ 45 сек · 🔥 Ведёт 🅰️
+⏱ 00:45 · 🔥 Ведёт 🅰️
 ```
 
 Duel result example:
@@ -207,11 +207,11 @@ Menu example:
 Пикчи: 3823 · Анекдоты: 128
 
 🟢 Арены
-Пикчи: свободно · Шутки: идёт, 82 сек
+Пикчи: свободно · Шутки: идёт 01:22
 Турнир: свободно
 
 📥 Загрузка
-загрузка открывается в личке
+в группе только пульт, загрузка уходит в личку
 ```
 
 Joke example:
@@ -254,10 +254,10 @@ Upload summary example:
 
 ```text
 ✅ Загрузка закрыта
-Пикчи припаркованы, контент спрятан в рукаве
+Пакет разобран и припаркован на складе
 
 📦 Итог пакета
-✅ Пикч добавлено: 18
+✅ Добавлено: 18
 ♻️ Дублей: 2
 🚫 Не принято: 0
 🏅 Новый ранг: архитектор мемного склада
@@ -290,12 +290,12 @@ The response is a clean card with temperature, feels-like value, sky state, dail
 
 ## Jokes
 
-`/joke` and the `😂 Анекдот` button send a random text from the separate joke pool.
+`/joke` and the `😂 Шутка` button send a random text from the separate joke pool.
 
 Upload flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📝 Анекдоты` or send `/upload_joke`.
+2. Press `📝 Шутки` or send `/upload_joke`.
 3. Send jokes as text, one joke per message.
 4. Finish with `/done` or cancel with `/cancel`.
 
@@ -330,11 +330,11 @@ Rules mirror the image arena:
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📥 Загрузить пикчи` or send `/upload_pidor`.
+2. Press `📥 Пикчи` or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `📬 Загрузка пикч` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📬 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. It shows the instruction and finish/cancel buttons immediately when upload starts, then quietly counts the result.
 
