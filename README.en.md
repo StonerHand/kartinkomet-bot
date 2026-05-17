@@ -223,7 +223,8 @@ Joke example:
 > - Ты уверен?
 > - Уже поздно
 
-Глас народа: кнопки ниже
+Глас народа
+решает кнопками ниже
 ```
 
 Empty pool example:
@@ -270,9 +271,9 @@ Upload summary example:
 The picker is not a plain list shuffle. It:
 
 1. Avoids images recently shown in the current chat.
-2. Avoids globally recent images.
+2. Avoids globally recent items so the pool does not spin in the same loop.
 3. Prefers a window of least-shown records instead of one rigid minimum.
-4. Uses `SystemRandom` for the final choice.
+4. Uses weighted `SystemRandom` for the final choice: fewer shows means a better chance.
 
 Large pools repeat much less often. Small pools can still repeat, but the bot avoids sending the same image immediately.
 

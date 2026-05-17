@@ -20,6 +20,7 @@ IMAGE_DOCUMENT_NAME = "image_pool"
 MAX_CHAT_HISTORY = 500
 UPLOAD_LIMIT_PER_HOUR = 1000
 RANDOM_CANDIDATE_LIMIT = 120
+GLOBAL_RECENT_LIMIT = 250
 RANDOM = random.SystemRandom()
 
 
@@ -94,7 +95,7 @@ class ImagePool:
             return None
 
         records = self._selectable_records(avoid_recent=avoid_recent, chat_id=chat_id)
-        record = RANDOM.choice(records)
+        record = self._weighted_random_record(records)
         self._mark_shown(record, chat_id=chat_id)
         return self._to_image_record(record)
 
@@ -115,7 +116,7 @@ class ImagePool:
         if len(records) < 2:
             records = self._records
 
-        left_record, right_record = RANDOM.sample(records, 2)
+        left_record, right_record = self._weighted_random_sample(records, 2)
         self._mark_shown_many(
             [
                 (left_record, duel_chat_id),
@@ -142,7 +143,7 @@ class ImagePool:
         if len(records) < size:
             records = self._records
 
-        selected_records = RANDOM.sample(records, size)
+        selected_records = self._weighted_random_sample(records, size)
         self._mark_shown_many([(record, tournament_chat_id) for record in selected_records])
         return [self._to_image_record(record) for record in selected_records]
 
@@ -401,7 +402,7 @@ class ImagePool:
         shown_records = [record for record in records if record.get("last_shown_at")]
         recent_limit = min(
             max(1, len(records) // 2),
-            100,
+            GLOBAL_RECENT_LIMIT,
             max(0, len(records) - minimum_candidates),
             len(shown_records),
         )
@@ -441,6 +442,23 @@ class ImagePool:
         )
         shown_threshold = least_shown[-1]["shown_count"]
         return [record for record in records if record["shown_count"] <= shown_threshold]
+
+    def _weighted_random_record(self, records: list[dict]) -> dict:
+        if len(records) == 1:
+            return records[0]
+
+        max_shown = max(record["shown_count"] for record in records)
+        weights = [(max_shown - record["shown_count"]) + 1 for record in records]
+        return RANDOM.choices(records, weights=weights, k=1)[0]
+
+    def _weighted_random_sample(self, records: list[dict], size: int) -> list[dict]:
+        selected: list[dict] = []
+        candidates = list(records)
+        while candidates and len(selected) < size:
+            record = self._weighted_random_record(candidates)
+            selected.append(record)
+            candidates.remove(record)
+        return selected
 
     def _chat_fresh_records(self, chat_id: int | str | None) -> list[dict]:
         if chat_id is None:

@@ -20,14 +20,12 @@ from bot.keyboards import (
     duel_vote,
     empty_joke_pool_actions,
     empty_picture_pool_actions,
-    joke_actions,
     joke_actions_with_counts,
     joke_duel_vote,
     main_menu,
     new_duel,
     new_joke_duel,
     new_tournament,
-    picture_actions,
     picture_actions_with_counts,
     tournament_vote,
     upload_menu,
@@ -2754,7 +2752,7 @@ def format_picture_caption(image) -> str:
 
 
 def format_reaction_hint() -> str:
-    return "<b>Глас народа:</b> кнопки ниже"
+    return "<b>Глас народа</b>\nрешает кнопками ниже"
 
 
 def rare_easter_egg() -> str | None:
