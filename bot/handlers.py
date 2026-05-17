@@ -875,7 +875,7 @@ def build_router(
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
     @router.callback_query(F.data.startswith("duel:"))
-    async def duel_callback(callback: CallbackQuery) -> None:
+    async def duel_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.data is None:
             await callback.answer()
@@ -888,6 +888,16 @@ def build_router(
             return
         if not duel.get("active", False):
             await callback.answer("Дуэль уже закончилась", show_alert=True)
+            return
+        if duel_remaining_seconds(duel) <= 0:
+            await close_expired_image_duel_from_callback(
+                callback=callback,
+                bot=bot,
+                image_pool=image_pool,
+                duel_id=duel_id,
+                duel=duel,
+            )
+            await callback.answer("Финальный свисток уже был")
             return
 
         votes = duel["votes"]
@@ -915,7 +925,7 @@ def build_router(
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data.startswith("joke_duel:"))
-    async def joke_duel_callback(callback: CallbackQuery) -> None:
+    async def joke_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.data is None:
             await callback.answer()
@@ -928,6 +938,16 @@ def build_router(
             return
         if not duel.get("active", False):
             await callback.answer("Дуэль уже закончилась", show_alert=True)
+            return
+        if duel_remaining_seconds(duel) <= 0:
+            await close_expired_joke_duel_from_callback(
+                callback=callback,
+                bot=bot,
+                joke_pool=joke_pool,
+                duel_id=duel_id,
+                duel=duel,
+            )
+            await callback.answer("Финальный свисток уже был")
             return
 
         votes = duel["votes"]
@@ -1346,6 +1366,45 @@ async def edit_bot_text_if_changed(
         LOGGER.warning("Failed to update %s", log_context, exc_info=True)
 
 
+async def edit_or_send_final_message(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    text: str,
+    reply_markup,
+    log_context: str,
+) -> None:
+    try:
+        await telegram_request_with_retry(
+            lambda: bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            ),
+            f"{log_context} edit",
+        )
+        return
+    except TelegramAPIError as error:
+        if telegram_message_not_modified(error):
+            return
+        LOGGER.warning("Failed to edit %s, sending fallback", log_context, exc_info=True)
+
+    try:
+        await telegram_request_with_retry(
+            lambda: bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            ),
+            f"{log_context} fallback",
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send fallback %s", log_context, exc_info=True)
+
+
 async def send_duel(
     bot: Bot,
     message: Message,
@@ -1555,6 +1614,81 @@ async def send_tournament(
         return "started"
 
 
+def resolve_image_duel_result(duel: dict, image_pool: ImagePool) -> str:
+    duel["active"] = False
+    left_votes, right_votes = duel_vote_counts(duel)
+
+    if left_votes == right_votes:
+        image_pool.finish_duel(loser_id=None)
+        return format_duel_result(left_votes, right_votes, winner=None)
+    if left_votes > right_votes:
+        image_pool.finish_duel(loser_id=duel["right"])
+        return format_duel_result(left_votes, right_votes, winner="left")
+
+    image_pool.finish_duel(loser_id=duel["left"])
+    return format_duel_result(left_votes, right_votes, winner="right")
+
+
+def resolve_joke_duel_result(duel: dict, joke_pool: JokePool) -> str:
+    duel["active"] = False
+    left_votes, right_votes = duel_vote_counts(duel)
+
+    if left_votes == right_votes:
+        return format_joke_duel_result(left_votes, right_votes, winner=None)
+    if left_votes > right_votes:
+        joke_pool.delete(str(duel["right"]))
+        return format_joke_duel_result(left_votes, right_votes, winner="left")
+
+    joke_pool.delete(str(duel["left"]))
+    return format_joke_duel_result(left_votes, right_votes, winner="right")
+
+
+async def close_expired_image_duel_from_callback(
+    callback: CallbackQuery,
+    bot: Bot,
+    image_pool: ImagePool,
+    duel_id: str,
+    duel: dict,
+) -> None:
+    chat_id = int(duel.get("chat_id") or callback.message.chat.id)
+    result_text = resolve_image_duel_result(duel, image_pool)
+    if callback.message:
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=callback.message.message_id,
+            text=result_text,
+            reply_markup=new_duel(),
+            log_context="expired image duel message",
+        )
+    clear_active_duel(chat_id, "image", duel_id)
+    duel_sessions.pop(duel_id, None)
+    duel_tasks.pop(duel_id, None)
+
+
+async def close_expired_joke_duel_from_callback(
+    callback: CallbackQuery,
+    bot: Bot,
+    joke_pool: JokePool,
+    duel_id: str,
+    duel: dict,
+) -> None:
+    chat_id = int(duel.get("chat_id") or callback.message.chat.id)
+    result_text = resolve_joke_duel_result(duel, joke_pool)
+    if callback.message:
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=callback.message.message_id,
+            text=result_text,
+            reply_markup=new_joke_duel(),
+            log_context="expired joke duel message",
+        )
+    clear_active_duel(chat_id, "joke", duel_id)
+    duel_sessions.pop(duel_id, None)
+    duel_tasks.pop(duel_id, None)
+
+
 async def finalize_duel(
     duel_id: str,
     bot: Bot,
@@ -1592,29 +1726,15 @@ async def finalize_duel(
         if duel is None or not duel.get("active", False):
             return
 
-        duel["active"] = False
-        left_votes, right_votes = duel_vote_counts(duel)
-
-        if left_votes == right_votes:
-            image_pool.finish_duel(loser_id=None)
-            result_text = format_duel_result(left_votes, right_votes, winner=None)
-        elif left_votes > right_votes:
-            image_pool.finish_duel(loser_id=duel["right"])
-            result_text = format_duel_result(left_votes, right_votes, winner="left")
-        else:
-            image_pool.finish_duel(loser_id=duel["left"])
-            result_text = format_duel_result(left_votes, right_votes, winner="right")
-
-        try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=result_text,
-                parse_mode="HTML",
-                reply_markup=new_duel(),
-            )
-        except TelegramAPIError:
-            LOGGER.warning("Failed to edit completed duel message", exc_info=True)
+        result_text = resolve_image_duel_result(duel, image_pool)
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            text=result_text,
+            reply_markup=new_duel(),
+            log_context="completed image duel message",
+        )
     except Exception:
         LOGGER.exception("Duel finalizer crashed")
     finally:
@@ -1660,40 +1780,15 @@ async def finalize_joke_duel(
         if duel is None or not duel.get("active", False):
             return
 
-        duel["active"] = False
-        left_votes, right_votes = duel_vote_counts(duel)
-
-        if left_votes == right_votes:
-            result_text = format_joke_duel_result(
-                left_votes,
-                right_votes,
-                winner=None,
-            )
-        elif left_votes > right_votes:
-            joke_pool.delete(str(duel["right"]))
-            result_text = format_joke_duel_result(
-                left_votes,
-                right_votes,
-                winner="left",
-            )
-        else:
-            joke_pool.delete(str(duel["left"]))
-            result_text = format_joke_duel_result(
-                left_votes,
-                right_votes,
-                winner="right",
-            )
-
-        try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=result_text,
-                parse_mode="HTML",
-                reply_markup=new_joke_duel(),
-            )
-        except TelegramAPIError:
-            LOGGER.warning("Failed to edit completed joke duel message", exc_info=True)
+        result_text = resolve_joke_duel_result(duel, joke_pool)
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            text=result_text,
+            reply_markup=new_joke_duel(),
+            log_context="completed joke duel message",
+        )
     except Exception:
         LOGGER.exception("Joke duel finalizer crashed")
     finally:
@@ -1745,16 +1840,14 @@ async def finalize_tournament(
         image_pool.record_tournament_result(tied=winner is None)
         result_text = format_tournament_result(vote_counts, winner=winner)
 
-        try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=result_text,
-                parse_mode="HTML",
-                reply_markup=new_tournament(),
-            )
-        except TelegramAPIError:
-            LOGGER.warning("Failed to edit completed tournament message", exc_info=True)
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            text=result_text,
+            reply_markup=new_tournament(),
+            log_context="completed tournament message",
+        )
     except Exception:
         LOGGER.exception("Tournament finalizer crashed")
     finally:
