@@ -97,14 +97,14 @@ In private chat, uploads move to the top:
 Under a random image:
 
 ```text
-🤙🏻  🖕🏻
+🤙🏻 0  🖕🏻 0
 🎲 Ещё
 ```
 
 Under a joke:
 
 ```text
-🤙🏻  🖕🏻
+🤙🏻 0  🖕🏻 0
 😂 Ещё
 ```
 
@@ -222,6 +222,8 @@ Joke example:
 > Бот спросил у рандома:
 > - Ты уверен?
 > - Уже поздно
+
+Глас народа: кнопки ниже
 ```
 
 Empty pool example:

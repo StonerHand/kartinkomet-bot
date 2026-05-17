@@ -1165,7 +1165,11 @@ async def send_picture(
         photo=image.file_id,
         caption=format_picture_caption(image),
         parse_mode="HTML",
-        reply_markup=picture_actions(image.id),
+        reply_markup=picture_actions_with_counts(
+            image_id=image.id,
+            likes=image.likes,
+            dislikes=image.dislikes,
+        ),
     )
 
     if (
@@ -1206,7 +1210,11 @@ async def send_joke(
         chat_id=chat_id,
         text=format_joke(joke.text, likes=joke.likes, dislikes=joke.dislikes),
         parse_mode="HTML",
-        reply_markup=joke_actions(joke.id),
+        reply_markup=joke_actions_with_counts(
+            joke_id=joke.id,
+            likes=joke.likes,
+            dislikes=joke.dislikes,
+        ),
     )
 
 
@@ -2547,8 +2555,8 @@ def format_empty_joke_pool(is_private: bool = False) -> str:
 def format_joke(text: str, likes: int = 0, dislikes: int = 0) -> str:
     return (
         "<b>😂 Анекдот</b>\n\n"
-        f"<blockquote>{escape(text)}</blockquote>\n"
-        f"<code>🤙🏻 {likes} · 🖕🏻 {dislikes}</code>"
+        f"<blockquote>{escape(text)}</blockquote>\n\n"
+        f"{format_reaction_hint()}"
     )
 
 
@@ -2741,8 +2749,12 @@ def random_picture_caption() -> str:
 def format_picture_caption(image) -> str:
     return (
         f"{escape(random_picture_caption())}\n\n"
-        f"<code>🤙🏻 {image.likes} · 🖕🏻 {image.dislikes}</code>"
+        f"{format_reaction_hint()}"
     )
+
+
+def format_reaction_hint() -> str:
+    return "<b>Глас народа:</b> кнопки ниже"
 
 
 def rare_easter_egg() -> str | None:

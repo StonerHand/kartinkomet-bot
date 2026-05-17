@@ -555,8 +555,9 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("Блокнот шуток пуст", format_empty_joke_pool())
         self.assertIn("📝 Шутки", format_empty_joke_pool(is_private=True))
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
+        self.assertIn("</blockquote>\n\n<b>Глас народа:</b>", format_joke("A < B"))
         self.assertIn(
-            "<code>🤙🏻 2 · 🖕🏻 1</code>",
+            "<b>Глас народа:</b> кнопки ниже",
             format_picture_caption(SimpleNamespace(likes=2, dislikes=1)),
         )
 
