@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Шутка` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs duels, mini-tournaments, and tracks user contributions. If nobody wants to choose, `🎰 Рулетка` picks a random format: image, joke, or an available arena.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -38,6 +38,7 @@ The public Telegram command menu stays short: only the commands people are likel
 | `/menu` | Open the main control panel |
 | `/pic` | Pull a random image from the warehouse |
 | `/joke` | Pull a random joke from the notebook |
+| `/roulette` | Spin a random format |
 | `/duel` | Start an image duel |
 | `/jokeduel` | Start a joke duel |
 | `/tournament` | Start a four-image tournament |
@@ -68,44 +69,40 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
-🎲 Пикча            😂 Шутка
-⚔️ Дуэль пикч       🥊 Дуэль шуток
+🎲 Пикча            😂 Анекдот
+🎰 Рулетка          📦 Склад
+⚔️ Пикч-бой         🥊 Шутко-бой
 🏟 Турнир           📊 Сводка
-🏆 Топ              🌦 Погода
-👤 Профиль
-📬 Пикчи            📝 Шутки
+🏆 Топ              👤 Мой вклад
+📬 Загрузка         🌦 Погода
 ```
 
 If an arena is already busy, the button says so:
 
 ```text
-⚔️ Пикчи · 00:42    🥊 Шутки · 01:16
+⚔️ Пикч-бой · 00:42 🥊 Шутко-бой · 01:16
 🏟 Турнир · 01:30
 ```
 
-In private chat, uploads move to the top:
+The `📬 Загрузка` button opens a compact upload hub:
 
 ```text
-📥 Пикчи            📝 Шутки
-🎲 Пикча            😂 Шутка
-⚔️ Дуэль пикч       🥊 Дуэль шуток
-🏟 Турнир           📊 Сводка
-🏆 Топ              🌦 Погода
-👤 Профиль
+📥 Пикчи            📝 Анекдоты
+🎛 Назад в пульт
 ```
 
 Under a random image:
 
 ```text
 🤙🏻 0  🖕🏻 0
-🎲 Ещё
+🎲 Ещё пикчу        ⚔️ В дуэль
 ```
 
 Under a joke:
 
 ```text
 🤙🏻 0  🖕🏻 0
-😂 Ещё
+😂 Ещё анекдот      🥊 В дуэль
 ```
 
 During private upload:
@@ -206,6 +203,9 @@ Menu example:
 📦 Склад
 Пикчи: 3823 · Анекдоты: 128
 
+🎰 Рулетка
+Крутит пикчу, анекдот или свободную арену
+
 🟢 Арены
 Пикчи: свободно · Шутки: идёт 01:22
 Турнир: свободно
@@ -293,12 +293,12 @@ The response is a clean card with temperature, feels-like value, sky state, dail
 
 ## Jokes
 
-`/joke` and the `😂 Шутка` button send a random text from the separate joke pool.
+`/joke` and the `😂 Анекдот` button send a random text from the separate joke pool.
 
 Upload flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📝 Шутки` or send `/upload_joke`.
+2. Press `📬 Загрузка`, then `📝 Анекдоты`, or send `/upload_joke`.
 3. Send jokes as text, one joke per message.
 4. Finish with `/done` or cancel with `/cancel`.
 
@@ -314,7 +314,7 @@ Rules:
 
 ## Joke Duels
 
-`/jokeduel` and the `🥊 Дуэль шуток` button pick two random jokes and open a `2` minute vote.
+`/jokeduel` and the `🥊 Шутко-бой` button pick two random jokes and open a `2` minute vote.
 
 Rules mirror the image arena:
 
@@ -333,11 +333,11 @@ Rules mirror the image arena:
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📥 Пикчи` or send `/upload_pidor`.
+2. Press `📬 Загрузка`, then `📥 Пикчи`, or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `📬 Пикчи` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📬 Загрузка` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. It shows the instruction and finish/cancel buttons immediately when upload starts, then quietly counts the result.
 

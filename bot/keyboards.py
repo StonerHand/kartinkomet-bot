@@ -12,59 +12,75 @@ def main_menu(
     joke_duel_seconds: int | None = None,
     tournament_seconds: int | None = None,
 ) -> InlineKeyboardMarkup:
-    upload_row = [
-        InlineKeyboardButton(
-            text="📥 Пикчи" if is_private else "📬 Пикчи",
-            callback_data="upload",
-        ),
-        InlineKeyboardButton(
-            text="📝 Шутки",
-            callback_data="upload_joke",
-        ),
-    ]
     random_row = [
         InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
-        InlineKeyboardButton(text="😂 Шутка", callback_data="joke"),
+        InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+    ]
+    quick_row = [
+        InlineKeyboardButton(text="🎰 Рулетка", callback_data="roulette"),
+        InlineKeyboardButton(text="📦 Склад", callback_data="count"),
     ]
     duel_row = [
         InlineKeyboardButton(
-            text=active_button_text("⚔️ Пикчи", image_duel_active, image_duel_seconds)
+            text=active_button_text("⚔️ Пикч-бой", image_duel_active, image_duel_seconds)
             if image_duel_active
-            else "⚔️ Дуэль пикч",
+            else "⚔️ Пикч-бой",
             callback_data="duel_new",
         ),
         InlineKeyboardButton(
-            text=active_button_text("🥊 Шутки", joke_duel_active, joke_duel_seconds)
+            text=active_button_text("🥊 Шутко-бой", joke_duel_active, joke_duel_seconds)
             if joke_duel_active
-            else "🥊 Дуэль шуток",
+            else "🥊 Шутко-бой",
             callback_data="joke_duel_new",
         ),
     ]
-    utility_rows = [
-        [
-            InlineKeyboardButton(
-                text=active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
-                if tournament_active
-                else "🏟 Турнир",
-                callback_data="tournament_new",
-            ),
-            InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-        ],
-        [
-            InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
-            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
-        ],
-        [
-            InlineKeyboardButton(text="👤 Профиль", callback_data="me"),
-        ],
+    arena_row = [
+        InlineKeyboardButton(
+            text=active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
+            if tournament_active
+            else "🏟 Турнир",
+            callback_data="tournament_new",
+        ),
+        InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
     ]
-    keyboard = (
-        [upload_row, random_row, duel_row, *utility_rows]
-        if is_private
-        else [random_row, duel_row, *utility_rows, upload_row]
-    )
+    profile_row = [
+        InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
+        InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+    ]
+    bottom_row = [
+        InlineKeyboardButton(text="📬 Загрузка", callback_data="upload_hub"),
+        InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
+    ]
+    keyboard = [
+        random_row,
+        quick_row,
+        duel_row,
+        arena_row,
+        profile_row,
+        bottom_row,
+    ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def upload_hub(is_private: bool = False) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📥 Пикчи" if is_private else "📬 Пикчи в личку",
+                    callback_data="upload",
+                ),
+                InlineKeyboardButton(
+                    text="📝 Анекдоты" if is_private else "📬 Анекдоты в личку",
+                    callback_data="upload_joke",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+            ],
+        ]
+    )
 
 
 def active_button_text(label: str, active: bool, seconds: int | None = None) -> str:
@@ -103,7 +119,7 @@ def empty_picture_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup
                 ),
             ],
             [
-                InlineKeyboardButton(text="😂 Шутка", callback_data="joke"),
+                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
                 InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
             ],
         ]
@@ -115,7 +131,7 @@ def empty_joke_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📝 Шутки" if is_private else "📬 Как загрузить шутки",
+                    text="📝 Анекдоты" if is_private else "📬 Как загрузить анекдоты",
                     callback_data="upload_joke",
                 ),
             ],
@@ -229,7 +245,10 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🤙🏻", callback_data=f"react:like:{image_id}"),
             InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
         ],
-        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
+        [
+            InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
+            InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -251,7 +270,10 @@ def picture_actions_with_counts(
                 callback_data=f"react:dislike:{image_id}",
             ),
         ],
-        [InlineKeyboardButton(text="🎲 Ещё", callback_data="pic")],
+        [
+            InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
+            InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -263,7 +285,10 @@ def joke_actions(joke_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🤙🏻", callback_data=f"joke_react:like:{joke_id}"),
             InlineKeyboardButton(text="🖕🏻", callback_data=f"joke_react:dislike:{joke_id}"),
         ],
-        [InlineKeyboardButton(text="😂 Ещё", callback_data="joke")],
+        [
+            InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke"),
+            InlineKeyboardButton(text="🥊 В дуэль", callback_data="joke_duel_new"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -285,7 +310,10 @@ def joke_actions_with_counts(
                 callback_data=f"joke_react:dislike:{joke_id}",
             ),
         ],
-        [InlineKeyboardButton(text="😂 Ещё", callback_data="joke")],
+        [
+            InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke"),
+            InlineKeyboardButton(text="🥊 В дуэль", callback_data="joke_duel_new"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
