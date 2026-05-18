@@ -68,18 +68,34 @@ Hidden maintenance commands:
 Main panel:
 
 ```text
+🎲 Выдача           ⚔️ Арены
+📦 Склад            🌦 Погода
+```
+
+The panel opens short sections so the chat is not buried under buttons:
+
+```text
+🎲 Выдача
 🎲 Пикча            😂 Анекдот
-📦 Склад
+🎛 Назад в пульт
+
+⚔️ Арены
 ⚔️ Пикч-бой         🥊 Шутко-бой
 🏟 Турнир           📊 Сводка
+🎛 Назад в пульт
+
+📦 Склад
+📦 Склад            📬 Загрузка
 🏆 Топ              👤 Мой вклад
-📬 Загрузка         🌦 Погода
+🎛 Назад в пульт
 ```
 
 If an arena is already busy, the button says so:
 
 ```text
-⚔️ Пикч-бой · 00:42 🥊 Шутко-бой · 01:16
+⚔️ Арены · 00:42
+⚔️ Пикч-бой · 00:42
+🥊 Шутко-бой · 01:16
 🏟 Турнир · 01:30
 ```
 
@@ -94,7 +110,7 @@ Under a random image:
 
 ```text
 🤙🏻 0  🖕🏻 0
-🎲 Ещё пикчу        ⚔️ В дуэль
+🎲 Ещё пикчу        ⚔️ В дуэль        🏟 В турнир
 ```
 
 Under a joke:
@@ -322,7 +338,8 @@ Rules mirror the image arena:
 - winner stays in the joke pool
 - loser is removed from the joke pool
 - ties keep both jokes alive
-- final result includes a `🥊 Реванш шуток` button
+- final result includes a short battle history
+- final result includes `🥊 Реванш шуток`, `😂 Анекдот`, and `🎛 Пульт` buttons
 
 ## Uploads
 
@@ -357,7 +374,8 @@ Rules:
 - winner stays in the pool
 - loser is removed
 - ties keep both images alive
-- final result includes a `⚔️ Реванш пикч` button
+- final result includes a short battle history
+- final result includes `⚔️ Реванш пикч`, `🎲 Рандом`, `🏟 Турнир`, and `🎛 Пульт` buttons
 - if Telegram/API stumbles, stale duel state is cleared instead of locking the chat
 
 The duel card stays compact: title, status, one-line score, then a separate timer line. Duel images are sent as an album without captions so the chat does not turn into a wall of text.
@@ -379,7 +397,8 @@ Unlike duels, tournaments are non-destructive:
 - the chat only chooses a showcase champion
 - each user votes once, but can switch sides
 - if several images share the top score, no champion is assigned
-- final result includes a `🏟 Новый турнир` button
+- final result includes `🏟 Новый турнир`, `🎲 Рандом`, and `🎛 Пульт` buttons
+- if a champion exists, `⚔️ Дуэль чемпиона` immediately sends that winner against a new random image
 
 In short: duels are the jury rule, tournaments are the showcase.
 

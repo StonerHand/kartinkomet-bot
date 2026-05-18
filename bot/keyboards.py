@@ -12,52 +12,105 @@ def main_menu(
     joke_duel_seconds: int | None = None,
     tournament_seconds: int | None = None,
 ) -> InlineKeyboardMarkup:
-    random_row = [
-        InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
-        InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+    arena_seconds = [
+        seconds
+        for active, seconds in [
+            (image_duel_active, image_duel_seconds),
+            (joke_duel_active, joke_duel_seconds),
+            (tournament_active, tournament_seconds),
+        ]
+        if active and seconds is not None
     ]
-    quick_row = [InlineKeyboardButton(text="📦 Склад", callback_data="count")]
-    duel_row = [
-        InlineKeyboardButton(
-            text=active_button_text("⚔️ Пикч-бой", image_duel_active, image_duel_seconds)
-            if image_duel_active
-            else "⚔️ Пикч-бой",
-            callback_data="duel_new",
-        ),
-        InlineKeyboardButton(
-            text=active_button_text("🥊 Шутко-бой", joke_duel_active, joke_duel_seconds)
-            if joke_duel_active
-            else "🥊 Шутко-бой",
-            callback_data="joke_duel_new",
-        ),
-    ]
-    arena_row = [
-        InlineKeyboardButton(
-            text=active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
-            if tournament_active
-            else "🏟 Турнир",
-            callback_data="tournament_new",
-        ),
-        InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-    ]
-    profile_row = [
-        InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
-        InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
-    ]
-    bottom_row = [
-        InlineKeyboardButton(text="📬 Загрузка", callback_data="upload_hub"),
-        InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
-    ]
+    arena_active = image_duel_active or joke_duel_active or tournament_active
+    arena_label = (
+        active_button_text("⚔️ Арены", True, min(arena_seconds))
+        if arena_seconds
+        else active_button_text("⚔️ Арены", arena_active)
+    )
     keyboard = [
-        random_row,
-        quick_row,
-        duel_row,
-        arena_row,
-        profile_row,
-        bottom_row,
+        [
+            InlineKeyboardButton(text="🎲 Выдача", callback_data="menu_random"),
+            InlineKeyboardButton(text=arena_label, callback_data="menu_arena"),
+        ],
+        [
+            InlineKeyboardButton(text="📦 Склад", callback_data="menu_storage"),
+            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
+        ],
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def random_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
+                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+            ],
+        ]
+    )
+
+
+def arena_menu(
+    image_duel_active: bool = False,
+    joke_duel_active: bool = False,
+    tournament_active: bool = False,
+    image_duel_seconds: int | None = None,
+    joke_duel_seconds: int | None = None,
+    tournament_seconds: int | None = None,
+) -> InlineKeyboardMarkup:
+    image_duel_label = (
+        active_button_text("⚔️ Пикч-бой", image_duel_active, image_duel_seconds)
+        if image_duel_active
+        else "⚔️ Пикч-бой"
+    )
+    joke_duel_label = (
+        active_button_text("🥊 Шутко-бой", joke_duel_active, joke_duel_seconds)
+        if joke_duel_active
+        else "🥊 Шутко-бой"
+    )
+    tournament_label = (
+        active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
+        if tournament_active
+        else "🏟 Турнир"
+    )
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=image_duel_label, callback_data="duel_new"),
+                InlineKeyboardButton(text=joke_duel_label, callback_data="joke_duel_new"),
+            ],
+            [
+                InlineKeyboardButton(text=tournament_label, callback_data="tournament_new"),
+                InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+            ],
+        ]
+    )
+
+
+def storage_menu(is_private: bool = False) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📦 Склад", callback_data="count"),
+                InlineKeyboardButton(text="📬 Загрузка", callback_data="upload_hub"),
+            ],
+            [
+                InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
+                InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+            ],
+        ]
+    )
 
 
 def upload_hub(is_private: bool = False) -> InlineKeyboardMarkup:
@@ -161,7 +214,14 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
 def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⚔️ Реванш пикч", callback_data="duel_new")],
+            [
+                InlineKeyboardButton(text="⚔️ Реванш пикч", callback_data="duel_new"),
+                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            ],
+            [
+                InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
+                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+            ],
         ]
     )
 
@@ -191,7 +251,13 @@ def joke_duel_vote(
 def new_joke_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🥊 Реванш шуток", callback_data="joke_duel_new")],
+            [
+                InlineKeyboardButton(text="🥊 Реванш шуток", callback_data="joke_duel_new"),
+                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+            ],
         ]
     )
 
@@ -227,11 +293,25 @@ def tournament_vote(
     )
 
 
-@lru_cache(maxsize=1)
-def new_tournament() -> InlineKeyboardMarkup:
+def new_tournament(winner_id: str | None = None) -> InlineKeyboardMarkup:
+    duel_button = (
+        InlineKeyboardButton(
+            text="⚔️ Дуэль чемпиона",
+            callback_data=f"duel_champion:{winner_id}",
+        )
+        if winner_id
+        else InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new")
+    )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🏟 Новый турнир", callback_data="tournament_new")],
+            [
+                InlineKeyboardButton(text="🏟 Новый турнир", callback_data="tournament_new"),
+                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+            ],
+            [
+                duel_button,
+                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+            ],
         ]
     )
 
@@ -245,6 +325,7 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
             InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
+            InlineKeyboardButton(text="🏟 В турнир", callback_data="tournament_new"),
         ],
     ]
 
@@ -270,6 +351,7 @@ def picture_actions_with_counts(
         [
             InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
             InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
+            InlineKeyboardButton(text="🏟 В турнир", callback_data="tournament_new"),
         ],
     ]
 

@@ -17,6 +17,7 @@ from aiogram.types import CallbackQuery, InputMediaPhoto, Message, ReplyKeyboard
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool
 from bot.keyboards import (
+    arena_menu,
     duel_vote,
     empty_joke_pool_actions,
     empty_picture_pool_actions,
@@ -27,6 +28,8 @@ from bot.keyboards import (
     new_joke_duel,
     new_tournament,
     picture_actions_with_counts,
+    random_menu,
+    storage_menu,
     tournament_vote,
     upload_hub,
     upload_menu,
@@ -685,6 +688,50 @@ def build_router(
             await show_menu(callback.message, image_pool, joke_pool)
         await callback.answer()
 
+    @router.callback_query(F.data == "menu_random")
+    async def menu_random_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await callback.message.answer(
+                format_random_menu(),
+                parse_mode="HTML",
+                reply_markup=random_menu(),
+            )
+        await callback.answer()
+
+    @router.callback_query(F.data == "menu_arena")
+    async def menu_arena_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            chat_id = callback.message.chat.id
+            image_duel_seconds = active_duel_seconds(chat_id, "image")
+            joke_duel_seconds = active_duel_seconds(chat_id, "joke")
+            tournament_seconds = active_tournament_seconds(chat_id)
+            await callback.message.answer(
+                format_arena_menu(chat_id),
+                parse_mode="HTML",
+                reply_markup=arena_menu(
+                    image_duel_active=image_duel_seconds is not None,
+                    joke_duel_active=joke_duel_seconds is not None,
+                    tournament_active=tournament_seconds is not None,
+                    image_duel_seconds=image_duel_seconds,
+                    joke_duel_seconds=joke_duel_seconds,
+                    tournament_seconds=tournament_seconds,
+                ),
+            )
+        await callback.answer()
+
+    @router.callback_query(F.data == "menu_storage")
+    async def menu_storage_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message:
+            await callback.message.answer(
+                format_storage_menu(image_pool, joke_pool),
+                parse_mode="HTML",
+                reply_markup=storage_menu(is_private=is_private_chat(callback.message)),
+            )
+        await callback.answer()
+
     @router.callback_query(F.data == "me")
     async def me_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
@@ -1064,6 +1111,28 @@ def build_router(
             await callback.answer("Дуэль уже идёт")
         else:
             await callback.answer("Дуэль не запустилась")
+
+    @router.callback_query(F.data.startswith("duel_champion:"))
+    async def champion_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
+        image_pool.remember_user(callback.from_user)
+        if callback.message is None or callback.data is None:
+            await callback.answer()
+            return
+
+        _, champion_id = callback.data.split(":", 1)
+        duel_result = await send_duel(
+            bot=bot,
+            message=callback.message,
+            image_pool=image_pool,
+            silent_if_active=True,
+            champion_id=champion_id,
+        )
+        if duel_result == "started":
+            await callback.answer("Чемпион вышел на дуэль")
+        elif duel_result == "active":
+            await callback.answer("Дуэль уже идёт")
+        else:
+            await callback.answer("Чемпион не нашёл соперника")
 
     @router.callback_query(F.data == "joke_duel_new")
     async def new_joke_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
@@ -1465,6 +1534,7 @@ async def send_duel(
     message: Message,
     image_pool: ImagePool,
     silent_if_active: bool = False,
+    champion_id: str | None = None,
 ) -> DuelStartResult:
     chat_id = message.chat.id
     async with duel_lock_for(chat_id):
@@ -1477,7 +1547,11 @@ async def send_duel(
             await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
             return "failed"
 
-        duel_pair = image_pool.random_duel_pair(chat_id=chat_id)
+        duel_pair = (
+            image_pool.random_duel_pair_with(champion_id, chat_id=chat_id)
+            if champion_id
+            else image_pool.random_duel_pair(chat_id=chat_id)
+        )
         if duel_pair is None:
             await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
             return "failed"
@@ -1832,7 +1906,7 @@ async def close_expired_tournament_from_callback(
             chat_id=chat_id,
             message_id=callback.message.message_id,
             text=result_text,
-            reply_markup=new_tournament(),
+            reply_markup=new_tournament(tournament_winner_record_id(tournament)),
             log_context="expired tournament message",
         )
     clear_active_tournament(chat_id, tournament_id)
@@ -1992,7 +2066,7 @@ async def finalize_tournament(
             chat_id=chat_id,
             message_id=message_id,
             text=result_text,
-            reply_markup=new_tournament(),
+            reply_markup=new_tournament(tournament_winner_record_id(tournament)),
             log_context="completed tournament message",
         )
     except Exception:
@@ -2157,6 +2231,19 @@ def tournament_winner(votes: list[int]) -> int | None:
     if best_score <= 0 or votes.count(best_score) != 1:
         return None
     return votes.index(best_score)
+
+
+def tournament_winner_record_id(tournament: dict) -> str | None:
+    winner = tournament_winner(tournament_vote_counts(tournament))
+    if winner is None:
+        return None
+
+    records = tournament.get("records")
+    if not isinstance(records, list) or winner >= len(records):
+        return None
+
+    record_id = records[winner]
+    return str(record_id) if record_id else None
 
 
 def duel_remaining_seconds(duel: dict) -> int:
@@ -2495,6 +2582,34 @@ async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool
             joke_duel_seconds=joke_duel_seconds,
             tournament_seconds=tournament_seconds,
         ),
+    )
+
+
+def format_random_menu() -> str:
+    return (
+        "<b>🎲 Выдача</b>\n\n"
+        "Быстрый доступ к складу без лишних кнопочных раскопок\n\n"
+        "<code>🎲 Пикча</code> — случайная картинка\n"
+        "<code>😂 Анекдот</code> — случайная шутка"
+    )
+
+
+def format_arena_menu(chat_id: int) -> str:
+    return (
+        "<b>⚔️ Арены</b>\n\n"
+        "Голосования, где контент либо выходит героем, либо уезжает в архив\n\n"
+        f"Пикч-бой: <b>{active_duel_status(chat_id, 'image')}</b>\n"
+        f"Шутко-бой: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
+        f"Турнир: <b>{active_tournament_status(chat_id)}</b>"
+    )
+
+
+def format_storage_menu(image_pool: ImagePool, joke_pool: JokePool) -> str:
+    return (
+        "<b>📦 Склад</b>\n\n"
+        "Контент, вклад и служебные двери в одном месте\n\n"
+        f"Пикчи: <b>{image_pool.count()}</b>\n"
+        f"Анекдоты: <b>{joke_pool.count()}</b>"
     )
 
 
@@ -3117,6 +3232,8 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
         "<b>Счёт</b>\n"
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
+        "<b>История боя</b>\n"
+        f"{format_battle_history(left_votes, right_votes, winner, item_label='мем')}\n\n"
         "<b>Вердикт</b>\n"
         f"{verdict}"
     )
@@ -3170,9 +3287,41 @@ def format_joke_duel_result(
         "<b>Счёт</b>\n"
         f"🅰️ Первый: <b>{left_votes}</b>\n"
         f"🅱️ Второй: <b>{right_votes}</b>\n\n"
+        "<b>История боя</b>\n"
+        f"{format_battle_history(left_votes, right_votes, winner, item_label='анекдот')}\n\n"
         "<b>Вердикт</b>\n"
         f"{verdict}"
     )
+
+
+def format_battle_history(
+    left_votes: int,
+    right_votes: int,
+    winner: str | None,
+    item_label: str,
+) -> str:
+    total_votes = left_votes + right_votes
+    if winner is None:
+        if total_votes == 0:
+            return f"Кнопки молчали. Ни один {item_label} не пострадал"
+        return f"Голоса разошлись поровну: {total_votes} {plural_votes(total_votes)}"
+
+    margin = abs(left_votes - right_votes)
+    winner_label = "🅰️ первый" if winner == "left" else "🅱️ второй"
+    loser_label = "🅱️ второй" if winner == "left" else "🅰️ первый"
+    return (
+        f"{winner_label} забрал бой с отрывом "
+        f"{margin} {plural_votes(margin)}. {loser_label} покидает пул"
+    )
+
+
+def plural_votes(value: int) -> str:
+    value = abs(value)
+    if value % 10 == 1 and value % 100 != 11:
+        return "голос"
+    if value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14):
+        return "голоса"
+    return "голосов"
 
 
 def format_tournament_score(

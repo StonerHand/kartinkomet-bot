@@ -125,6 +125,40 @@ class ImagePool:
         )
         return self._to_image_record(left_record), self._to_image_record(right_record)
 
+    def random_duel_pair_with(
+        self,
+        image_id: str,
+        chat_id: int | str,
+        avoid_recent: bool = True,
+    ) -> tuple[ImageRecord, ImageRecord] | None:
+        champion_record = self._find(image_id)
+        if champion_record is None or len(self._records) < 2:
+            return None
+
+        duel_chat_id = f"duel:{chat_id}"
+        records = [
+            record
+            for record in self._selectable_records(
+                avoid_recent=avoid_recent,
+                chat_id=duel_chat_id,
+                minimum_candidates=1,
+            )
+            if record["id"] != image_id
+        ]
+        if not records:
+            records = [record for record in self._records if record["id"] != image_id]
+        if not records:
+            return None
+
+        opponent_record = self._weighted_random_record(records)
+        self._mark_shown_many(
+            [
+                (champion_record, duel_chat_id),
+                (opponent_record, duel_chat_id),
+            ]
+        )
+        return self._to_image_record(champion_record), self._to_image_record(opponent_record)
+
     def random_tournament_candidates(
         self,
         chat_id: int | str,
