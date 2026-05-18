@@ -975,7 +975,7 @@ def build_router(
         await callback.answer("Голос принят")
 
     @router.callback_query(F.data.startswith("tournament:"))
-    async def tournament_callback(callback: CallbackQuery) -> None:
+    async def tournament_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.data is None:
             await callback.answer()
@@ -988,6 +988,16 @@ def build_router(
             return
         if not tournament.get("active", False):
             await callback.answer("Турнир уже закончился", show_alert=True)
+            return
+        if tournament_remaining_seconds(tournament) <= 0:
+            await close_expired_tournament_from_callback(
+                callback=callback,
+                bot=bot,
+                image_pool=image_pool,
+                tournament_id=tournament_id,
+                tournament=tournament,
+            )
+            await callback.answer("Финальный свисток уже был")
             return
 
         try:
@@ -1178,17 +1188,26 @@ async def send_picture(
             )
         return
 
-    await bot.send_photo(
-        chat_id=destination_chat_id,
-        photo=image.file_id,
-        caption=format_picture_caption(image),
-        parse_mode="HTML",
-        reply_markup=picture_actions_with_counts(
-            image_id=image.id,
-            likes=image.likes,
-            dislikes=image.dislikes,
-        ),
-    )
+    try:
+        await telegram_request_with_retry(
+            lambda: bot.send_photo(
+                chat_id=destination_chat_id,
+                photo=image.file_id,
+                caption=format_picture_caption(image),
+                parse_mode="HTML",
+                reply_markup=picture_actions_with_counts(
+                    image_id=image.id,
+                    likes=image.likes,
+                    dislikes=image.dislikes,
+                ),
+            ),
+            "random picture",
+        )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send random picture", exc_info=True)
+        if answer_message:
+            await answer_message.answer("Telegram не отдал пикчу. Попробуйте ещё раз")
+        return
 
     if (
         target_channel_id
@@ -1224,16 +1243,40 @@ async def send_joke(
             )
         return
 
-    await bot.send_message(
-        chat_id=chat_id,
-        text=format_joke(joke.text, likes=joke.likes, dislikes=joke.dislikes),
-        parse_mode="HTML",
-        reply_markup=joke_actions_with_counts(
-            joke_id=joke.id,
-            likes=joke.likes,
-            dislikes=joke.dislikes,
-        ),
-    )
+    chunks = split_text_for_telegram(joke.text.strip())
+    total_chunks = len(chunks)
+    try:
+        for index, chunk in enumerate(chunks, start=1):
+            is_last_chunk = index == total_chunks
+            title = "😂 Анекдот"
+            if total_chunks > 1:
+                title = f"{title} · часть {index}/{total_chunks}"
+
+            await telegram_request_with_retry(
+                lambda chunk=chunk, title=title, is_last_chunk=is_last_chunk: bot.send_message(
+                    chat_id=chat_id,
+                    text=format_joke(
+                        chunk,
+                        title=title,
+                        include_reaction_hint=is_last_chunk,
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=(
+                        joke_actions_with_counts(
+                            joke_id=joke.id,
+                            likes=joke.likes,
+                            dislikes=joke.dislikes,
+                        )
+                        if is_last_chunk
+                        else None
+                    ),
+                ),
+                f"random joke chunk {index}",
+            )
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send random joke", exc_info=True)
+        if answer_message:
+            await answer_message.answer("Telegram не отдал анекдот. Попробуйте ещё раз")
 
 
 async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
@@ -1615,32 +1658,84 @@ async def send_tournament(
 
 
 def resolve_image_duel_result(duel: dict, image_pool: ImagePool) -> str:
+    final_text = duel.get("final_text")
+    if isinstance(final_text, str):
+        duel["active"] = False
+        return final_text
+
     duel["active"] = False
     left_votes, right_votes = duel_vote_counts(duel)
 
     if left_votes == right_votes:
         image_pool.finish_duel(loser_id=None)
-        return format_duel_result(left_votes, right_votes, winner=None)
-    if left_votes > right_votes:
+        final_text = format_duel_result(left_votes, right_votes, winner=None)
+    elif left_votes > right_votes:
         image_pool.finish_duel(loser_id=duel["right"])
-        return format_duel_result(left_votes, right_votes, winner="left")
+        final_text = format_duel_result(left_votes, right_votes, winner="left")
+    else:
+        image_pool.finish_duel(loser_id=duel["left"])
+        final_text = format_duel_result(left_votes, right_votes, winner="right")
 
-    image_pool.finish_duel(loser_id=duel["left"])
-    return format_duel_result(left_votes, right_votes, winner="right")
+    duel["final_text"] = final_text
+    return final_text
 
 
 def resolve_joke_duel_result(duel: dict, joke_pool: JokePool) -> str:
+    final_text = duel.get("final_text")
+    if isinstance(final_text, str):
+        duel["active"] = False
+        return final_text
+
     duel["active"] = False
     left_votes, right_votes = duel_vote_counts(duel)
 
     if left_votes == right_votes:
-        return format_joke_duel_result(left_votes, right_votes, winner=None)
-    if left_votes > right_votes:
+        final_text = format_joke_duel_result(left_votes, right_votes, winner=None)
+    elif left_votes > right_votes:
         joke_pool.delete(str(duel["right"]))
-        return format_joke_duel_result(left_votes, right_votes, winner="left")
+        final_text = format_joke_duel_result(left_votes, right_votes, winner="left")
+    else:
+        joke_pool.delete(str(duel["left"]))
+        final_text = format_joke_duel_result(left_votes, right_votes, winner="right")
 
-    joke_pool.delete(str(duel["left"]))
-    return format_joke_duel_result(left_votes, right_votes, winner="right")
+    duel["final_text"] = final_text
+    return final_text
+
+
+def resolve_tournament_result(tournament: dict, image_pool: ImagePool) -> str:
+    final_text = tournament.get("final_text")
+    if isinstance(final_text, str):
+        tournament["active"] = False
+        return final_text
+
+    tournament["active"] = False
+    vote_counts = tournament_vote_counts(tournament)
+    winner = tournament_winner(vote_counts)
+    image_pool.record_tournament_result(tied=winner is None)
+    final_text = format_tournament_result(vote_counts, winner=winner)
+    tournament["final_text"] = final_text
+    return final_text
+
+
+def callback_chat_id(callback: CallbackQuery, session: dict) -> int | None:
+    raw_chat_id = session.get("chat_id")
+    if raw_chat_id is not None:
+        try:
+            return int(raw_chat_id)
+        except (TypeError, ValueError):
+            LOGGER.warning("Interactive session has invalid chat_id: %r", raw_chat_id)
+
+    message = callback.message
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    if chat_id is None:
+        return None
+
+    try:
+        return int(chat_id)
+    except (TypeError, ValueError):
+        LOGGER.warning("Callback message has invalid chat_id: %r", chat_id)
+        return None
 
 
 async def close_expired_image_duel_from_callback(
@@ -1650,7 +1745,14 @@ async def close_expired_image_duel_from_callback(
     duel_id: str,
     duel: dict,
 ) -> None:
-    chat_id = int(duel.get("chat_id") or callback.message.chat.id)
+    chat_id = callback_chat_id(callback, duel)
+    if chat_id is None:
+        LOGGER.warning("Cannot close expired image duel %s without chat_id", duel_id)
+        duel["active"] = False
+        duel_sessions.pop(duel_id, None)
+        duel_tasks.pop(duel_id, None)
+        return
+
     result_text = resolve_image_duel_result(duel, image_pool)
     if callback.message:
         await edit_or_send_final_message(
@@ -1673,7 +1775,14 @@ async def close_expired_joke_duel_from_callback(
     duel_id: str,
     duel: dict,
 ) -> None:
-    chat_id = int(duel.get("chat_id") or callback.message.chat.id)
+    chat_id = callback_chat_id(callback, duel)
+    if chat_id is None:
+        LOGGER.warning("Cannot close expired joke duel %s without chat_id", duel_id)
+        duel["active"] = False
+        duel_sessions.pop(duel_id, None)
+        duel_tasks.pop(duel_id, None)
+        return
+
     result_text = resolve_joke_duel_result(duel, joke_pool)
     if callback.message:
         await edit_or_send_final_message(
@@ -1687,6 +1796,36 @@ async def close_expired_joke_duel_from_callback(
     clear_active_duel(chat_id, "joke", duel_id)
     duel_sessions.pop(duel_id, None)
     duel_tasks.pop(duel_id, None)
+
+
+async def close_expired_tournament_from_callback(
+    callback: CallbackQuery,
+    bot: Bot,
+    image_pool: ImagePool,
+    tournament_id: str,
+    tournament: dict,
+) -> None:
+    chat_id = callback_chat_id(callback, tournament)
+    if chat_id is None:
+        LOGGER.warning("Cannot close expired tournament %s without chat_id", tournament_id)
+        tournament["active"] = False
+        tournament_sessions.pop(tournament_id, None)
+        tournament_tasks.pop(tournament_id, None)
+        return
+
+    result_text = resolve_tournament_result(tournament, image_pool)
+    if callback.message:
+        await edit_or_send_final_message(
+            bot=bot,
+            chat_id=chat_id,
+            message_id=callback.message.message_id,
+            text=result_text,
+            reply_markup=new_tournament(),
+            log_context="expired tournament message",
+        )
+    clear_active_tournament(chat_id, tournament_id)
+    tournament_sessions.pop(tournament_id, None)
+    tournament_tasks.pop(tournament_id, None)
 
 
 async def finalize_duel(
@@ -1834,11 +1973,7 @@ async def finalize_tournament(
         if tournament is None or not tournament.get("active", False):
             return
 
-        tournament["active"] = False
-        vote_counts = tournament_vote_counts(tournament)
-        winner = tournament_winner(vote_counts)
-        image_pool.record_tournament_result(tied=winner is None)
-        result_text = format_tournament_result(vote_counts, winner=winner)
+        result_text = resolve_tournament_result(tournament, image_pool)
 
         await edit_or_send_final_message(
             bot=bot,
@@ -2643,12 +2778,21 @@ def format_empty_joke_pool(is_private: bool = False) -> str:
     )
 
 
-def format_joke(text: str, likes: int = 0, dislikes: int = 0) -> str:
-    return (
-        "<b>😂 Анекдот</b>\n\n"
-        f"<blockquote>{escape(text)}</blockquote>\n\n"
-        f"{format_reaction_hint()}"
-    )
+def format_joke(
+    text: str,
+    likes: int = 0,
+    dislikes: int = 0,
+    title: str = "😂 Анекдот",
+    include_reaction_hint: bool = True,
+) -> str:
+    lines = [
+        f"<b>{escape(title)}</b>",
+        "",
+        f"<blockquote>{escape(text)}</blockquote>",
+    ]
+    if include_reaction_hint:
+        lines.extend(["", format_reaction_hint()])
+    return "\n".join(lines)
 
 
 def format_joke_duel_entry(title: str, text: str) -> str:
@@ -2845,7 +2989,7 @@ def format_picture_caption(image) -> str:
 
 
 def format_reaction_hint() -> str:
-    return "<b>Глас народа</b>\nрешает кнопками ниже"
+    return "<b>Глас народа</b>\n🤙🏻 оставить · 🖕🏻 убрать"
 
 
 def rare_easter_egg() -> str | None:

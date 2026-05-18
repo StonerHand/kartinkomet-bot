@@ -53,6 +53,9 @@ from bot.handlers import (
     quality_title,
     register_active_duel,
     register_active_tournament,
+    resolve_image_duel_result,
+    resolve_joke_duel_result,
+    resolve_tournament_result,
     split_text_for_telegram,
     TOURNAMENT_START_PHRASES,
     TOURNAMENT_STATUS_PHRASES,
@@ -557,7 +560,15 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("<blockquote>A &lt; B</blockquote>", format_joke("A < B"))
         self.assertIn("</blockquote>\n\n<b>Глас народа</b>", format_joke("A < B"))
         self.assertIn(
-            "<b>Глас народа</b>\nрешает кнопками ниже",
+            "<b>😂 Анекдот · часть 1/2</b>",
+            format_joke("A", title="😂 Анекдот · часть 1/2", include_reaction_hint=False),
+        )
+        self.assertNotIn(
+            "Глас народа",
+            format_joke("A", title="часть", include_reaction_hint=False),
+        )
+        self.assertIn(
+            "<b>Глас народа</b>\n🤙🏻 оставить · 🖕🏻 убрать",
             format_picture_caption(SimpleNamespace(likes=2, dislikes=1)),
         )
 
@@ -764,6 +775,29 @@ class JokePoolTest(unittest.TestCase):
             self.assertTrue(pool.delete(joke.id))
             self.assertEqual(pool.count(), 0)
 
+    def test_resolve_joke_duel_result_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = JokePool(str(Path(temp_dir) / "jokes.json"))
+            pool.add_from_message(fake_text_message("Анекдот один"))
+            pool.add_from_message(fake_text_message("Анекдот два"))
+            left_id = pool._records[0]["id"]
+            right_id = pool._records[1]["id"]
+            duel = {
+                "active": True,
+                "left": left_id,
+                "right": right_id,
+                "votes": {"1": "right"},
+            }
+
+            first = resolve_joke_duel_result(duel, pool)
+            second = resolve_joke_duel_result(duel, pool)
+
+            self.assertEqual(first, second)
+            self.assertFalse(duel["active"])
+            self.assertEqual(pool.count(), 1)
+            self.assertIsNone(pool._find(left_id))
+            self.assertIsNotNone(pool._find(right_id))
+
     def test_stats_and_count_include_jokes_when_pool_is_passed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             image_pool = ImagePool(str(Path(temp_dir) / "pool.json"))
@@ -942,6 +976,47 @@ class ImagePoolTest(unittest.TestCase):
             self.assertEqual(stats.total_duels, 1)
             self.assertEqual(stats.duel_executions, 1)
             self.assertEqual(stats.duel_ties, 0)
+
+    def test_resolve_tournament_result_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            tournament = {
+                "active": True,
+                "votes": {"1": 0, "2": 0, "3": 1},
+            }
+
+            first = resolve_tournament_result(tournament, pool)
+            second = resolve_tournament_result(tournament, pool)
+
+            self.assertEqual(first, second)
+            self.assertFalse(tournament["active"])
+            self.assertEqual(pool.stats().total_tournaments, 1)
+            self.assertEqual(pool.stats().tournament_ties, 0)
+
+    def test_resolve_image_duel_result_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pool = ImagePool(str(Path(temp_dir) / "pool.json"))
+            pool.add_from_message(fake_photo_message("file-a", "unique-a"))
+            pool.add_from_message(fake_photo_message("file-b", "unique-b"))
+            left_id = pool._records[0]["id"]
+            right_id = pool._records[1]["id"]
+            duel = {
+                "active": True,
+                "left": left_id,
+                "right": right_id,
+                "votes": {"1": "left"},
+            }
+
+            first = resolve_image_duel_result(duel, pool)
+            second = resolve_image_duel_result(duel, pool)
+
+            self.assertEqual(first, second)
+            self.assertFalse(duel["active"])
+            self.assertEqual(pool.count(), 1)
+            self.assertEqual(pool.stats().total_duels, 1)
+            self.assertEqual(pool.stats().duel_executions, 1)
+            self.assertIsNotNone(pool._find(left_id))
+            self.assertIsNone(pool._find(right_id))
 
     def test_random_duel_pair_marks_two_distinct_images_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
