@@ -486,17 +486,6 @@ def build_router(
             answer_message=message,
         )
 
-    @router.message(Command("roulette"))
-    async def roulette_command(message: Message, bot: Bot) -> None:
-        image_pool.remember_user(message.from_user)
-        await send_roulette(
-            bot=bot,
-            message=message,
-            image_pool=image_pool,
-            joke_pool=joke_pool,
-            target_channel_id=target_channel_id,
-        )
-
     @router.message(Command("count"))
     @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
@@ -677,22 +666,6 @@ def build_router(
         await callback.answer(
             format_count_alert(image_pool, joke_pool),
             show_alert=True,
-        )
-
-    @router.callback_query(F.data == "roulette")
-    async def roulette_callback(callback: CallbackQuery, bot: Bot) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.message is None:
-            await callback.answer()
-            return
-
-        await callback.answer("🎰 Кручу")
-        await send_roulette(
-            bot=bot,
-            message=callback.message,
-            image_pool=image_pool,
-            joke_pool=joke_pool,
-            target_channel_id=target_channel_id,
         )
 
     @router.callback_query(F.data == "stats")
@@ -1197,87 +1170,6 @@ def build_router(
             await message.answer(format_invalid_joke())
 
     return router
-
-
-async def send_roulette(
-    bot: Bot,
-    message: Message,
-    image_pool: ImagePool,
-    joke_pool: JokePool,
-    target_channel_id: str | None = None,
-) -> None:
-    chat_id = message.chat.id
-    options: list[str] = []
-
-    if image_pool.count() > 0:
-        options.extend(["picture", "picture"])
-    if joke_pool.count() > 0:
-        options.extend(["joke", "joke"])
-    if image_pool.count() >= 2 and active_duel_id_for_chat(chat_id, "image") is None:
-        options.append("image_duel")
-    if joke_pool.count() >= 2 and active_duel_id_for_chat(chat_id, "joke") is None:
-        options.append("joke_duel")
-    if image_pool.count() >= TOURNAMENT_SIZE and active_tournament_id_for_chat(chat_id) is None:
-        options.append("tournament")
-
-    if not options:
-        await message.answer(
-            format_roulette_empty(is_private_chat(message)),
-            parse_mode="HTML",
-            reply_markup=upload_hub(is_private=is_private_chat(message)),
-        )
-        return
-
-    choice = RANDOM.choice(options)
-    if choice == "picture":
-        await send_picture(
-            bot=bot,
-            chat_id=chat_id,
-            image_pool=image_pool,
-            target_channel_id=target_channel_id,
-            answer_message=message,
-        )
-        return
-
-    if choice == "joke":
-        await send_joke(
-            bot=bot,
-            chat_id=chat_id,
-            joke_pool=joke_pool,
-            answer_message=message,
-        )
-        return
-
-    if choice == "image_duel":
-        result = await send_duel(
-            bot=bot,
-            message=message,
-            image_pool=image_pool,
-            silent_if_active=True,
-        )
-        if result == "active":
-            await message.answer(format_duel_already_active("image"), parse_mode="HTML")
-        return
-
-    if choice == "joke_duel":
-        result = await send_joke_duel(
-            bot=bot,
-            message=message,
-            joke_pool=joke_pool,
-            silent_if_active=True,
-        )
-        if result == "active":
-            await message.answer(format_duel_already_active("joke"), parse_mode="HTML")
-        return
-
-    result = await send_tournament(
-        bot=bot,
-        message=message,
-        image_pool=image_pool,
-        silent_if_active=True,
-    )
-    if result == "active":
-        await message.answer(format_tournament_already_active(), parse_mode="HTML")
 
 
 async def send_picture(
@@ -2587,8 +2479,6 @@ async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool
         "<b>🎛 Пульт kartinkomet</b>\n\n"
         "<b>📦 Склад</b>\n"
         f"Пикчи: <b>{image_pool.count()}</b> · Анекдоты: <b>{joke_pool.count()}</b>\n\n"
-        "<b>🎰 Рулетка</b>\n"
-        "Крутит пикчу, анекдот или свободную арену\n\n"
         "<b>🟢 Арены</b>\n"
         f"Пикчи: <b>{active_duel_status(chat_id, 'image')}</b> · "
         f"Шутки: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
@@ -2714,7 +2604,6 @@ def format_start() -> str:
         "Склад пикч и анекдотов, арены для голосований и народный суд без лишней мишуры\n\n"
         "<b>🎛 Быстрый старт</b>\n"
         "<code>🎲 Пикча</code> / <code>😂 Анекдот</code>\n"
-        "<code>🎰 Рулетка</code> — бот сам выбирает формат\n"
         "<code>⚔️ Пикч-бой</code> / <code>🥊 Шутко-бой</code>\n"
         "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
         "<b>📥 Загрузка</b>\n"
@@ -2735,7 +2624,6 @@ def format_help() -> str:
             "🎲 Выдача",
             "<code>/pic</code> — случайная пикча со склада",
             "<code>/joke</code> — случайный анекдот из блокнота",
-            "<code>/roulette</code> — случайный формат: пикча, анекдот или свободная арена",
             "<code>/weather</code> — погода Малой Токмачки",
         ),
         format_section(
@@ -2804,17 +2692,6 @@ def format_upload_hub(is_private: bool = False) -> str:
         "<b>📬 Загрузка живёт в личке</b>\n\n"
         "В группе оставляем выдачу и арены, а склад пополняем один на один с ботом\n\n"
         "Нажмите нужный тип ниже, бот подскажет маршрут"
-    )
-
-
-def format_roulette_empty(is_private: bool = False) -> str:
-    route = "Откройте загрузку ниже и занесите первый контент" if is_private else (
-        "Откройте загрузку ниже, бот отправит в личку"
-    )
-    return (
-        "<b>🎰 Рулетка щёлкнула пустотой</b>\n\n"
-        "На складе пока нечего крутить\n"
-        f"{route}"
     )
 
 

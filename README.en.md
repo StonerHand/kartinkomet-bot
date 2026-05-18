@@ -6,7 +6,7 @@ Telegram bot for a shared pool of images and jokes: random delivery, private upl
 
 ## What It Is
 
-`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs duels, mini-tournaments, and tracks user contributions. If nobody wants to choose, `🎰 Рулетка` picks a random format: image, joke, or an available arena.
+`@kartinkomet_bot` works in Telegram groups and channels. It sends a random image from the shared pool through the `🎲 Пикча` button or `/pic`, pulls a random joke through `😂 Анекдот` or `/joke`, runs duels, mini-tournaments, and tracks user contributions.
 
 The bot does not store image files on the server. It stores Telegram `file_id` and `file_unique_id`; the actual files stay on Telegram's side.
 
@@ -38,7 +38,6 @@ The public Telegram command menu stays short: only the commands people are likel
 | `/menu` | Open the main control panel |
 | `/pic` | Pull a random image from the warehouse |
 | `/joke` | Pull a random joke from the notebook |
-| `/roulette` | Spin a random format |
 | `/duel` | Start an image duel |
 | `/jokeduel` | Start a joke duel |
 | `/tournament` | Start a four-image tournament |
@@ -70,7 +69,7 @@ Main panel:
 
 ```text
 🎲 Пикча            😂 Анекдот
-🎰 Рулетка          📦 Склад
+📦 Склад
 ⚔️ Пикч-бой         🥊 Шутко-бой
 🏟 Турнир           📊 Сводка
 🏆 Топ              👤 Мой вклад
@@ -202,9 +201,6 @@ Menu example:
 
 📦 Склад
 Пикчи: 3823 · Анекдоты: 128
-
-🎰 Рулетка
-Крутит пикчу, анекдот или свободную арену
 
 🟢 Арены
 Пикчи: свободно · Шутки: идёт 01:22

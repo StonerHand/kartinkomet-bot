@@ -16,10 +16,7 @@ def main_menu(
         InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
         InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
     ]
-    quick_row = [
-        InlineKeyboardButton(text="🎰 Рулетка", callback_data="roulette"),
-        InlineKeyboardButton(text="📦 Склад", callback_data="count"),
-    ]
+    quick_row = [InlineKeyboardButton(text="📦 Склад", callback_data="count")]
     duel_row = [
         InlineKeyboardButton(
             text=active_button_text("⚔️ Пикч-бой", image_duel_active, image_duel_seconds)

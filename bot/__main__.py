@@ -16,7 +16,6 @@ BOT_COMMANDS = [
     BotCommand(command="menu", description="открыть главный пульт"),
     BotCommand(command="pic", description="выдать случайную пикчу"),
     BotCommand(command="joke", description="достать случайный анекдот"),
-    BotCommand(command="roulette", description="крутануть случайный формат"),
     BotCommand(command="duel", description="устроить дуэль пикч"),
     BotCommand(command="jokeduel", description="устроить дуэль анекдотов"),
     BotCommand(command="tournament", description="турнир четырёх пикч"),

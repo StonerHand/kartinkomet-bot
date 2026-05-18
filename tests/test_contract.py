@@ -50,7 +50,6 @@ from bot.handlers import (
     format_upload_hub,
     format_upload_not_active,
     format_upload_private_only,
-    format_roulette_empty,
     next_achievement_for,
     parse_user_id_argument,
     quality_title,
@@ -153,7 +152,6 @@ class BotContractTest(unittest.TestCase):
                 "menu",
                 "pic",
                 "joke",
-                "roulette",
                 "duel",
                 "jokeduel",
                 "tournament",
@@ -170,12 +168,12 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("upload_pidor", commands)
         self.assertIn("upload_joke", commands)
         self.assertIn("joke", commands)
-        self.assertIn("roulette", commands)
         self.assertIn("me", commands)
         self.assertIn("top", commands)
         self.assertIn("duel", commands)
         self.assertIn("jokeduel", commands)
         self.assertIn("tournament", commands)
+        self.assertNotIn("roulette", commands)
         self.assertNotIn("upload", commands)
         self.assertNotIn("done", commands)
         self.assertNotIn("cancel", commands)
@@ -249,7 +247,6 @@ class BotContractTest(unittest.TestCase):
             [
                 "🎲 Пикча",
                 "😂 Анекдот",
-                "🎰 Рулетка",
                 "📦 Склад",
                 "⚔️ Пикч-бой",
                 "🥊 Шутко-бой",
@@ -565,14 +562,12 @@ class BotContractTest(unittest.TestCase):
     def test_core_command_texts_are_grouped(self) -> None:
         self.assertIn("<b>👋 @kartinkomet_bot на связи</b>", format_start())
         self.assertIn("😂 Анекдот", format_start())
-        self.assertIn("🎰 Рулетка", format_start())
         self.assertIn("⚔️ Пикч-бой", format_start())
         self.assertIn("🥊 Шутко-бой", format_start())
         self.assertIn("🏟 Турнир", format_start())
         self.assertIn("📬 Загрузка", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>🎲 Выдача</b>", format_help())
-        self.assertIn("/roulette", format_help())
         self.assertIn("/upload_joke", format_help())
         self.assertIn("/jokeduel", format_help())
         self.assertIn("/tournament", format_help())
@@ -583,11 +578,12 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("Пикчи принимаются в личке", format_upload_private_only())
         self.assertIn("Загрузка живёт в личке", format_upload_hub(False))
         self.assertIn("Загрузочный отсек", format_upload_hub(True))
-        self.assertIn("Рулетка щёлкнула пустотой", format_roulette_empty())
         self.assertIn("/upload_pidor", format_upload_private_only())
         self.assertIn("Лимит: <b>1000 новых пикч в час</b>", format_upload_limit())
         self.assertIn("Загрузка не открыта", format_upload_not_active())
         self.assertIn("/upload_joke", format_upload_not_active())
+        self.assertNotIn("roulette", format_help())
+        self.assertNotIn("Рулетка", format_start())
         self.assertIn("Склад пикч пуст", format_empty_picture_pool("Пусто <тест>"))
         self.assertIn("Пусто &lt;тест&gt;", format_empty_picture_pool("Пусто <тест>"))
         self.assertIn("Как загрузить пикчи", format_empty_picture_pool("Пусто"))
