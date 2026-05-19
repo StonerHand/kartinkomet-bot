@@ -96,11 +96,12 @@ def arena_menu(
 
 
 def storage_menu(is_private: bool = False) -> InlineKeyboardMarkup:
+    upload_label = "📥 Загрузка" if is_private else "📬 В личку"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="📦 Склад", callback_data="count"),
-                InlineKeyboardButton(text="📬 Загрузка", callback_data="upload_hub"),
+                InlineKeyboardButton(text=upload_label, callback_data="upload_hub"),
             ],
             [
                 InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
@@ -215,8 +216,8 @@ def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="⚔️ Реванш пикч", callback_data="duel_new"),
-                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+                InlineKeyboardButton(text="⚔️ Реванш", callback_data="duel_new"),
+                InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
             ],
             [
                 InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
@@ -252,8 +253,8 @@ def new_joke_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🥊 Реванш шуток", callback_data="joke_duel_new"),
-                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
+                InlineKeyboardButton(text="🥊 Реванш", callback_data="joke_duel_new"),
+                InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
             ],
             [
                 InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
@@ -296,17 +297,17 @@ def tournament_vote(
 def new_tournament(winner_id: str | None = None) -> InlineKeyboardMarkup:
     duel_button = (
         InlineKeyboardButton(
-            text="⚔️ Дуэль чемпиона",
+            text="⚔️ Чемпион",
             callback_data=f"duel_champion:{winner_id}",
         )
         if winner_id
-        else InlineKeyboardButton(text="⚔️ Дуэль пикч", callback_data="duel_new")
+        else InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new")
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🏟 Новый турнир", callback_data="tournament_new"),
-                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+                InlineKeyboardButton(text="🏟 Реванш", callback_data="tournament_new"),
+                InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
             ],
             [
                 duel_button,
@@ -323,9 +324,9 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
         ],
         [
-            InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
-            InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
-            InlineKeyboardButton(text="🏟 В турнир", callback_data="tournament_new"),
+            InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
+            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
         ],
     ]
 
@@ -349,9 +350,9 @@ def picture_actions_with_counts(
             ),
         ],
         [
-            InlineKeyboardButton(text="🎲 Ещё пикчу", callback_data="pic"),
-            InlineKeyboardButton(text="⚔️ В дуэль", callback_data="duel_new"),
-            InlineKeyboardButton(text="🏟 В турнир", callback_data="tournament_new"),
+            InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
+            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
         ],
     ]
 
@@ -365,8 +366,8 @@ def joke_actions(joke_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🖕🏻", callback_data=f"joke_react:dislike:{joke_id}"),
         ],
         [
-            InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke"),
-            InlineKeyboardButton(text="🥊 В дуэль", callback_data="joke_duel_new"),
+            InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
+            InlineKeyboardButton(text="🥊 Дуэль", callback_data="joke_duel_new"),
         ],
     ]
 
@@ -390,8 +391,8 @@ def joke_actions_with_counts(
             ),
         ],
         [
-            InlineKeyboardButton(text="😂 Ещё анекдот", callback_data="joke"),
-            InlineKeyboardButton(text="🥊 В дуэль", callback_data="joke_duel_new"),
+            InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
+            InlineKeyboardButton(text="🥊 Дуэль", callback_data="joke_duel_new"),
         ],
     ]
 

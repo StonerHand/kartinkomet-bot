@@ -236,7 +236,11 @@ class JokePool:
             key=lambda record: (record["shown_count"], record.get("last_shown_at") or ""),
         )
         shown_threshold = least_shown[-1]["shown_count"]
-        return [record for record in records if record["shown_count"] <= shown_threshold]
+        candidates = [record for record in records if record["shown_count"] <= shown_threshold]
+        max_candidates = max(minimum_candidates, RANDOM_CANDIDATE_LIMIT * 2)
+        if len(candidates) > max_candidates:
+            return RANDOM.sample(candidates, max_candidates)
+        return candidates
 
     def _weighted_random_record(self, records: list[dict]) -> dict:
         if len(records) == 1:

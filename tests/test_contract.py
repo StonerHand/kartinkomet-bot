@@ -262,7 +262,7 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(private_buttons, main_buttons)
         self.assertEqual(random_buttons, ["🎲 Пикча", "😂 Анекдот", "🎛 Назад в пульт"])
         self.assertIn("🏟 Турнир", arena_buttons)
-        self.assertIn("📬 Загрузка", storage_buttons)
+        self.assertIn("📥 Загрузка", storage_buttons)
 
     def test_main_keyboard_can_show_active_arena_state(self) -> None:
         buttons = [
@@ -359,10 +359,10 @@ class BotContractTest(unittest.TestCase):
             for button in row
         ]
 
-        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё пикчу", "⚔️ В дуэль", "🏟 В турнир"])
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "🎲 Ещё", "⚔️ Дуэль", "🏟 Турнир"])
         self.assertEqual(
             counted_buttons,
-            ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё пикчу", "⚔️ В дуэль", "🏟 В турнир"],
+            ["🤙🏻 2", "🖕🏻 1", "🎲 Ещё", "⚔️ Дуэль", "🏟 Турнир"],
         )
 
     def test_joke_reactions_match_picture_reactions(self) -> None:
@@ -373,10 +373,10 @@ class BotContractTest(unittest.TestCase):
             for button in row
         ]
 
-        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё анекдот", "🥊 В дуэль"])
+        self.assertEqual(buttons, ["🤙🏻", "🖕🏻", "😂 Ещё", "🥊 Дуэль"])
         self.assertEqual(
             counted_buttons,
-            ["🤙🏻 2", "🖕🏻 1", "😂 Ещё анекдот", "🥊 В дуэль"],
+            ["🤙🏻 2", "🖕🏻 1", "😂 Ещё", "🥊 Дуэль"],
         )
 
     def test_joke_duel_keyboard_uses_separate_callbacks(self) -> None:
@@ -390,12 +390,12 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(buttons, ["🅰️ Первый: 3", "🅱️ Второй: 2"])
         self.assertEqual(callbacks, ["joke_duel:duel-id:left", "joke_duel:duel-id:right"])
-        self.assertEqual(new_buttons, ["🥊 Реванш шуток", "😂 Анекдот", "🎛 Пульт"])
+        self.assertEqual(new_buttons, ["🥊 Реванш", "😂 Ещё", "🎛 Пульт"])
 
     def test_image_duel_finish_button_uses_revenge_copy(self) -> None:
         buttons = [button.text for row in new_duel().inline_keyboard for button in row]
 
-        self.assertEqual(buttons, ["⚔️ Реванш пикч", "🎲 Рандом", "🏟 Турнир", "🎛 Пульт"])
+        self.assertEqual(buttons, ["⚔️ Реванш", "🎲 Ещё", "🏟 Турнир", "🎛 Пульт"])
 
     def test_tournament_keyboard_uses_four_slots(self) -> None:
         buttons = [button.text for row in tournament_vote("tour-id", [1, 2, 3, 4]).inline_keyboard for button in row]
@@ -424,7 +424,7 @@ class BotContractTest(unittest.TestCase):
                 "tournament:tour-id:3",
             ],
         )
-        self.assertEqual(new_buttons, ["🏟 Новый турнир", "🎲 Рандом", "⚔️ Дуэль пикч", "🎛 Пульт"])
+        self.assertEqual(new_buttons, ["🏟 Реванш", "🎲 Ещё", "⚔️ Дуэль", "🎛 Пульт"])
         self.assertIn("duel_champion:abc", champion_callbacks)
 
     def test_admin_user_ids_parser_accepts_commas_and_semicolons(self) -> None:
@@ -589,7 +589,7 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("⚔️ Пикч-бой", format_start())
         self.assertIn("🥊 Шутко-бой", format_start())
         self.assertIn("🏟 Турнир", format_start())
-        self.assertIn("📬 Загрузка", format_start())
+        self.assertIn("📬 В личку", format_start())
         self.assertIn("<b>📥 Загрузка</b>", format_help())
         self.assertIn("<b>🎲 Выдача</b>", format_help())
         self.assertIn("/upload_joke", format_help())

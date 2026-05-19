@@ -685,17 +685,18 @@ def build_router(
     async def menu_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await show_menu(callback.message, image_pool, joke_pool)
+            await show_menu(callback.message, image_pool, joke_pool, edit_existing=True)
         await callback.answer()
 
     @router.callback_query(F.data == "menu_random")
     async def menu_random_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await callback.message.answer(
+            await answer_or_edit_panel(
+                callback.message,
                 format_random_menu(),
-                parse_mode="HTML",
-                reply_markup=random_menu(),
+                random_menu(),
+                "random menu",
             )
         await callback.answer()
 
@@ -704,20 +705,19 @@ def build_router(
         image_pool.remember_user(callback.from_user)
         if callback.message:
             chat_id = callback.message.chat.id
-            image_duel_seconds = active_duel_seconds(chat_id, "image")
-            joke_duel_seconds = active_duel_seconds(chat_id, "joke")
-            tournament_seconds = active_tournament_seconds(chat_id)
-            await callback.message.answer(
+            arena_state = active_arena_snapshot(chat_id)
+            await answer_or_edit_panel(
+                callback.message,
                 format_arena_menu(chat_id),
-                parse_mode="HTML",
-                reply_markup=arena_menu(
-                    image_duel_active=image_duel_seconds is not None,
-                    joke_duel_active=joke_duel_seconds is not None,
-                    tournament_active=tournament_seconds is not None,
-                    image_duel_seconds=image_duel_seconds,
-                    joke_duel_seconds=joke_duel_seconds,
-                    tournament_seconds=tournament_seconds,
+                arena_menu(
+                    image_duel_active=arena_state["image_seconds"] is not None,
+                    joke_duel_active=arena_state["joke_seconds"] is not None,
+                    tournament_active=arena_state["tournament_seconds"] is not None,
+                    image_duel_seconds=arena_state["image_seconds"],
+                    joke_duel_seconds=arena_state["joke_seconds"],
+                    tournament_seconds=arena_state["tournament_seconds"],
                 ),
+                "arena menu",
             )
         await callback.answer()
 
@@ -725,10 +725,11 @@ def build_router(
     async def menu_storage_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await callback.message.answer(
+            await answer_or_edit_panel(
+                callback.message,
                 format_storage_menu(image_pool, joke_pool),
-                parse_mode="HTML",
-                reply_markup=storage_menu(is_private=is_private_chat(callback.message)),
+                storage_menu(is_private=is_private_chat(callback.message)),
+                "storage menu",
             )
         await callback.answer()
 
@@ -774,10 +775,11 @@ def build_router(
     async def upload_hub_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await callback.message.answer(
+            await answer_or_edit_panel(
+                callback.message,
                 format_upload_hub(is_private_chat(callback.message)),
-                parse_mode="HTML",
-                reply_markup=upload_hub(is_private=is_private_chat(callback.message)),
+                upload_hub(is_private=is_private_chat(callback.message)),
+                "upload hub",
             )
         await callback.answer()
 
@@ -2548,68 +2550,106 @@ def parse_user_id_argument(message: Message) -> int | None:
     return int(raw_user_id)
 
 
-async def show_menu(message: Message, image_pool: ImagePool, joke_pool: JokePool) -> None:
+async def show_menu(
+    message: Message,
+    image_pool: ImagePool,
+    joke_pool: JokePool,
+    edit_existing: bool = False,
+) -> None:
     is_private = is_private_chat(message)
+    chat_id = message.chat.id
+    arena_state = active_arena_snapshot(chat_id)
+    reply_markup = main_menu(
+        is_private=is_private,
+        image_duel_active=arena_state["image_seconds"] is not None,
+        joke_duel_active=arena_state["joke_seconds"] is not None,
+        tournament_active=arena_state["tournament_seconds"] is not None,
+        image_duel_seconds=arena_state["image_seconds"],
+        joke_duel_seconds=arena_state["joke_seconds"],
+        tournament_seconds=arena_state["tournament_seconds"],
+    )
+    text = format_main_menu(image_pool, joke_pool, chat_id, is_private=is_private)
+    if edit_existing:
+        await answer_or_edit_panel(message, text, reply_markup, "main menu")
+        return
+
+    await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
+
+
+async def answer_or_edit_panel(
+    message: Message,
+    text: str,
+    reply_markup,
+    log_context: str,
+) -> None:
+    try:
+        await message.edit_text(text, parse_mode="HTML", reply_markup=reply_markup)
+        return
+    except TelegramAPIError as error:
+        if telegram_message_not_modified(error):
+            return
+        LOGGER.debug("Cannot edit %s, sending a new panel", log_context, exc_info=True)
+
+    await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
+
+
+def format_main_menu(
+    image_pool: ImagePool,
+    joke_pool: JokePool,
+    chat_id: int,
+    is_private: bool,
+) -> str:
     upload_note = (
         "личка открыта, можно заносить контент"
         if is_private
-        else "в группе только пульт, загрузка уходит в личку"
+        else "из группы покажу маршрут в личку"
     )
-    chat_id = message.chat.id
-    image_duel_seconds = active_duel_seconds(chat_id, "image")
-    joke_duel_seconds = active_duel_seconds(chat_id, "joke")
-    tournament_seconds = active_tournament_seconds(chat_id)
-    image_duel_active = image_duel_seconds is not None
-    joke_duel_active = joke_duel_seconds is not None
-    tournament_active = tournament_seconds is not None
-    await message.answer(
-        "<b>🎛 Пульт kartinkomet</b>\n\n"
+    return (
+        "<b>🎛 Пульт kartinkomet</b>\n"
+        "<i>один экран, все рычаги</i>\n\n"
         "<b>📦 Склад</b>\n"
-        f"Пикчи: <b>{image_pool.count()}</b> · Анекдоты: <b>{joke_pool.count()}</b>\n\n"
-        "<b>🟢 Арены</b>\n"
-        f"Пикчи: <b>{active_duel_status(chat_id, 'image')}</b> · "
-        f"Шутки: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
-        f"Турнир: <b>{active_tournament_status(chat_id)}</b>\n\n"
+        f"Пикчи <b>{image_pool.count()}</b> · Анекдоты <b>{joke_pool.count()}</b>\n\n"
+        "<b>⚔️ Арены</b>\n"
+        f"Пикчи <b>{active_duel_status(chat_id, 'image')}</b> · "
+        f"Шутки <b>{active_duel_status(chat_id, 'joke')}</b> · "
+        f"Турнир <b>{active_tournament_status(chat_id)}</b>\n\n"
         "<b>📥 Загрузка</b>\n"
-        f"{upload_note}",
-        parse_mode="HTML",
-        reply_markup=main_menu(
-            is_private=is_private,
-            image_duel_active=image_duel_active,
-            joke_duel_active=joke_duel_active,
-            tournament_active=tournament_active,
-            image_duel_seconds=image_duel_seconds,
-            joke_duel_seconds=joke_duel_seconds,
-            tournament_seconds=tournament_seconds,
-        ),
+        f"{upload_note}"
     )
 
 
 def format_random_menu() -> str:
     return (
         "<b>🎲 Выдача</b>\n\n"
-        "Быстрый доступ к складу без лишних кнопочных раскопок\n\n"
-        "<code>🎲 Пикча</code> — случайная картинка\n"
-        "<code>😂 Анекдот</code> — случайная шутка"
+        "Контент-подача без лишних церемоний\n\n"
+        "<b>Доступно</b>\n"
+        "<code>🎲 Пикча</code> — случайный визуальный выстрел\n"
+        "<code>😂 Анекдот</code> — случайный текстовый заряд"
     )
 
 
 def format_arena_menu(chat_id: int) -> str:
     return (
         "<b>⚔️ Арены</b>\n\n"
-        "Голосования, где контент либо выходит героем, либо уезжает в архив\n\n"
+        "Народный стресс-тест для пикч и шуток\n\n"
+        "<b>Сейчас</b>\n"
         f"Пикч-бой: <b>{active_duel_status(chat_id, 'image')}</b>\n"
         f"Шутко-бой: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
-        f"Турнир: <b>{active_tournament_status(chat_id)}</b>"
+        f"Турнир: <b>{active_tournament_status(chat_id)}</b>\n\n"
+        "<b>Правило</b>\n"
+        "Пикчевая и анекдотная арены могут идти параллельно"
     )
 
 
 def format_storage_menu(image_pool: ImagePool, joke_pool: JokePool) -> str:
     return (
         "<b>📦 Склад</b>\n\n"
-        "Контент, вклад и служебные двери в одном месте\n\n"
+        "Инвентарь, вклад и вход в загрузку\n\n"
+        "<b>Внутри</b>\n"
         f"Пикчи: <b>{image_pool.count()}</b>\n"
-        f"Анекдоты: <b>{joke_pool.count()}</b>"
+        f"Анекдоты: <b>{joke_pool.count()}</b>\n\n"
+        "<b>Навигация</b>\n"
+        "Счётчик, топ, личная карточка и загрузочный отсек"
     )
 
 
@@ -2673,6 +2713,14 @@ def format_timer(seconds: int) -> str:
     return f"{minutes:02d}:{seconds_left:02d}"
 
 
+def active_arena_snapshot(chat_id: int) -> dict[str, int | None]:
+    return {
+        "image_seconds": active_duel_seconds(chat_id, "image"),
+        "joke_seconds": active_duel_seconds(chat_id, "joke"),
+        "tournament_seconds": active_tournament_seconds(chat_id),
+    }
+
+
 def active_duel_seconds(chat_id: int, kind: DuelKind) -> int | None:
     duel_id = active_duel_id_for_chat(chat_id, kind)
     if duel_id is None:
@@ -2722,7 +2770,8 @@ def format_start() -> str:
         "<code>⚔️ Пикч-бой</code> / <code>🥊 Шутко-бой</code>\n"
         "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
         "<b>📥 Загрузка</b>\n"
-        "<code>📬 Загрузка</code> открывает пикчи и анекдоты в личке"
+        "<code>📥 Загрузка</code> в личке принимает контент\n"
+        "<code>📬 В личку</code> в группе показывает маршрут"
     )
 
 

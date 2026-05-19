@@ -85,7 +85,7 @@ The panel opens short sections so the chat is not buried under buttons:
 🎛 Назад в пульт
 
 📦 Склад
-📦 Склад            📬 Загрузка
+📦 Склад            📥 Загрузка
 🏆 Топ              👤 Мой вклад
 🎛 Назад в пульт
 ```
@@ -99,7 +99,7 @@ If an arena is already busy, the button says so:
 🏟 Турнир · 01:30
 ```
 
-The `📬 Загрузка` button opens a compact upload hub:
+The `📥 Загрузка` button in private chat or `📬 В личку` button in groups opens a compact upload hub:
 
 ```text
 📥 Пикчи            📝 Анекдоты
@@ -110,14 +110,14 @@ Under a random image:
 
 ```text
 🤙🏻 0  🖕🏻 0
-🎲 Ещё пикчу        ⚔️ В дуэль        🏟 В турнир
+🎲 Ещё              ⚔️ Дуэль          🏟 Турнир
 ```
 
 Under a joke:
 
 ```text
 🤙🏻 0  🖕🏻 0
-😂 Ещё анекдот      🥊 В дуэль
+😂 Ещё              🥊 Дуэль
 ```
 
 During private upload:
@@ -128,7 +128,7 @@ During private upload:
 
 ## Message Design
 
-Messages are compact cards: one title, 2-4 readable sections, and very little noise. Random drops, uploads, stats, and arenas now speak in one voice: sharp, readable, and not overloaded.
+Messages are compact cards: one title, 2-4 readable sections, and very little noise. The panel and its sections try to update one existing message instead of spraying extra cards into the chat. Random drops, uploads, stats, and arenas now speak in one voice: sharp, readable, and not overloaded.
 
 Leaderboard example:
 
@@ -214,16 +214,16 @@ Menu example:
 
 ```text
 🎛 Пульт kartinkomet
+один экран, все рычаги
 
 📦 Склад
-Пикчи: 3823 · Анекдоты: 128
+Пикчи 3823 · Анекдоты 128
 
-🟢 Арены
-Пикчи: свободно · Шутки: идёт 01:22
-Турнир: свободно
+⚔️ Арены
+Пикчи свободно · Шутки идёт 01:22 · Турнир свободно
 
 📥 Загрузка
-в группе только пульт, загрузка уходит в личку
+из группы покажу маршрут в личку
 ```
 
 Joke example:
@@ -310,7 +310,7 @@ The response is a clean card with temperature, feels-like value, sky state, dail
 Upload flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📬 Загрузка`, then `📝 Анекдоты`, or send `/upload_joke`.
+2. Press `📥 Загрузка`, then `📝 Анекдоты`, or send `/upload_joke`.
 3. Send jokes as text, one joke per message.
 4. Finish with `/done` or cancel with `/cancel`.
 
@@ -339,18 +339,18 @@ Rules mirror the image arena:
 - loser is removed from the joke pool
 - ties keep both jokes alive
 - final result includes a short battle history
-- final result includes `🥊 Реванш шуток`, `😂 Анекдот`, and `🎛 Пульт` buttons
+- final result includes `🥊 Реванш`, `😂 Ещё`, and `🎛 Пульт` buttons
 
 ## Uploads
 
 Reliable flow:
 
 1. Open private chat with `@kartinkomet_bot`.
-2. Press `📬 Загрузка`, then `📥 Пикчи`, or send `/upload_pidor`.
+2. Press `📥 Загрузка`, then `📥 Пикчи`, or send `/upload_pidor`.
 3. Send one image, a batch, a Telegram album, or forwarded images.
 4. Press `✅ Закончить` or send `/done`.
 
-In groups, the `📬 Загрузка` button does not enable file intake. It explains that uploads must go through private chat.
+In groups, the `📬 В личку` button does not enable file intake. It explains that uploads must go through private chat.
 
 The bot does not acknowledge every accepted image. It shows the instruction and finish/cancel buttons immediately when upload starts, then quietly counts the result.
 
@@ -375,7 +375,7 @@ Rules:
 - loser is removed
 - ties keep both images alive
 - final result includes a short battle history
-- final result includes `⚔️ Реванш пикч`, `🎲 Рандом`, `🏟 Турнир`, and `🎛 Пульт` buttons
+- final result includes `⚔️ Реванш`, `🎲 Ещё`, `🏟 Турнир`, and `🎛 Пульт` buttons
 - if Telegram/API stumbles, stale duel state is cleared instead of locking the chat
 
 The duel card stays compact: title, status, one-line score, then a separate timer line. Duel images are sent as an album without captions so the chat does not turn into a wall of text.
@@ -397,7 +397,7 @@ Unlike duels, tournaments are non-destructive:
 - the chat only chooses a showcase champion
 - each user votes once, but can switch sides
 - if several images share the top score, no champion is assigned
-- final result includes `🏟 Новый турнир`, `🎲 Рандом`, and `🎛 Пульт` buttons
+- final result includes `🏟 Реванш`, `🎲 Ещё`, `⚔️ Чемпион`, and `🎛 Пульт` buttons
 - if a champion exists, `⚔️ Дуэль чемпиона` immediately sends that winner against a new random image
 
 In short: duels are the jury rule, tournaments are the showcase.
