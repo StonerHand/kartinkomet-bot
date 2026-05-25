@@ -29,6 +29,8 @@ from bot.handlers import (
     JOKE_DUEL_WIN_PHRASES,
     format_count,
     format_count_alert,
+    format_backup_done,
+    format_backup_started,
     format_duel_already_active,
     format_duel_result,
     format_duel_score,
@@ -183,6 +185,34 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("count", commands)
         self.assertNotIn("addpack_pidor", commands)
         self.assertNotIn("dedupe_user", commands)
+        self.assertNotIn("backup", commands)
+
+    def test_backup_messages_are_admin_maintenance_copy(self) -> None:
+        self.assertIn("Собираю бэкап", format_backup_started())
+        self.assertIn("kartinkomet.sqlite", format_backup_done(3))
+
+    def test_image_pool_can_export_sqlite_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            pool = ImagePool(
+                str(temp_dir / "image_pool.json"),
+                database_path=str(temp_dir / "kartinkomet.sqlite"),
+            )
+            backup_path = temp_dir / "backup.sqlite"
+
+            self.assertTrue(pool.export_database_backup(backup_path))
+            self.assertGreater(backup_path.stat().st_size, 0)
+
+            with sqlite3.connect(backup_path) as connection:
+                tables = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+
+            self.assertIn("images", tables)
+            self.assertIn("jokes", tables)
 
     def test_hidden_dedupe_user_argument_parser(self) -> None:
         self.assertEqual(

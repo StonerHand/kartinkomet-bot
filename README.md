@@ -654,6 +654,35 @@ ADMIN_USER_IDS=ваш_telegram_user_id
 
 Если рядом уже лежат старые файлы `/data/image_pool.json` и `/data/jokes.json`, они будут использованы для первой миграции.
 
+### Railway backup
+
+Главный файл данных на Railway:
+
+```text
+/data/kartinkomet.sqlite
+```
+
+JSON-файлы остаются как страховка и источник первой миграции:
+
+```text
+/data/image_pool.json
+/data/jokes.json
+```
+
+Скрытая админ-команда:
+
+```text
+/backup
+```
+
+Команда доступна только пользователям из `ADMIN_USER_IDS` и отправляет в Telegram:
+
+- `kartinkomet.sqlite` - свежий SQLite-снимок всей базы
+- `image_pool.json` - JSON-страховку пикч, если файл есть
+- `jokes.json` - JSON-страховку анекдотов, если файл есть
+
+Перед любым переездом или остановкой Railway сначала выполните `/backup` в личке с ботом и сохраните полученные файлы.
+
 ## Структура
 
 ```text

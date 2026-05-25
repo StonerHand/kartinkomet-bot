@@ -3,4 +3,6 @@ __pycache__/
 *.py[cod]
 .env
 .DS_Store
-
+/image_pool.json
+/jokes.json
+/kartinkomet.sqlite*

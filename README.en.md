@@ -654,6 +654,35 @@ When `RAILWAY_VOLUME_MOUNT_PATH` exists, the bot stores the main database here:
 
 If old `/data/image_pool.json` and `/data/jokes.json` files exist nearby, they are used for the first migration.
 
+### Railway Backup
+
+Main Railway data file:
+
+```text
+/data/kartinkomet.sqlite
+```
+
+JSON files remain useful as safety exports and first-migration sources:
+
+```text
+/data/image_pool.json
+/data/jokes.json
+```
+
+Hidden admin command:
+
+```text
+/backup
+```
+
+The command is available only to users listed in `ADMIN_USER_IDS` and sends these files to Telegram:
+
+- `kartinkomet.sqlite` - fresh SQLite snapshot of the full bot database
+- `image_pool.json` - image JSON safety copy when present
+- `jokes.json` - joke JSON safety copy when present
+
+Before moving away from Railway or stopping the service, run `/backup` in a private chat with the bot and save the delivered files.
+
 ## Project Structure
 
 ```text

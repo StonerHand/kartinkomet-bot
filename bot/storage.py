@@ -140,6 +140,11 @@ class SQLiteDocumentStore:
                 (name, serialized_payload),
             )
 
+    def export_database(self, destination_path: Path) -> None:
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(destination_path) as backup_connection:
+            self._connection.backup(backup_connection)
+
     def load_image_pool(self) -> dict[str, Any] | None:
         image_rows = self._connection.execute(
             """

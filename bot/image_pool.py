@@ -83,6 +83,13 @@ class ImagePool:
         self._rebuild_indexes()
         self._invalidate_cache()
 
+    def export_database_backup(self, destination_path: Path) -> bool:
+        if self._store is None:
+            return False
+
+        self._store.export_database(destination_path)
+        return True
+
     def count(self) -> int:
         return len(self._records)
 

@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import random
+import tempfile
 from collections.abc import Awaitable, Callable
 from html import escape
+from pathlib import Path
 from time import monotonic
 from typing import Literal, TypeVar, TypedDict
 from uuid import uuid4
@@ -12,7 +14,7 @@ from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InputMediaPhoto, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.joke_pool import JokePool
@@ -561,6 +563,15 @@ def build_router(
 
         result = image_pool.dedupe_user(target_user_id)
         await message.answer(format_dedupe_result(result), parse_mode="HTML")
+
+    @router.message(Command("backup"))
+    async def backup_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        if not is_admin(message, admin_user_ids):
+            await message.answer(format_admin_only("Бэкап"))
+            return
+
+        await send_backup(message, image_pool, joke_pool)
 
     @router.message(Command("weather"))
     @router.channel_post(Command("weather"))
@@ -2576,6 +2587,43 @@ async def show_menu(
     await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
 
 
+async def send_backup(message: Message, image_pool: ImagePool, joke_pool: JokePool) -> None:
+    await message.answer(format_backup_started(), parse_mode="HTML")
+
+    sent_files = 0
+    with tempfile.TemporaryDirectory(prefix="kartinkomet-backup-") as raw_temp_dir:
+        temp_dir = Path(raw_temp_dir)
+        database_backup_path = temp_dir / "kartinkomet.sqlite"
+        if image_pool.export_database_backup(database_backup_path):
+            await message.answer_document(
+                FSInputFile(database_backup_path, filename="kartinkomet.sqlite"),
+                caption="SQLite-снимок всей базы",
+            )
+            sent_files += 1
+
+        for source_path, caption in backup_json_sources(image_pool, joke_pool):
+            if not source_path.exists() or source_path.stat().st_size == 0:
+                continue
+
+            await message.answer_document(
+                FSInputFile(source_path, filename=source_path.name),
+                caption=caption,
+            )
+            sent_files += 1
+
+    await message.answer(format_backup_done(sent_files), parse_mode="HTML")
+
+
+def backup_json_sources(
+    image_pool: ImagePool,
+    joke_pool: JokePool,
+) -> tuple[tuple[Path, str], tuple[Path, str]]:
+    return (
+        (image_pool.storage_path, "JSON-страховка пикч"),
+        (joke_pool.storage_path, "JSON-страховка анекдотов"),
+    )
+
+
 async def answer_or_edit_panel(
     message: Message,
     text: str,
@@ -3060,6 +3108,21 @@ def format_upload_not_active() -> str:
 
 def format_admin_only(action: str) -> str:
     return f"🔒 {action} доступна только админам"
+
+
+def format_backup_started() -> str:
+    return (
+        "<b>📦 Собираю бэкап</b>\n\n"
+        "Сейчас отправлю файлы базы в личку"
+    )
+
+
+def format_backup_done(sent_files: int) -> str:
+    return (
+        "<b>✅ Бэкап отправлен</b>\n\n"
+        f"Файлов: <b>{sent_files}</b>\n"
+        "Главный файл: <code>kartinkomet.sqlite</code>"
+    )
 
 
 def format_reset_stats_done() -> str:
