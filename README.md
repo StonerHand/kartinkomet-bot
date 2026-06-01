@@ -1,451 +1,294 @@
-<div align="center">
+# kartinkomet-bot
 
-# kartinkomet
+**Telegram-бот для общего склада пикч: рандомная выдача, приватная загрузка, реакции, дуэли, турниры, топы и админские maintenance-команды**
 
-**Telegram-бот для общего склада пикч и анекдотов: рандом, загрузка в личке, реакции, дуэли, турниры, топы, профили, погода и maintenance-команды**
-
-![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![aiogram 3](https://img.shields.io/badge/aiogram-3.20-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-primary-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![aiogram](https://img.shields.io/badge/aiogram-3.20-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 ![Railway](https://img.shields.io/badge/Railway-production-0B0D0E?style=for-the-badge&logo=railway&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Cloudflare-experimental-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
 
-[English README](README.en.md)
+`kartinkomet` живёт в Telegram-группах и личке. В группах он выдаёт случайные пикчи, запускает пикчевые дуэли и турниры, показывает статистику и топ загрузчиков. В личке он принимает новые изображения в общий пул.
 
-</div>
+Главное правило: бот **не хранит сами картинки**. Он сохраняет Telegram `file_id` и `file_unique_id`, а физические файлы остаются на стороне Telegram. На сервере лежит только база с идентификаторами, реакциями, историей выдачи и статистикой.
 
-## Коротко
+## Возможности
 
-`kartinkomet` живёт в Telegram-группах и личке. В группах он развлекает: выдаёт случайные пикчи и анекдоты, запускает дуэли, турниры, показывает топы и статистику. В личке он принимает контент в общий пул.
-
-Главный принцип: бот не хранит сами изображения. Он сохраняет только Telegram `file_id` и `file_unique_id`, а файлы физически остаются на стороне Telegram. Анекдоты живут отдельно от пикч. Основное хранилище - SQLite на Railway Volume.
-
-## Фичи
-
-| Блок | Что умеет |
+| Раздел | Что делает |
 | --- | --- |
-| 🎲 Рандом | Пикчи и анекдоты с анти-повторами по чату и глобальной памяти |
-| 📥 Загрузка | Пикчи и анекдоты загружаются в личке, чтобы Telegram Privacy Mode не ломал приём файлов |
-| 🤙🏻 / 🖕🏻 | Один пользователь голосует один раз, но может перевыбрать реакцию |
-| ⚖️ Народный суд | `2 🖕🏻` удаляют пикчу или анекдот из пула |
-| ⚔️ Дуэли | Одна пикчевая и одна анекдотная дуэль могут идти в одном чате одновременно |
-| 🏟 Турнир | 4 пикчи, 90 секунд, один чемпион, без удаления проигравших |
-| 🏆 Топ | Лидерборд загрузчиков без Telegram-пингов через `@` |
-| 👤 Профиль | Вклад пользователя, реакции на его пикчи, достижения и прогресс |
-| 🌦 Погода | Карточка погоды для Малой Токмачки с кэшем на 10 минут |
-| 🧰 Maintenance | `/backup`, `/dedupe_user`, `/reset_stats`, visual dedupe через отдельный скрипт |
+| 🎲 Рандом | Выдаёт случайную пикчу из пула с анти-повторами по чату и общей памяти |
+| 📥 Загрузка | Принимает фото, пачки, альбомы и пересланные изображения в личке |
+| 🤙🏻 / 🖕🏻 | Реакции учитываются по одному голосу на человека, голос можно перевыбрать |
+| ⚖️ Народный суд | `2 🖕🏻` удаляют пикчу из пула |
+| ⚔️ Дуэль | Две пикчи, голосование 60 секунд, проигравшая удаляется |
+| 🏟 Турнир | Четыре пикчи, голосование 90 секунд, победитель получает витрину, никто не удаляется |
+| 📊 Статы | Склад, выдачи, реакции, дуэли, турниры и активные арены |
+| 🏆 Топ | Лидерборд загрузчиков с Telegram-именами и титулами |
+| 👤 Профиль | Личный вклад пользователя, реакции на его пикчи и достижения |
+| 🧹 Maintenance | Бэкап, сброс статистики и чистка дублей по пользователю для админов |
 
 ## Архитектура
 
 ```mermaid
 flowchart LR
-    U["Telegram users"] --> TG["Telegram Bot API"]
-    TG --> A["aiogram polling runtime"]
-    A --> H["handlers.py<br/>commands and callbacks"]
-    H --> IP["ImagePool<br/>random, reactions, duels, tournaments"]
-    H --> JP["JokePool<br/>random, reactions, joke duels"]
-    H --> W["weather.py<br/>cached forecast"]
-    IP --> S["storage.py<br/>SQLite adapter"]
-    JP --> S
-    S --> DB[("kartinkomet.sqlite<br/>Railway Volume /data")]
-    S -. "first migration" .-> JSON["image_pool.json<br/>jokes.json"]
-    H --> UI["keyboards.py + texts.py<br/>cards, buttons, phrase pools"]
+    TG["Telegram chats"] --> AIO["aiogram long polling"]
+    AIO --> H["bot.handlers"]
+    H --> IMG["ImagePool"]
+    IMG --> SQL["SQLite WAL on Railway Volume"]
+    IMG -. "legacy safety export" .-> JSON["image_pool.json"]
+    ADM["Admin commands"] --> H
 ```
 
-Боевой режим сейчас - Railway + long polling. Папка `cloudflare-worker/` содержит экспериментальный серверлесс-вариант Workers + D1, но production-бот на Railway от него не зависит.
-
-## UX-Контракт
-
-Интерфейс бота строится вокруг коротких карточек и компактных кнопок. Цель - чтобы чат не превращался в простыню, а каждое действие было понятно с первого взгляда.
-
-```text
-🎛 Пульт
-
-🎲 Выдача       ⚔️ Арены
-📦 Склад        🌦 Погода
-```
-
-```text
-🎲 Выдача
-
-🎲 Пикча        😂 Анекдот
-🎛 Назад
-```
-
-```text
-⚔️ Арены
-
-⚔️ Пикч-бой     🥊 Шутко-бой
-🏟 Турнир       📊 Сводка
-🎛 Назад
-```
-
-```text
-📦 Склад
-
-📦 Сводка       📥 Загрузка
-🏆 Топ          👤 Мой вклад
-🎛 Назад
-```
-
-Загрузка в группе не принимает файлы напрямую. Кнопка показывает маршрут в личку, потому что так стабильнее для Telegram Privacy Mode и не засоряет общий чат.
+Production-режим: **Railway + long polling + SQLite на Volume**. Это простой и предсказуемый запуск без вебхуков, доменов и внешней БД.
 
 ## Команды
 
-Публичное меню команд держится коротким и прикладным.
-
 | Команда | Назначение |
 | --- | --- |
-| `/start` | Запустить бота и показать приветствие |
+| `/start` | Стартовое сообщение и главный пульт |
 | `/menu` | Открыть главный пульт |
 | `/pic` | Выдать случайную пикчу |
-| `/joke` | Выдать случайный анекдот |
 | `/duel` | Запустить дуэль двух пикч |
-| `/jokeduel` | Запустить дуэль двух анекдотов |
 | `/tournament` | Запустить турнир четырёх пикч |
-| `/weather` | Показать погоду Малой Токмачки |
 | `/upload_pidor` | Включить загрузку пикч в личке |
-| `/upload_joke` | Включить загрузку анекдотов в личке |
 | `/stats` | Показать сводку склада и арен |
-| `/me` | Показать личную карточку игрока |
-| `/top` | Показать топ загрузчиков |
-| `/help` | Показать карту команд |
+| `/count` | Быстрый счётчик склада |
+| `/me` | Личная карточка пользователя |
+| `/top` | Топ загрузчиков пикч |
+| `/help` | Карта команд |
 
-Работают, но не вынесены в публичное меню:
+Скрытые админские команды:
 
 | Команда | Назначение |
 | --- | --- |
-| `/done` | Завершить активную загрузку |
-| `/cancel` | Отменить активную загрузку |
-| `/count` | Быстрый счётчик пикч и анекдотов |
+| `/backup` | Отправить SQLite-бэкап и JSON-страховку в личку админу |
+| `/reset_stats` | Сбросить показы, реакции и память рандома |
+| `/dedupe_user <telegram_id>` | Удалить точные дубли конкретного загрузчика |
 | `/id` | Показать Telegram user ID |
 
-Служебные команды для админов из `ADMIN_USER_IDS`:
+## UX-логика
 
-| Команда | Назначение |
-| --- | --- |
-| `/backup` | Прислать SQLite-базу и JSON-страховки в Telegram |
-| `/reset_stats` | Сбросить реакции, показы, дуэли и память рандома |
-| `/dedupe_user USER_ID` | Убрать точные дубли конкретного загрузчика |
+### Главный пульт
 
-## Рандом
-
-Рандом не делает слепой `choice` по массиву. Он работает как маленький анти-баянный движок:
-
-1. исключает недавно показанные записи в текущем чате;
-2. учитывает глобально свежие выдачи;
-3. выбирает окно из наименее показанных кандидатов;
-4. финально выбирает через `SystemRandom` с весами: чем меньше показов, тем выше шанс;
-5. для дуэлей и турниров использует отдельные истории, чтобы свежие пары и четвёрки не возвращались сразу.
-
-Для маленького пула повторы всё равно возможны. Для большого пула бот заметно реже ходит по одному кругу.
-
-## Сценарии
-
-### Пикчи
-
-```mermaid
-sequenceDiagram
-    participant User as User
-    participant Bot as kartinkomet
-    participant Pool as ImagePool
-    participant DB as SQLite
-
-    User->>Bot: /pic или 🎲 Пикча
-    Bot->>Pool: random(chat_id)
-    Pool->>DB: update shown counters
-    Bot-->>User: photo + caption + reactions
+```text
+🎲 Выдача      ⚔️ Арены
+📦 Склад       📥 Загрузка
 ```
 
-Загрузка пикч:
+В группе кнопка загрузки объясняет, что пополнять склад надо в личке. Это стабильнее: Telegram Privacy Mode не мешает боту видеть фотографии, альбомы и пересланные изображения.
 
-1. открыть личку с ботом;
-2. отправить `/upload_pidor` или нажать `📥 Загрузка` -> `📥 Пикчи`;
-3. отправить одну пикчу, пачку, альбом или пересланные изображения;
-4. нажать `✅ Закончить` или отправить `/done`;
-5. при необходимости отменить через `/cancel`.
+### Загрузка
 
-Лимит загрузки: `1000` новых пикч в час на пользователя. Дубли и невалидные файлы считаются отдельно.
+1. Открыть личку с ботом
+2. Отправить `/upload_pidor` или нажать `📥 Загрузка`
+3. Кидать фото, пачки, альбомы или пересланные изображения
+4. Завершить кнопкой `✅ Закончить` или командой `/done`
+5. Отменить кнопкой `❌ Отмена` или командой `/cancel`
 
-### Анекдоты
+Бот сохраняет только `file_id` и `file_unique_id`. Дубликаты по `file_unique_id` и `file_id` отсекаются сразу. Лимит загрузки: `1000` новых пикч в час на пользователя.
 
-`/joke` выдаёт текст из отдельного пула. Текст отправляется HTML-цитатой, реакции идут теми же кнопками `🤙🏻` и `🖕🏻`.
+### Рандом
 
-Загрузка анекдотов:
+Алгоритм выдачи не просто берёт случайную строку из базы:
 
-1. открыть личку с ботом;
-2. отправить `/upload_joke` или нажать `📥 Загрузка` -> `📝 Анекдоты`;
-3. отправлять анекдоты текстом, один анекдот на сообщение;
-4. завершить через `/done` или отменить через `/cancel`.
+- исключает недавние выдачи в текущем чате;
+- учитывает глобальные недавние показы;
+- отдаёт приоритет менее показанным пикчам;
+- выбирает из окна кандидатов, чтобы пул не зацикливался на одних и тех же картинках.
 
-Дубли анекдотов отсекаются по нормализованному тексту: регистр, лишние пробелы и часть пунктуации не создают новый уникальный текст.
+### Дуэли и турниры
 
-### Дуэли
+Дуэль:
 
-Пикчевая дуэль:
+- выбирает две пикчи;
+- отправляет их альбомом;
+- даёт 60 секунд на голосование;
+- при победе удаляет проигравшую;
+- при ничьей оставляет обе.
 
-- 2 случайные пикчи отправляются альбомом без подписей;
-- карточка голосования живёт 60 секунд;
-- каждый пользователь голосует один раз, но может сменить сторону;
-- победитель остаётся в пуле;
-- проигравшая пикча удаляется;
-- при ничьей обе пикчи остаются.
+Турнир:
 
-Анекдотная дуэль:
+- выбирает четыре пикчи;
+- даёт 90 секунд на голосование;
+- показывает чемпиона;
+- ничего не удаляет.
 
-- 2 случайных анекдота отправляются цитатами;
-- голосование длится 2 минуты;
-- победитель остаётся;
-- проигравший анекдот удаляется;
-- длинные анекдоты не режутся по смыслу, а дробятся на безопасные Telegram-сообщения.
+Защита от хаоса:
 
-Пикчевая и анекдотная арены независимы. В одном чате может идти одна дуэль каждого типа.
+- в одном чате не запускается две одинаковые активные арены;
+- зависшие сессии очищаются по таймеру;
+- повторный тап по той же кнопке не ломает логику и не накручивает голос.
 
-### Турнир
+## Хранилище
 
-Турнир выбирает 4 пикчи и запускает голосование на 90 секунд.
-
-Турнир не удаляет проигравших. Это витрина, а не суд. Если победитель есть, его можно сразу отправить в дуэль чемпиона.
-
-## Хранение данных
-
-Основной файл:
+Основная база:
 
 ```text
 /data/kartinkomet.sqlite
 ```
 
-Если `RAILWAY_VOLUME_MOUNT_PATH` не задан, локальный fallback:
-
-```text
-data/kartinkomet.sqlite
-```
-
-ER-схема в упрощённом виде:
-
-```mermaid
-erDiagram
-    images ||--o{ image_reactions : has
-    images ||--o{ image_chat_history : appears_in
-    users ||--o{ images : uploads
-    jokes ||--o{ joke_reactions : has
-    jokes ||--o{ joke_chat_history : appears_in
-    users ||--o{ jokes : uploads
-    image_stats ||--|| schema_version : stores
-
-    images {
-        text id
-        text file_id
-        text file_unique_id
-        integer added_by
-        integer shown_count
-        integer likes
-        integer dislikes
-    }
-
-    jokes {
-        text id
-        text text
-        text normalized_text
-        integer added_by
-        integer shown_count
-        integer likes
-        integer dislikes
-    }
-```
-
-Старые файлы поддерживаются как источник первой миграции:
+Legacy JSON-страховка:
 
 ```text
 /data/image_pool.json
-/data/jokes.json
 ```
 
-Если SQLite пустой, бот импортирует старые JSON-документы, нормализует данные и дальше работает через таблицы.
+SQLite работает в WAL-режиме:
 
-## Производительность
+- `busy_timeout=30000`;
+- `foreign_keys=ON`;
+- `journal_mode=WAL`;
+- `synchronous=NORMAL`.
 
-Ключевые решения:
+База содержит:
 
-- пул загружается в память при старте;
-- быстрые lookup-индексы по `id`, `file_id`, `file_unique_id`, `added_by`;
-- реакции хранятся как один текущий голос пользователя;
-- `/stats`, `/top`, `/me` используют кэш и инвалидируются после изменений;
-- random picker выбирает из least-shown окна без полной сортировки большого пула;
-- SQLite-запись идёт через один storage-слой;
-- тяжёлый `Pillow` вынесен в `requirements-maintenance.txt` и не нужен боевому Railway runtime;
-- сетевые ошибки Telegram логируются и не должны ронять polling;
-- stale-сессии дуэлей и турниров очищаются при следующем запуске активности.
+```mermaid
+erDiagram
+    users ||--o{ images : uploads
+    images ||--o{ image_reactions : has
+    images ||--o{ image_chat_history : appears_in
+    image_stats {
+        string key
+        int value
+    }
+    users {
+        int user_id
+        string username
+        string first_name
+        string last_name
+    }
+    images {
+        string id
+        string file_id
+        string file_unique_id
+        int added_by
+        int shown_count
+        int likes
+        int dislikes
+    }
+```
 
-## Текстовые пулы
+## Railway
 
-Все фразы лежат в `bot/texts.py`.
+Минимальные переменные:
 
-Сейчас внутри:
+```env
+BOT_TOKEN=123456:telegram-token
+RAILWAY_VOLUME_MOUNT_PATH=/data
+ADMIN_USER_IDS=177117495
+```
 
-- `1550` caption-фраз для случайных пикч;
-- `200` стартовых фраз загрузки;
-- `200` фраз завершения загрузки;
-- `200` фраз пустого пула;
-- `100` достижений;
-- `600` коротких фраз для пикчевых дуэлей;
-- наборы фраз для анекдотных дуэлей, турниров, народного суда и UI-карточек.
+Опционально:
 
-Caption под пикчами чистый, без технических приставок.
+```env
+DATABASE_PATH=/data/kartinkomet.sqlite
+IMAGE_POOL_PATH=/data/image_pool.json
+TARGET_CHANNEL_ID=
+```
+
+`Procfile`:
+
+```procfile
+worker: python -m bot
+```
+
+Railway должен иметь Volume, примонтированный в `/data`. Без Volume база будет жить только внутри контейнера и пропадёт при пересоздании окружения.
 
 ## Локальный запуск
-
-Требуется Python `3.12`.
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+cp .env.example .env
+python -m bot
 ```
 
-Создайте `.env`:
+`.env`:
 
 ```env
 BOT_TOKEN=123456:telegram-token
 DATABASE_PATH=data/kartinkomet.sqlite
 IMAGE_POOL_PATH=data/image_pool.json
-JOKE_POOL_PATH=data/jokes.json
-TARGET_CHANNEL_ID=
 ADMIN_USER_IDS=177117495
 ```
 
-Запуск:
+## Проверка
 
 ```bash
-python -m bot
+.venv/bin/python -m compileall bot scripts tests
+.venv/bin/python -m unittest
 ```
 
-Проверки:
+Тесты проверяют:
 
-```bash
-python -m compileall bot scripts tests
-python -m unittest discover
-```
-
-## Railway Production
-
-Railway использует:
-
-```text
-Procfile          worker: python -m bot
-.python-version  3.12
-```
-
-Минимальные переменные:
-
-```env
-BOT_TOKEN=telegram_bot_token
-ADMIN_USER_IDS=177117495
-```
-
-Рекомендуемые переменные:
-
-```env
-TARGET_CHANNEL_ID=
-DATABASE_PATH=/data/kartinkomet.sqlite
-IMAGE_POOL_PATH=/data/image_pool.json
-JOKE_POOL_PATH=/data/jokes.json
-```
-
-Volume mount path:
-
-```text
-/data
-```
-
-Если Railway прокидывает `RAILWAY_VOLUME_MOUNT_PATH`, бот сам соберёт пути внутри volume. Явные `DATABASE_PATH`, `IMAGE_POOL_PATH`, `JOKE_POOL_PATH` можно оставить для полной предсказуемости.
-
-## Бэкап и перенос
-
-Самый простой путь:
-
-1. открыть личку с ботом;
-2. отправить `/backup`;
-3. сохранить полученные файлы.
-
-Команда `/backup` отправляет:
-
-- `kartinkomet.sqlite` - основная база;
-- `image_pool.json` - legacy-страховка пикч, если файл есть;
-- `jokes.json` - legacy-страховка анекдотов, если файл есть.
-
-Перед остановкой Railway или переездом на другой сервис сначала заберите SQLite. Без него новый бот стартует пустым или только с тем, что удастся восстановить из JSON.
+- публичные команды;
+- отсутствие удалённых фич в меню и текстах;
+- SQLite-схему;
+- реакции и перевыбор голоса;
+- анти-повтор рандома;
+- удаление проигравшей пикчи в дуэли;
+- турнирную логику;
+- клавиатуры;
+- визуальную чистку дублей.
 
 ## Maintenance
 
-Точные дубли конкретного пользователя:
+### Бэкап
 
 ```text
-/dedupe_user 1045485205
+/backup
 ```
 
-Визуальная чистка дублей:
+Бот отправляет админу:
 
-```bash
-pip install -r requirements-maintenance.txt
-python scripts/visual_dedupe.py --user-id 1045485205 --dry-run
-python scripts/visual_dedupe.py --user-id 1045485205 --apply
-```
+- `kartinkomet.sqlite`;
+- `image_pool.json`, если файл существует.
 
-Скрипт создаёт backup рядом с `image_pool.json`. Запускать лучше разово и не во время активной загрузки.
-
-Сброс статистики:
+### Сброс статистики
 
 ```text
 /reset_stats
 ```
 
-Команда сбрасывает реакции, показы, дуэли, турниры и память рандома. Контент из пула не удаляется.
+Сбрасывает:
 
-## Cloudflare Workers
+- показы;
+- реакции;
+- память недавних выдач;
+- статистику дуэлей и турниров.
 
-В папке `cloudflare-worker/` лежит отдельный экспериментальный Worker:
+Пул пикч остаётся на месте.
 
-- webhook endpoint;
-- D1 binding `DB`;
-- базовые команды `/pic`, `/joke`, `/stats`, `/upload_pidor`, `/upload_joke`;
-- реакции и удаление после `2 🖕🏻`.
+### Чистка дублей пользователя
 
-Это не текущий production runtime. Для полноценного переезда нужно отдельно перенести данные в D1 и переключить Telegram webhook. Railway-бот продолжает работать через polling.
+```text
+/dedupe_user 1045485205
+```
+
+Команда удаляет точные дубли конкретного пользователя по `file_unique_id` и `file_id`. Перед массовой визуальной чисткой можно использовать скрипт:
+
+```bash
+python scripts/visual_dedupe.py --user-id 1045485205 --dry-run --threshold 3
+```
 
 ## Структура проекта
 
 ```text
 bot/
-  __main__.py      # запуск aiogram, polling, Telegram command menu
-  config.py        # env vars и runtime paths
-  handlers.py      # команды, callbacks, сценарии, state machine
-  image_pool.py    # пикчи, random picker, реакции, дуэли, турниры, индексы
-  joke_pool.py     # анекдоты, random picker, реакции, дуэли
-  keyboards.py     # inline-клавиатуры и callback layout
-  storage.py       # SQLite schema, миграции, legacy fallback
-  texts.py         # фразы, достижения, UI copy
-  weather.py       # погода Малой Токмачки с кэшем
-
+  __main__.py     # запуск, команды Telegram, подключение роутера
+  config.py       # env-конфиг
+  handlers.py     # команды, callback-и, UI-тексты, арены
+  image_pool.py   # пул пикч, рандом, реакции, статистика
+  keyboards.py    # inline-клавиатуры
+  storage.py      # SQLite + legacy JSON
+  texts.py        # большие наборы фраз
 scripts/
-  visual_dedupe.py # maintenance-чистка визуальных дублей
-
+  visual_dedupe.py
 tests/
-  test_contract.py # контрактные проверки поведения и текстов
-
-cloudflare-worker/
-  src/index.js     # experimental Worker runtime
-  schema/schema.sql
-  wrangler.toml
+  test_contract.py
 ```
 
-## Операционный чеклист
+## Текущее состояние
 
-- Перед любым переездом выполнить `/backup`.
-- Держать только один активный polling runtime с одним `BOT_TOKEN`.
-- Не хранить реальные токены в git.
-- Загрузку держать в личке, а группы использовать для выдачи и игр.
-- Для чистки визуальных дублей сначала запускать `--dry-run`.
-- После изменения команд обновлять `BOT_COMMANDS` в `bot/__main__.py` и README.
-- После изменения storage прогонять `python -m unittest discover`.
+Бот сфокусирован на одной задаче и делает её нормально: **общий склад пикч, рандом, голосования и арены**. Лишние экспериментальные ветки удалены, чтобы код был легче, стабильнее и проще в поддержке.

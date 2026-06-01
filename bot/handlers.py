@@ -17,17 +17,12 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message, ReplyKeyboardRemove
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
-from bot.joke_pool import JokePool
 from bot.keyboards import (
     arena_menu,
     duel_vote,
-    empty_joke_pool_actions,
     empty_picture_pool_actions,
-    joke_actions_with_counts,
-    joke_duel_vote,
     main_menu,
     new_duel,
-    new_joke_duel,
     new_tournament,
     picture_actions_with_counts,
     random_menu,
@@ -48,72 +43,19 @@ from bot.texts import (
     PICTURE_CAPTIONS,
     UPLOAD_START_PHRASES,
 )
-from bot.weather import format_weather_error, format_weather_report, get_mala_tokmachka_weather
 
 UPLOAD_COMMAND = "upload_pidor"
-JOKE_UPLOAD_COMMAND = "upload_joke"
 DUEL_SECONDS = 60
-JOKE_DUEL_SECONDS = 120
 TOURNAMENT_SECONDS = 90
 TOURNAMENT_SIZE = 4
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
-TELEGRAM_TEXT_CHUNK_SIZE = 3500
 UPLOAD_MARATHON_THRESHOLD = 100
 TELEGRAM_SEND_RETRIES = 3
 TELEGRAM_RETRY_BASE_DELAY = 0.45
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
 T = TypeVar("T")
-
-JOKE_DUEL_START_PHRASES = (
-    "Анекдотная заруба в эфире",
-    "Стендап без лицензии стартовал",
-    "Два текста вошли в чат",
-    "Словесная драка началась",
-    "Комиссия по смешному собралась",
-    "Блокнот вывел бойцов",
-    "Пульт юмора дал искру",
-    "Суд баянов открыт",
-    "Ринг анекдотов готов",
-    "Народный разбор шуток начался",
-)
-JOKE_DUEL_STATUS_PHRASES = (
-    "Чат решает, кто достоин жить в блокноте",
-    "Кнопки принимают показания",
-    "Смеховая комиссия смотрит строго",
-    "Один текст выйдет сухим, второй уйдёт в архив",
-    "Голосование идёт без права на скуку",
-    "Блокнот нервно перелистывает страницы",
-    "Публика выбирает меньшее зло",
-    "Юмор проходит народную проверку",
-    "Присяжные держат палец на кнопке",
-    "Таймер тащит драму за шиворот",
-)
-JOKE_DUEL_WIN_PHRASES = (
-    "Чат вынес приговор. Победитель остаётся в блокноте",
-    "Смеховая комиссия определилась. Слабый текст удалён",
-    "Народ сказал своё. Проигравший анекдот покинул пул",
-    "Кнопки всё решили. Победитель получил прописку",
-    "Блокнот пережил чистку. Один анекдот не вывез",
-    "Юмор прошёл фильтр. Проигравший отправлен за дверь",
-    "Финальный смешок прозвучал. Победитель остаётся",
-    "Суд баянов закрыл заседание. Лишний текст удалён",
-    "Чат выбрал живого. Второй анекдот ушёл в туман",
-    "Вердикт принят. Победитель продолжит гастроли",
-)
-JOKE_DUEL_TIE_PHRASES = (
-    "Чат не определился. Оба анекдота остаются",
-    "Ничья. Блокнот решил не устраивать казнь",
-    "Присяжные зависли. Оба текста выжили",
-    "Суд смешного ушёл на обед. Удалений нет",
-    "Голоса разошлись поровну. Все остаются при своих",
-    "Кнопки не договорились. Блокнот никого не трогает",
-    "Народный суд моргнул. Оба анекдота живы",
-    "Таймер сгорел без жертвы. Ничья",
-    "Арена сохранила обоих. Видимо, так надо",
-    "Вердикт размазался. Казни не будет",
-)
 
 TOURNAMENT_START_PHRASES = (
     "Открыт короткий чемпионат подозрительных пикч",
@@ -183,114 +125,6 @@ def _extend_runtime_phrases(
     raise RuntimeError(f"Not enough runtime phrases to build a pool of {target_count}.")
 
 
-JOKE_DUEL_START_PHRASES = _extend_runtime_phrases(
-    JOKE_DUEL_START_PHRASES,
-    _runtime_phrase_grid(
-        [
-            "Блокнот юмора",
-            "Суд шуток",
-            "Анекдотный ринг",
-            "Комиссия по смешному",
-            "Юморной разбор",
-            "Два текста",
-            "Стендапный конфликт",
-            "Пульт баянов",
-            "Словесная арена",
-            "Чатовый микрофон",
-        ],
-        [
-            "выходит на связь",
-            "открывает заседание",
-            "запускает проверку",
-            "просит голос",
-            "начинает разбор",
-            "вызывает присяжных",
-            "ставит тексты под свет",
-        ],
-    ),
-    80,
-)
-JOKE_DUEL_STATUS_PHRASES = _extend_runtime_phrases(
-    JOKE_DUEL_STATUS_PHRASES,
-    _runtime_phrase_grid(
-        [
-            "Чат",
-            "Кнопки",
-            "Блокнот",
-            "Юморная комиссия",
-            "Таймер",
-            "Публика",
-            "Суд баянов",
-            "Стендапный отдел",
-            "Смеховой комитет",
-            "Народный фильтр",
-        ],
-        [
-            "выбирает живой текст",
-            "держит паузу",
-            "смотрит строго",
-            "решает судьбу шутки",
-            "не принимает скуку",
-            "сверит смешное с реальностью",
-            "ведёт протокол смеха",
-        ],
-    ),
-    80,
-)
-JOKE_DUEL_WIN_PHRASES = _extend_runtime_phrases(
-    JOKE_DUEL_WIN_PHRASES,
-    _runtime_phrase_grid(
-        [
-            "Победивший анекдот",
-            "Живой текст",
-            "Фаворит кнопок",
-            "Смешной кандидат",
-            "Выбор чата",
-            "Блокнотный чемпион",
-            "Шутка-победитель",
-            "Текст с иммунитетом",
-            "Стендапный выживший",
-            "Любимец таймера",
-        ],
-        [
-            "остаётся в блокноте",
-            "забирает прописку",
-            "пережил проверку",
-            "выиграл народный суд",
-            "уходит с овациями",
-            "получает иммунитет",
-            "остаётся на гастролях",
-        ],
-    ),
-    80,
-)
-JOKE_DUEL_TIE_PHRASES = _extend_runtime_phrases(
-    JOKE_DUEL_TIE_PHRASES,
-    _runtime_phrase_grid(
-        [
-            "Оба анекдота",
-            "Два текста",
-            "Шутки",
-            "Блокнотные бойцы",
-            "Словесные кандидаты",
-            "Участники смешного суда",
-            "Тексты",
-            "Анекдотные дуэлянты",
-            "Стендапные спорщики",
-            "Оба баяна",
-        ],
-        [
-            "остались жить",
-            "разошлись без казни",
-            "пережили таймер",
-            "избежали удаления",
-            "оставили чат без решения",
-            "дождались амнистии",
-            "выбрались из суда",
-        ],
-    ),
-    80,
-)
 TOURNAMENT_START_PHRASES = _extend_runtime_phrases(
     TOURNAMENT_START_PHRASES,
     _runtime_phrase_grid(
@@ -410,18 +244,11 @@ class UploadSession(TypedDict):
     achievement_names: list[str]
 
 
-class JokeUploadSession(TypedDict):
-    added: int
-    failed: int
-    duplicates: int
-
-
 DuelStartResult = Literal["started", "active", "failed"]
-DuelKind = Literal["image", "joke"]
+DuelKind = Literal["image"]
 
 
 active_uploads: dict[int, UploadSession] = {}
-active_joke_uploads: dict[int, JokeUploadSession] = {}
 duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, dict[DuelKind, str]] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
@@ -436,13 +263,8 @@ class AddPicture(StatesGroup):
     uploading = State()
 
 
-class AddJoke(StatesGroup):
-    uploading = State()
-
-
 def build_router(
     image_pool: ImagePool,
-    joke_pool: JokePool,
     target_channel_id: str | None = None,
     admin_user_ids: frozenset[int] = frozenset(),
 ) -> Router:
@@ -456,7 +278,7 @@ def build_router(
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        await show_menu(message, image_pool, joke_pool)
+        await show_menu(message, image_pool)
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
@@ -466,7 +288,7 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await show_menu(message, image_pool, joke_pool)
+        await show_menu(message, image_pool)
 
     @router.message(Command("pic"))
     @router.channel_post(Command("pic"))
@@ -480,29 +302,18 @@ def build_router(
             answer_message=message,
         )
 
-    @router.message(Command("joke"))
-    @router.channel_post(Command("joke"))
-    async def send_random_joke(message: Message, bot: Bot) -> None:
-        image_pool.remember_user(message.from_user)
-        await send_joke(
-            bot=bot,
-            chat_id=message.chat.id,
-            joke_pool=joke_pool,
-            answer_message=message,
-        )
-
     @router.message(Command("count"))
     @router.channel_post(Command("count"))
     async def count_pictures(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await message.answer(format_count(image_pool, joke_pool), parse_mode="HTML")
+        await message.answer(format_count(image_pool), parse_mode="HTML")
 
     @router.message(Command("stats"))
     @router.channel_post(Command("stats"))
     async def stats_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
         await message.answer(
-            format_stats(image_pool, joke_pool, chat_id=message.chat.id),
+            format_stats(image_pool, chat_id=message.chat.id),
             parse_mode="HTML",
         )
 
@@ -527,11 +338,6 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await send_duel(bot=bot, message=message, image_pool=image_pool)
 
-    @router.message(Command("jokeduel"))
-    async def joke_duel_command(message: Message, bot: Bot) -> None:
-        image_pool.remember_user(message.from_user)
-        await send_joke_duel(bot=bot, message=message, joke_pool=joke_pool)
-
     @router.message(Command("tournament"))
     async def tournament_command(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
@@ -546,7 +352,6 @@ def build_router(
             return
 
         image_pool.reset_stats()
-        joke_pool.reset_stats()
         await message.answer(format_reset_stats_done(), parse_mode="HTML")
 
     @router.message(Command("dedupe_user"))
@@ -571,13 +376,7 @@ def build_router(
             await message.answer(format_admin_only("Бэкап"))
             return
 
-        await send_backup(message, image_pool, joke_pool)
-
-    @router.message(Command("weather"))
-    @router.channel_post(Command("weather"))
-    async def weather_command(message: Message) -> None:
-        image_pool.remember_user(message.from_user)
-        await send_weather(message)
+        await send_backup(message, image_pool)
 
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
@@ -593,12 +392,6 @@ def build_router(
     async def start_upload(message: Message, state: FSMContext) -> None:
         image_pool.remember_user(message.from_user)
         await activate_upload(message, state)
-
-    @router.message(Command(JOKE_UPLOAD_COMMAND))
-    @router.channel_post(Command(JOKE_UPLOAD_COMMAND))
-    async def start_joke_upload(message: Message, state: FSMContext) -> None:
-        image_pool.remember_user(message.from_user)
-        await activate_joke_upload(message, state)
 
     @router.message(Command("done"))
     @router.channel_post(Command("done"))
@@ -617,11 +410,6 @@ def build_router(
     async def save_picture(message: Message, state: FSMContext) -> None:
         image_pool.remember_user(message.from_user)
         if not is_upload_active(message):
-            if is_joke_upload_active(message):
-                data = joke_upload_data(message)
-                failed = int(data.get("failed", 0))
-                data["failed"] = failed + 1
-                await message.answer(format_invalid_joke())
             return
 
         data = upload_data(message)
@@ -678,7 +466,7 @@ def build_router(
     async def count_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         await callback.answer(
-            format_count_alert(image_pool, joke_pool),
+            format_count_alert(image_pool),
             show_alert=True,
         )
 
@@ -687,7 +475,7 @@ def build_router(
         image_pool.remember_user(callback.from_user)
         if callback.message:
             await callback.message.answer(
-                format_stats(image_pool, joke_pool, chat_id=callback.message.chat.id),
+                format_stats(image_pool, chat_id=callback.message.chat.id),
                 parse_mode="HTML",
             )
         await callback.answer()
@@ -696,7 +484,7 @@ def build_router(
     async def menu_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await show_menu(callback.message, image_pool, joke_pool, edit_existing=True)
+            await show_menu(callback.message, image_pool, edit_existing=True)
         await callback.answer()
 
     @router.callback_query(F.data == "menu_random")
@@ -722,10 +510,8 @@ def build_router(
                 format_arena_menu(chat_id),
                 arena_menu(
                     image_duel_active=arena_state["image_seconds"] is not None,
-                    joke_duel_active=arena_state["joke_seconds"] is not None,
                     tournament_active=arena_state["tournament_seconds"] is not None,
                     image_duel_seconds=arena_state["image_seconds"],
-                    joke_duel_seconds=arena_state["joke_seconds"],
                     tournament_seconds=arena_state["tournament_seconds"],
                 ),
                 "arena menu",
@@ -738,7 +524,7 @@ def build_router(
         if callback.message:
             await answer_or_edit_panel(
                 callback.message,
-                format_storage_menu(image_pool, joke_pool),
+                format_storage_menu(image_pool),
                 storage_menu(is_private=is_private_chat(callback.message)),
                 "storage menu",
             )
@@ -759,27 +545,6 @@ def build_router(
         image_pool.remember_user(callback.from_user)
         if callback.message:
             await callback.message.answer(format_top_uploaders(image_pool), parse_mode="HTML")
-        await callback.answer()
-
-    @router.callback_query(F.data == "weather")
-    async def weather_callback(callback: CallbackQuery) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.message:
-            await send_weather(callback.message)
-        await callback.answer()
-
-    @router.callback_query(F.data == "joke")
-    async def joke_callback(callback: CallbackQuery, bot: Bot) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.message is None:
-            await callback.answer()
-            return
-
-        await send_joke(
-            bot=bot,
-            chat_id=callback.message.chat.id,
-            joke_pool=joke_pool,
-        )
         await callback.answer()
 
     @router.callback_query(F.data == "upload_hub")
@@ -803,18 +568,6 @@ def build_router(
 
         activated = await activate_upload(callback.message, state)
         await callback.answer("Загрузка открыта" if activated else "Открой личку с ботом")
-
-    @router.callback_query(F.data == "upload_joke")
-    async def upload_joke_callback(callback: CallbackQuery, state: FSMContext) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.message is None:
-            await callback.answer()
-            return
-
-        activated = await activate_joke_upload(callback.message, state)
-        await callback.answer(
-            "Загрузка анекдотов открыта" if activated else "Открой личку с ботом"
-        )
 
     @router.callback_query(F.data == "done")
     async def done_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -899,53 +652,6 @@ def build_router(
 
         await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
 
-    @router.callback_query(F.data.startswith("joke_react:"))
-    async def joke_react_callback(callback: CallbackQuery) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.data is None:
-            await callback.answer()
-            return
-
-        _, reaction, joke_id = callback.data.split(":", 2)
-        reaction_update = joke_pool.react(joke_id, reaction, callback.from_user.id)
-        if reaction_update is None:
-            await callback.answer("Не нашёл этот анекдот", show_alert=True)
-            return
-
-        joke = reaction_update.joke
-        if callback.message:
-            if (
-                reaction_update.changed
-                and reaction == "dislike"
-                and joke.dislikes >= AUTO_DELETE_DISLIKES
-            ):
-                joke_pool.delete(joke.id)
-                try:
-                    await callback.message.edit_reply_markup(reply_markup=None)
-                    await callback.message.reply(
-                        "<b>⚖️ Народный суд</b>\n\n"
-                        "🖕🏻 <b>2</b> голоса\n"
-                        "🗑 Анекдот удалён из блокнота",
-                        parse_mode="HTML",
-                    )
-                except TelegramAPIError:
-                    LOGGER.warning("Failed to mark auto-deleted joke message", exc_info=True)
-                await callback.answer("Народный суд сработал")
-                return
-
-            try:
-                await callback.message.edit_reply_markup(
-                    reply_markup=joke_actions_with_counts(
-                        joke_id=joke.id,
-                        likes=joke.likes,
-                        dislikes=joke.dislikes,
-                    )
-                )
-            except TelegramAPIError:
-                LOGGER.warning("Failed to update joke reaction buttons", exc_info=True)
-
-        await callback.answer("Засчитано" if reaction_update.changed else "Уже стоит")
-
     @router.callback_query(F.data.startswith("duel:"))
     async def duel_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
@@ -993,56 +699,6 @@ def build_router(
                 ),
                 duel_vote(duel_id, left_votes, right_votes),
                 "duel vote message",
-            )
-        await callback.answer("Голос принят")
-
-    @router.callback_query(F.data.startswith("joke_duel:"))
-    async def joke_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.data is None:
-            await callback.answer()
-            return
-
-        _, duel_id, side = callback.data.split(":", 2)
-        duel = duel_sessions.get(duel_id)
-        if duel is None or duel.get("kind") != "joke":
-            await callback.answer("Дуэль уже растворилась в истории", show_alert=True)
-            return
-        if not duel.get("active", False):
-            await callback.answer("Дуэль уже закончилась", show_alert=True)
-            return
-        if duel_remaining_seconds(duel) <= 0:
-            await close_expired_joke_duel_from_callback(
-                callback=callback,
-                bot=bot,
-                joke_pool=joke_pool,
-                duel_id=duel_id,
-                duel=duel,
-            )
-            await callback.answer("Финальный свисток уже был")
-            return
-
-        votes = duel["votes"]
-        user_key = str(callback.from_user.id)
-        if votes.get(user_key) == side:
-            await callback.answer("Уже стоит")
-            return
-
-        votes[user_key] = side
-        left_votes, right_votes = duel_vote_counts(duel)
-        if callback.message:
-            await edit_callback_text_if_changed(
-                callback.message,
-                duel,
-                format_joke_duel_score(
-                    left_votes,
-                    right_votes,
-                    title=str(duel.get("title") or random_joke_duel_start_phrase()),
-                    status=str(duel.get("status") or random_joke_duel_status_phrase()),
-                    remaining_seconds=duel_remaining_seconds(duel),
-                ),
-                joke_duel_vote(duel_id, left_votes, right_votes),
-                "joke duel vote message",
             )
         await callback.answer("Голос принят")
 
@@ -1147,26 +803,6 @@ def build_router(
         else:
             await callback.answer("Чемпион не нашёл соперника")
 
-    @router.callback_query(F.data == "joke_duel_new")
-    async def new_joke_duel_callback(callback: CallbackQuery, bot: Bot) -> None:
-        image_pool.remember_user(callback.from_user)
-        if callback.message is None:
-            await callback.answer()
-            return
-
-        duel_result = await send_joke_duel(
-            bot=bot,
-            message=callback.message,
-            joke_pool=joke_pool,
-            silent_if_active=True,
-        )
-        if duel_result == "started":
-            await callback.answer("Запускаю дуэль анекдотов")
-        elif duel_result == "active":
-            await callback.answer("Дуэль уже идёт")
-        else:
-            await callback.answer("Дуэль не запустилась")
-
     @router.callback_query(F.data == "tournament_new")
     async def new_tournament_callback(callback: CallbackQuery, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
@@ -1192,50 +828,6 @@ def build_router(
         image_pool.remember_user(message.from_user)
         await help_command(message)
 
-    @router.message(F.text)
-    async def save_joke(message: Message) -> None:
-        image_pool.remember_user(message.from_user)
-        if is_upload_active(message):
-            data = upload_data(message)
-            failed = int(data.get("failed", 0))
-            data["failed"] = failed + 1
-            await message.answer(format_invalid_file())
-            return
-
-        if not is_joke_upload_active(message):
-            return
-
-        if (message.text or "").strip().startswith("/"):
-            data = joke_upload_data(message)
-            failed = int(data.get("failed", 0))
-            data["failed"] = failed + 1
-            await message.answer(format_invalid_joke_command(), parse_mode="HTML")
-            return
-
-        data = joke_upload_data(message)
-        added = int(data.get("added", 0))
-        failed = int(data.get("failed", 0))
-        duplicates = int(data.get("duplicates", 0))
-
-        result = joke_pool.add_from_message(message)
-        if result.added:
-            data.update(
-                {
-                    "added": added + 1,
-                    "failed": failed,
-                    "duplicates": duplicates,
-                }
-            )
-            return
-
-        if result.duplicate:
-            data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
-            await message.answer(format_duplicate_joke_skipped())
-            return
-
-        data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-        await message.answer(format_invalid_joke())
-
     @router.message()
     @router.channel_post()
     async def fallback(message: Message) -> None:
@@ -1245,11 +837,6 @@ def build_router(
             failed = int(data.get("failed", 0))
             data["failed"] = failed + 1
             await message.answer(format_invalid_file())
-        elif is_joke_upload_active(message):
-            data = joke_upload_data(message)
-            failed = int(data.get("failed", 0))
-            data["failed"] = failed + 1
-            await message.answer(format_invalid_joke())
 
     return router
 
@@ -1309,85 +896,6 @@ async def send_picture(
         and str(answer_message.chat.id) != str(target_channel_id)
     ):
         await answer_message.answer("Пикча улетела в канал")
-
-
-async def send_joke(
-    bot: Bot,
-    chat_id: int,
-    joke_pool: JokePool,
-    answer_message: Message | None = None,
-    avoid_recent: bool = True,
-) -> None:
-    joke = joke_pool.random_joke(
-        avoid_recent=avoid_recent,
-        chat_id=chat_id,
-    )
-    if joke is None:
-        is_private = is_private_chat(answer_message) if answer_message else False
-        text = format_empty_joke_pool(is_private=is_private)
-        reply_markup = empty_joke_pool_actions(is_private=is_private)
-        if answer_message:
-            await answer_message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
-        else:
-            await bot.send_message(
-                chat_id=chat_id,
-                text=text,
-                parse_mode="HTML",
-                reply_markup=reply_markup,
-            )
-        return
-
-    chunks = split_text_for_telegram(joke.text.strip())
-    total_chunks = len(chunks)
-    try:
-        for index, chunk in enumerate(chunks, start=1):
-            is_last_chunk = index == total_chunks
-            title = "😂 Анекдот"
-            if total_chunks > 1:
-                title = f"{title} · часть {index}/{total_chunks}"
-
-            await telegram_request_with_retry(
-                lambda chunk=chunk, title=title, is_last_chunk=is_last_chunk: bot.send_message(
-                    chat_id=chat_id,
-                    text=format_joke(
-                        chunk,
-                        title=title,
-                        include_reaction_hint=is_last_chunk,
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=(
-                        joke_actions_with_counts(
-                            joke_id=joke.id,
-                            likes=joke.likes,
-                            dislikes=joke.dislikes,
-                        )
-                        if is_last_chunk
-                        else None
-                    ),
-                ),
-                f"random joke chunk {index}",
-            )
-    except TelegramAPIError:
-        LOGGER.warning("Failed to send random joke", exc_info=True)
-        if answer_message:
-            await answer_message.answer("Telegram не отдал анекдот. Попробуйте ещё раз")
-
-
-async def send_joke_duel_entry(message: Message, title: str, text: str) -> None:
-    chunks = split_text_for_telegram(text.strip())
-    total_chunks = len(chunks)
-    for index, chunk in enumerate(chunks, start=1):
-        chunk_title = title
-        if total_chunks > 1:
-            chunk_title = f"{title} · часть {index}/{total_chunks}"
-
-        await telegram_request_with_retry(
-            lambda chunk_title=chunk_title, chunk=chunk: message.answer(
-                format_joke_duel_entry(chunk_title, chunk),
-                parse_mode="HTML",
-            ),
-            f"joke duel entry {index}",
-        )
 
 
 def telegram_message_not_modified(error: TelegramAPIError) -> bool:
@@ -1615,71 +1123,6 @@ async def send_duel(
         return "started"
 
 
-async def send_joke_duel(
-    bot: Bot,
-    message: Message,
-    joke_pool: JokePool,
-    silent_if_active: bool = False,
-) -> DuelStartResult:
-    chat_id = message.chat.id
-    async with duel_lock_for(chat_id):
-        if active_duel_id_for_chat(chat_id, "joke"):
-            if not silent_if_active:
-                await message.answer(format_duel_already_active("joke"), parse_mode="HTML")
-            return "active"
-
-        if joke_pool.count() < 2:
-            await message.answer("😂 Для дуэли нужно хотя бы два анекдота в блокноте")
-            return "failed"
-
-        duel_pair = joke_pool.random_duel_pair(chat_id=chat_id)
-        if duel_pair is None:
-            await message.answer("😂 Дуэль сорвалась. Блокнот пустоват")
-            return "failed"
-        left, right = duel_pair
-
-        try:
-            await send_joke_duel_entry(message, "🅰️ Первый анекдот", left.text)
-            await send_joke_duel_entry(message, "🅱️ Второй анекдот", right.text)
-        except TelegramAPIError:
-            LOGGER.warning("Failed to send joke duel text messages", exc_info=True)
-            return "failed"
-
-        duel_id = uuid4().hex
-        title = random_joke_duel_start_phrase()
-        status = random_joke_duel_status_phrase()
-        score_text = format_joke_duel_score(0, 0, title=title, status=status)
-        duel_sessions[duel_id] = {
-            "kind": "joke",
-            "chat_id": chat_id,
-            "left": left.id,
-            "right": right.id,
-            "votes": {},
-            "active": True,
-            "title": title,
-            "status": status,
-            "expires_at": monotonic() + JOKE_DUEL_SECONDS,
-            "score_text": score_text,
-        }
-        try:
-            score_message = await telegram_request_with_retry(
-                lambda: message.answer(
-                    score_text,
-                    parse_mode="HTML",
-                    reply_markup=joke_duel_vote(duel_id),
-                ),
-                "joke duel vote message",
-            )
-        except TelegramAPIError:
-            duel_sessions.pop(duel_id, None)
-            LOGGER.warning("Failed to send joke duel vote message", exc_info=True)
-            return "failed"
-
-        register_active_duel(chat_id, "joke", duel_id)
-        schedule_joke_duel_finalizer(duel_id, bot, joke_pool, chat_id, score_message.message_id)
-        return "started"
-
-
 async def send_tournament(
     bot: Bot,
     message: Message,
@@ -1779,28 +1222,6 @@ def resolve_image_duel_result(duel: dict, image_pool: ImagePool) -> str:
     return final_text
 
 
-def resolve_joke_duel_result(duel: dict, joke_pool: JokePool) -> str:
-    final_text = duel.get("final_text")
-    if isinstance(final_text, str):
-        duel["active"] = False
-        return final_text
-
-    duel["active"] = False
-    left_votes, right_votes = duel_vote_counts(duel)
-
-    if left_votes == right_votes:
-        final_text = format_joke_duel_result(left_votes, right_votes, winner=None)
-    elif left_votes > right_votes:
-        joke_pool.delete(str(duel["right"]))
-        final_text = format_joke_duel_result(left_votes, right_votes, winner="left")
-    else:
-        joke_pool.delete(str(duel["left"]))
-        final_text = format_joke_duel_result(left_votes, right_votes, winner="right")
-
-    duel["final_text"] = final_text
-    return final_text
-
-
 def resolve_tournament_result(tournament: dict, image_pool: ImagePool) -> str:
     final_text = tournament.get("final_text")
     if isinstance(final_text, str):
@@ -1863,36 +1284,6 @@ async def close_expired_image_duel_from_callback(
             log_context="expired image duel message",
         )
     clear_active_duel(chat_id, "image", duel_id)
-    duel_sessions.pop(duel_id, None)
-    duel_tasks.pop(duel_id, None)
-
-
-async def close_expired_joke_duel_from_callback(
-    callback: CallbackQuery,
-    bot: Bot,
-    joke_pool: JokePool,
-    duel_id: str,
-    duel: dict,
-) -> None:
-    chat_id = callback_chat_id(callback, duel)
-    if chat_id is None:
-        LOGGER.warning("Cannot close expired joke duel %s without chat_id", duel_id)
-        duel["active"] = False
-        duel_sessions.pop(duel_id, None)
-        duel_tasks.pop(duel_id, None)
-        return
-
-    result_text = resolve_joke_duel_result(duel, joke_pool)
-    if callback.message:
-        await edit_or_send_final_message(
-            bot=bot,
-            chat_id=chat_id,
-            message_id=callback.message.message_id,
-            text=result_text,
-            reply_markup=new_joke_duel(),
-            log_context="expired joke duel message",
-        )
-    clear_active_duel(chat_id, "joke", duel_id)
     duel_sessions.pop(duel_id, None)
     duel_tasks.pop(duel_id, None)
 
@@ -1981,60 +1372,6 @@ async def finalize_duel(
         duel_tasks.pop(duel_id, None)
 
 
-async def finalize_joke_duel(
-    duel_id: str,
-    bot: Bot,
-    joke_pool: JokePool,
-    chat_id: int,
-    message_id: int,
-) -> None:
-    try:
-        while True:
-            duel = duel_sessions.get(duel_id)
-            if duel is None or not duel.get("active", False):
-                return
-
-            remaining_seconds = duel_remaining_seconds(duel)
-            if remaining_seconds <= 0:
-                break
-
-            await asyncio.sleep(min(DUEL_TICK_SECONDS, remaining_seconds))
-            duel = duel_sessions.get(duel_id)
-            if duel is None or not duel.get("active", False):
-                return
-
-            remaining_seconds = duel_remaining_seconds(duel)
-            if remaining_seconds > 0:
-                await update_joke_duel_score_message(
-                    bot=bot,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    duel_id=duel_id,
-                    duel=duel,
-                    remaining_seconds=remaining_seconds,
-                )
-
-        duel = duel_sessions.get(duel_id)
-        if duel is None or not duel.get("active", False):
-            return
-
-        result_text = resolve_joke_duel_result(duel, joke_pool)
-        await edit_or_send_final_message(
-            bot=bot,
-            chat_id=chat_id,
-            message_id=message_id,
-            text=result_text,
-            reply_markup=new_joke_duel(),
-            log_context="completed joke duel message",
-        )
-    except Exception:
-        LOGGER.exception("Joke duel finalizer crashed")
-    finally:
-        clear_active_duel(chat_id, "joke", duel_id)
-        duel_sessions.pop(duel_id, None)
-        duel_tasks.pop(duel_id, None)
-
-
 async def finalize_tournament(
     tournament_id: str,
     bot: Bot,
@@ -2102,20 +1439,6 @@ def schedule_duel_finalizer(
     task.add_done_callback(log_duel_task_exception)
 
 
-def schedule_joke_duel_finalizer(
-    duel_id: str,
-    bot: Bot,
-    joke_pool: JokePool,
-    chat_id: int,
-    message_id: int,
-) -> None:
-    task = asyncio.create_task(
-        finalize_joke_duel(duel_id, bot, joke_pool, chat_id, message_id)
-    )
-    duel_tasks[duel_id] = task
-    task.add_done_callback(log_duel_task_exception)
-
-
 def schedule_tournament_finalizer(
     tournament_id: str,
     bot: Bot,
@@ -2165,32 +1488,6 @@ async def update_duel_score_message(
         ),
         duel_vote(duel_id, left_votes, right_votes),
         "duel timer message",
-    )
-
-
-async def update_joke_duel_score_message(
-    bot: Bot,
-    chat_id: int,
-    message_id: int,
-    duel_id: str,
-    duel: dict,
-    remaining_seconds: int,
-) -> None:
-    left_votes, right_votes = duel_vote_counts(duel)
-    await edit_bot_text_if_changed(
-        bot,
-        chat_id,
-        message_id,
-        duel,
-        format_joke_duel_score(
-            left_votes,
-            right_votes,
-            title=str(duel.get("title") or random_joke_duel_start_phrase()),
-            status=str(duel.get("status") or random_joke_duel_status_phrase()),
-            remaining_seconds=remaining_seconds,
-        ),
-        joke_duel_vote(duel_id, left_votes, right_votes),
-        "joke duel timer message",
     )
 
 
@@ -2381,7 +1678,6 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
         return False
 
     await state.set_state(AddPicture.uploading)
-    active_joke_uploads.pop(message.chat.id, None)
     active_uploads[message.chat.id] = new_upload_session()
     upload_text = format_upload_opened(RANDOM.choice(UPLOAD_START_PHRASES))
     await message.answer(
@@ -2392,28 +1688,8 @@ async def activate_upload(message: Message, state: FSMContext) -> bool:
     return True
 
 
-async def activate_joke_upload(message: Message, state: FSMContext) -> bool:
-    if not is_private_chat(message):
-        await message.answer(format_joke_upload_private_only(), parse_mode="HTML")
-        return False
-
-    await state.set_state(AddJoke.uploading)
-    active_uploads.pop(message.chat.id, None)
-    active_joke_uploads[message.chat.id] = new_joke_upload_session()
-    await message.answer(
-        format_joke_upload_opened(),
-        parse_mode="HTML",
-        reply_markup=upload_menu(),
-    )
-    return True
-
-
 async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
-    if current_state == AddJoke.uploading.state or is_joke_upload_active(message):
-        await finish_joke_upload(message, state)
-        return
-
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
@@ -2423,12 +1699,6 @@ async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
 
 async def cancel_upload(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
-    if current_state == AddJoke.uploading.state or is_joke_upload_active(message):
-        await state.clear()
-        active_joke_uploads.pop(message.chat.id, None)
-        await message.answer(format_joke_upload_cancelled(), parse_mode="HTML")
-        return
-
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
@@ -2465,43 +1735,14 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-async def finish_joke_upload(message: Message, state: FSMContext) -> None:
-    data = joke_upload_data(message)
-    added = int(data.get("added", 0))
-    failed = int(data.get("failed", 0))
-    duplicates = int(data.get("duplicates", 0))
-    await state.clear()
-    active_joke_uploads.pop(message.chat.id, None)
-
-    lines = [
-        "<b>✅ Загрузка шуток закрыта</b>",
-        "Блокнот обновлён, лишнее отсеяно",
-        "",
-        "<b>📦 Итог пакета</b>",
-        format_metric("✅ Добавлено", added),
-        format_metric("♻️ Баянов", duplicates),
-        format_metric("🚫 Не принято", failed),
-    ]
-    easter_egg = rare_easter_egg()
-    if easter_egg:
-        lines.extend(["", easter_egg])
-
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-
 def is_upload_active(message: Message) -> bool:
     return is_private_chat(message) and message.chat.id in active_uploads
 
 
-def is_joke_upload_active(message: Message) -> bool:
-    return is_private_chat(message) and message.chat.id in active_joke_uploads
-
-
 def is_any_upload_active(message: Message, current_state: str | None) -> bool:
     return (
-        current_state in {AddPicture.uploading.state, AddJoke.uploading.state}
+        current_state == AddPicture.uploading.state
         or is_upload_active(message)
-        or is_joke_upload_active(message)
     )
 
 
@@ -2519,14 +1760,6 @@ def new_upload_session() -> UploadSession:
     }
 
 
-def new_joke_upload_session() -> JokeUploadSession:
-    return {
-        "added": 0,
-        "failed": 0,
-        "duplicates": 0,
-    }
-
-
 def upload_data(message: Message) -> UploadSession:
     return active_uploads.setdefault(
         message.chat.id,
@@ -2534,37 +1767,9 @@ def upload_data(message: Message) -> UploadSession:
     )
 
 
-def joke_upload_data(message: Message) -> JokeUploadSession:
-    return active_joke_uploads.setdefault(
-        message.chat.id,
-        new_joke_upload_session(),
-    )
-
-
-def is_admin(message: Message, admin_user_ids: frozenset[int]) -> bool:
-    if not admin_user_ids or message.from_user is None:
-        return False
-
-    return message.from_user.id in admin_user_ids
-
-
-def parse_user_id_argument(message: Message) -> int | None:
-    text = message.text or message.caption or ""
-    parts = text.split(maxsplit=1)
-    if len(parts) != 2:
-        return None
-
-    raw_user_id = parts[1].strip()
-    if not raw_user_id.isdigit():
-        return None
-
-    return int(raw_user_id)
-
-
 async def show_menu(
     message: Message,
     image_pool: ImagePool,
-    joke_pool: JokePool,
     edit_existing: bool = False,
 ) -> None:
     is_private = is_private_chat(message)
@@ -2573,13 +1778,11 @@ async def show_menu(
     reply_markup = main_menu(
         is_private=is_private,
         image_duel_active=arena_state["image_seconds"] is not None,
-        joke_duel_active=arena_state["joke_seconds"] is not None,
         tournament_active=arena_state["tournament_seconds"] is not None,
         image_duel_seconds=arena_state["image_seconds"],
-        joke_duel_seconds=arena_state["joke_seconds"],
         tournament_seconds=arena_state["tournament_seconds"],
     )
-    text = format_main_menu(image_pool, joke_pool, chat_id, is_private=is_private)
+    text = format_main_menu(image_pool, chat_id, is_private=is_private)
     if edit_existing:
         await answer_or_edit_panel(message, text, reply_markup, "main menu")
         return
@@ -2587,7 +1790,7 @@ async def show_menu(
     await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
 
 
-async def send_backup(message: Message, image_pool: ImagePool, joke_pool: JokePool) -> None:
+async def send_backup(message: Message, image_pool: ImagePool) -> None:
     await message.answer(format_backup_started(), parse_mode="HTML")
 
     sent_files = 0
@@ -2601,7 +1804,7 @@ async def send_backup(message: Message, image_pool: ImagePool, joke_pool: JokePo
             )
             sent_files += 1
 
-        for source_path, caption in backup_json_sources(image_pool, joke_pool):
+        for source_path, caption in backup_json_sources(image_pool):
             if not source_path.exists() or source_path.stat().st_size == 0:
                 continue
 
@@ -2614,14 +1817,8 @@ async def send_backup(message: Message, image_pool: ImagePool, joke_pool: JokePo
     await message.answer(format_backup_done(sent_files), parse_mode="HTML")
 
 
-def backup_json_sources(
-    image_pool: ImagePool,
-    joke_pool: JokePool,
-) -> tuple[tuple[Path, str], tuple[Path, str]]:
-    return (
-        (image_pool.storage_path, "JSON-страховка пикч"),
-        (joke_pool.storage_path, "JSON-страховка анекдотов"),
-    )
+def backup_json_sources(image_pool: ImagePool) -> tuple[tuple[Path, str], ...]:
+    return ((image_pool.storage_path, "JSON-страховка пикч"),)
 
 
 async def answer_or_edit_panel(
@@ -2643,7 +1840,6 @@ async def answer_or_edit_panel(
 
 def format_main_menu(
     image_pool: ImagePool,
-    joke_pool: JokePool,
     chat_id: int,
     is_private: bool,
 ) -> str:
@@ -2656,10 +1852,9 @@ def format_main_menu(
         "<b>🎛 Пульт kartinkomet</b>\n"
         "<i>один экран, все рычаги</i>\n\n"
         "<b>📦 Склад</b>\n"
-        f"Пикчи <b>{image_pool.count()}</b> · Анекдоты <b>{joke_pool.count()}</b>\n\n"
+        f"Пикчи <b>{image_pool.count()}</b>\n\n"
         "<b>⚔️ Арены</b>\n"
-        f"Пикчи <b>{active_duel_status(chat_id, 'image')}</b> · "
-        f"Шутки <b>{active_duel_status(chat_id, 'joke')}</b> · "
+        f"Пикч-бой <b>{active_duel_status(chat_id, 'image')}</b> · "
         f"Турнир <b>{active_tournament_status(chat_id)}</b>\n\n"
         "<b>📥 Загрузка</b>\n"
         f"{upload_note}"
@@ -2671,31 +1866,28 @@ def format_random_menu() -> str:
         "<b>🎲 Выдача</b>\n\n"
         "Контент-подача без лишних церемоний\n\n"
         "<b>Доступно</b>\n"
-        "<code>🎲 Пикча</code> — случайный визуальный выстрел\n"
-        "<code>😂 Анекдот</code> — случайный текстовый заряд"
+        "<code>🎲 Пикча</code> — случайный визуальный выстрел"
     )
 
 
 def format_arena_menu(chat_id: int) -> str:
     return (
         "<b>⚔️ Арены</b>\n\n"
-        "Народный стресс-тест для пикч и шуток\n\n"
+        "Народный стресс-тест для пикч\n\n"
         "<b>Сейчас</b>\n"
         f"Пикч-бой: <b>{active_duel_status(chat_id, 'image')}</b>\n"
-        f"Шутко-бой: <b>{active_duel_status(chat_id, 'joke')}</b>\n"
         f"Турнир: <b>{active_tournament_status(chat_id)}</b>\n\n"
         "<b>Правило</b>\n"
-        "Пикчевая и анекдотная арены могут идти параллельно"
+        "Дуэль удаляет проигравшую пикчу, турнир никого не трогает"
     )
 
 
-def format_storage_menu(image_pool: ImagePool, joke_pool: JokePool) -> str:
+def format_storage_menu(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Склад</b>\n\n"
         "Инвентарь, вклад и вход в загрузку\n\n"
         "<b>Внутри</b>\n"
         f"Пикчи: <b>{image_pool.count()}</b>\n"
-        f"Анекдоты: <b>{joke_pool.count()}</b>\n\n"
         "<b>Навигация</b>\n"
         "Счётчик, топ, личная карточка и загрузочный отсек"
     )
@@ -2711,23 +1903,14 @@ def format_section(title: str, *lines: str) -> str:
 
 def format_stats(
     image_pool: ImagePool,
-    joke_pool: JokePool | None = None,
     chat_id: int | None = None,
 ) -> str:
     stats = image_pool.stats()
-    joke_stats = joke_pool.stats() if joke_pool else None
     pool_lines = [format_metric("Пикчи", stats.total_images)]
     random_lines = [format_metric("Пикчи", stats.total_shows)]
     reaction_lines = [
         f"Пикчи: 🤙🏻 <b>{stats.total_likes}</b> · 🖕🏻 <b>{stats.total_dislikes}</b>",
     ]
-    if joke_stats is not None:
-        pool_lines.append(format_metric("Анекдоты", joke_stats.total_jokes))
-        random_lines.append(format_metric("Анекдоты", joke_stats.total_shows))
-        reaction_lines.append(
-            f"Анекдоты: 🤙🏻 <b>{joke_stats.total_likes}</b> · 🖕🏻 <b>{joke_stats.total_dislikes}</b>"
-        )
-
     sections = [
         "<b>📊 Сводка склада</b>",
         format_section("📦 Контент", *pool_lines),
@@ -2750,7 +1933,6 @@ def format_stats(
 def format_active_duel_lines(chat_id: int) -> list[str]:
     return [
         format_metric("Дуэль пикч", active_duel_status(chat_id, "image")),
-        format_metric("Дуэль шуток", active_duel_status(chat_id, "joke")),
         format_metric("Турнир", active_tournament_status(chat_id)),
     ]
 
@@ -2764,7 +1946,6 @@ def format_timer(seconds: int) -> str:
 def active_arena_snapshot(chat_id: int) -> dict[str, int | None]:
     return {
         "image_seconds": active_duel_seconds(chat_id, "image"),
-        "joke_seconds": active_duel_seconds(chat_id, "joke"),
         "tournament_seconds": active_tournament_seconds(chat_id),
     }
 
@@ -2812,10 +1993,10 @@ def active_tournament_status(chat_id: int) -> str:
 def format_start() -> str:
     return (
         "<b>👋 @kartinkomet_bot на связи</b>\n\n"
-        "Склад пикч и анекдотов, арены для голосований и народный суд без лишней мишуры\n\n"
+        "Склад пикч, арены для голосований и народный суд без лишней мишуры\n\n"
         "<b>🎛 Быстрый старт</b>\n"
-        "<code>🎲 Пикча</code> / <code>😂 Анекдот</code>\n"
-        "<code>⚔️ Пикч-бой</code> / <code>🥊 Шутко-бой</code>\n"
+        "<code>🎲 Пикча</code> — случайная выдача\n"
+        "<code>⚔️ Пикч-бой</code> — дуэль двух пикч\n"
         "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
         "<b>📥 Загрузка</b>\n"
         "<code>📥 Загрузка</code> в личке принимает контент\n"
@@ -2835,20 +2016,16 @@ def format_help() -> str:
         format_section(
             "🎲 Выдача",
             "<code>/pic</code> — случайная пикча со склада",
-            "<code>/joke</code> — случайный анекдот из блокнота",
-            "<code>/weather</code> — погода Малой Токмачки",
         ),
         format_section(
             "⚔️ Арены",
             "<code>/duel</code> — дуэль двух случайных пикч",
-            "<code>/jokeduel</code> — дуэль двух случайных анекдотов",
             "<code>/tournament</code> — турнир четырёх пикч",
-            "Пикчевая и анекдотная арены могут идти параллельно",
+            "Дуэль удаляет проигравшую пикчу, турнир никого не удаляет",
         ),
         format_section(
             "📥 Загрузка",
             "<code>/upload_pidor</code> — принять пикчи в личке",
-            "<code>/upload_joke</code> — принять анекдоты в личке",
             "Внутри загрузки: <code>/done</code> завершает, <code>/cancel</code> отменяет",
         ),
         format_section(
@@ -2860,32 +2037,25 @@ def format_help() -> str:
         ),
         format_section(
             "🧹 Народный суд",
-            "2 средних пальца удаляют пикчу или анекдот из пула",
+            "2 средних пальца удаляют пикчу из пула",
         ),
     ]
     return "\n\n".join(sections)
 
 
-def format_count(image_pool: ImagePool, joke_pool: JokePool | None = None) -> str:
-    joke_line = (
-        f"\n{format_metric('Анекдоты', joke_pool.count())}"
-        if joke_pool
-        else ""
-    )
+def format_count(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Склад</b>\n\n"
         "<b>Контент</b>\n"
         f"{format_metric('Пикчи', image_pool.count())}"
-        f"{joke_line}"
     )
 
 
-def format_count_alert(image_pool: ImagePool, joke_pool: JokePool) -> str:
+def format_count_alert(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
         "📦 Склад\n"
         f"Пикч: {image_pool.count()}\n"
-        f"Анекдотов: {joke_pool.count()}\n"
         f"Пикч-дуэлей: {stats.total_duels}\n"
         f"Турниров: {stats.total_tournaments}"
     )
@@ -2897,25 +2067,13 @@ def format_upload_hub(is_private: bool = False) -> str:
             "<b>📬 Загрузочный отсек</b>\n\n"
             "Выберите, что заносим в общий склад\n\n"
             "<code>📥 Пикчи</code> — фото, пачки, альбомы\n"
-            "<code>📝 Анекдоты</code> — текстовые заряды"
         )
 
     return (
         "<b>📬 Загрузка живёт в личке</b>\n\n"
         "В группе оставляем выдачу и арены, а склад пополняем один на один с ботом\n\n"
-        "Нажмите нужный тип ниже, бот подскажет маршрут"
+        "Нажмите кнопку ниже, бот подскажет маршрут"
     )
-
-
-async def send_weather(message: Message) -> None:
-    try:
-        report = await get_mala_tokmachka_weather()
-    except Exception:
-        LOGGER.warning("Failed to fetch weather", exc_info=True)
-        await message.answer(format_weather_error(), parse_mode="HTML")
-        return
-
-    await message.answer(format_weather_report(report), parse_mode="HTML")
 
 
 def format_upload_private_only() -> str:
@@ -2941,23 +2099,9 @@ def format_upload_opened(intro: str) -> str:
     )
 
 
-def format_joke_upload_opened() -> str:
-    return (
-        "<b>📝 Приём шуток открыт</b>\n\n"
-        "Отправляйте обычный текст. Один анекдот — одно сообщение\n\n"
-        "<b>Управление</b>\n"
-        "<code>✅ Закончить</code> — сохранить пакет\n"
-        "<code>❌ Отмена</code> — закрыть без отчёта"
-    )
-
-
 def format_duel_already_active(kind: DuelKind = "image") -> str:
-    if kind == "joke":
-        busy_line = "Сейчас занята анекдотная арена"
-        free_line = "Пикчевую дуэль можно запускать отдельно"
-    else:
-        busy_line = "Сейчас занята пикчевая арена"
-        free_line = "Анекдотную дуэль можно запускать отдельно"
+    busy_line = "Сейчас занята пикчевая арена"
+    free_line = "Дождитесь финала или запустите турнир"
 
     return (
         "<b>⚔️ Дуэль уже идёт</b>\n\n"
@@ -2979,6 +2123,18 @@ def format_user_id(user_id: int) -> str:
         "<b>🪪 Telegram user ID</b>\n\n"
         f"<code>{user_id}</code>"
     )
+
+
+def parse_user_id_argument(message: Message) -> int | None:
+    raw_text = (message.text or message.caption or "").strip()
+    parts = raw_text.split(maxsplit=1)
+    if len(parts) != 2:
+        return None
+
+    try:
+        return int(parts[1].strip())
+    except ValueError:
+        return None
 
 
 def format_upload_limit() -> str:
@@ -3015,80 +2171,6 @@ def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
     )
 
 
-def format_empty_joke_pool(is_private: bool = False) -> str:
-    action = (
-        "Нажмите <code>📝 Анекдоты</code> и отправляйте тексты сюда"
-        if is_private
-        else "Нажмите <code>📬 Как загрузить анекдоты</code> и бот покажет маршрут в личку"
-    )
-    return (
-        "<b>📭 Блокнот шуток пуст</b>\n\n"
-        "Пока тут тишина. Блокнот ждёт первый нормальный заход\n\n"
-        "<b>Маршрут</b>\n"
-        f"{action}"
-    )
-
-
-def format_joke(
-    text: str,
-    likes: int = 0,
-    dislikes: int = 0,
-    title: str = "😂 Анекдот",
-    include_reaction_hint: bool = True,
-) -> str:
-    lines = [
-        f"<b>{escape(title)}</b>",
-        "",
-        f"<blockquote>{escape(text)}</blockquote>",
-    ]
-    if include_reaction_hint:
-        lines.extend(["", format_reaction_hint()])
-    return "\n".join(lines)
-
-
-def format_joke_duel_entry(title: str, text: str) -> str:
-    return (
-        f"<b>{escape(title)}</b>\n\n"
-        f"<blockquote>{escape(text)}</blockquote>"
-    )
-
-
-def format_duplicate_joke_skipped() -> str:
-    return "♻️ Баян уже в блокноте"
-
-
-def format_invalid_joke() -> str:
-    return (
-        "⚠️ Не похоже на анекдот\n\n"
-        "Отправьте обычный текст одним сообщением"
-    )
-
-
-def format_invalid_joke_command() -> str:
-    return (
-        "<b>⚠️ Это команда, а не анекдот</b>\n\n"
-        f"Для завершения используйте <code>/done</code>, для отмены — <code>/cancel</code>"
-    )
-
-
-def format_joke_upload_private_only() -> str:
-    return (
-        "<b>📬 Загрузка шуток — в личке</b>\n\n"
-        "В группе оставляем выдачу, сводку и арены. Блокнот пополняется один на один\n\n"
-        "<b>Что делать</b>\n"
-        "Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
-        f"Отправьте <code>/{JOKE_UPLOAD_COMMAND}</code>\n"
-        "Кидайте анекдоты текстом"
-    )
-
-
-def format_joke_upload_cancelled() -> str:
-    return (
-        "<b>❌ Загрузка анекдотов отменена</b>\n\n"
-        "Блокнот закрыт без итоговой сводки"
-    )
-
-
 def format_upload_cancelled() -> str:
     return (
         "<b>❌ Загрузка отменена</b>\n\n"
@@ -3101,7 +2183,6 @@ def format_upload_not_active() -> str:
         "<b>⚠️ Загрузка не открыта</b>\n\n"
         "<b>Открыть</b>\n"
         f"Пикчи: <code>/{UPLOAD_COMMAND}</code>\n"
-        f"Шутки: <code>/{JOKE_UPLOAD_COMMAND}</code>\n\n"
         "Загружать лучше в личке с ботом"
     )
 
@@ -3132,7 +2213,6 @@ def format_reset_stats_done() -> str:
         "• показы обнулены\n"
         "• дуэли обнулены\n"
         "• память рандома очищена\n"
-        "• анекдоты оставлены, но их реакции и показы обнулены"
     )
 
 
@@ -3351,61 +2431,6 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
     )
 
 
-def format_joke_duel_score(
-    left_votes: int,
-    right_votes: int,
-    title: str | None = None,
-    status: str | None = None,
-    remaining_seconds: int | None = None,
-) -> str:
-    if left_votes == right_votes:
-        verdict = "⚖️ Пока ничья"
-    elif left_votes > right_votes:
-        verdict = "🔥 Ведёт 🅰️"
-    else:
-        verdict = "🔥 Ведёт 🅱️"
-
-    seconds_left = JOKE_DUEL_SECONDS if remaining_seconds is None else max(0, remaining_seconds)
-    return (
-        "<b>🥊 Арена шуток</b>\n\n"
-        f"{escape(title or random_joke_duel_start_phrase())}\n"
-        f"{escape(status or random_joke_duel_status_phrase())}\n\n"
-        "<b>Счёт</b>\n"
-        f"🅰️ Первый: <b>{left_votes}</b>\n"
-        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
-        "<b>Статус</b>\n"
-        f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
-    )
-
-
-def format_joke_duel_result(
-    left_votes: int,
-    right_votes: int,
-    winner: str | None,
-) -> str:
-    if winner is None:
-        phrase = random_joke_duel_tie_phrase()
-        verdict = "⚖️ Ничья\n📒 Оба анекдота остаются в блокноте"
-    elif winner == "left":
-        phrase = random_joke_duel_win_phrase()
-        verdict = "🏆 Победитель: <b>🅰️ первый</b>\n🗑 Удалён: <b>🅱️ второй</b>"
-    else:
-        phrase = random_joke_duel_win_phrase()
-        verdict = "🏆 Победитель: <b>🅱️ второй</b>\n🗑 Удалён: <b>🅰️ первый</b>"
-
-    return (
-        "<b>⚖️ Приговор арены шуток</b>\n\n"
-        f"{escape(phrase)}\n\n"
-        "<b>Счёт</b>\n"
-        f"🅰️ Первый: <b>{left_votes}</b>\n"
-        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
-        "<b>История боя</b>\n"
-        f"{format_battle_history(left_votes, right_votes, winner, item_label='анекдот')}\n\n"
-        "<b>Вердикт</b>\n"
-        f"{verdict}"
-    )
-
-
 def format_battle_history(
     left_votes: int,
     right_votes: int,
@@ -3485,32 +2510,6 @@ def tournament_option_label(index: int) -> str:
     return labels[index]
 
 
-def split_text_for_telegram(
-    text: str,
-    chunk_size: int = TELEGRAM_TEXT_CHUNK_SIZE,
-) -> list[str]:
-    if not text:
-        return [""]
-
-    chunks = []
-    current = []
-    current_size = 0
-    for char in text:
-        escaped_size = len(escape(char))
-        if current and current_size + escaped_size > chunk_size:
-            chunks.append("".join(current))
-            current = []
-            current_size = 0
-
-        current.append(char)
-        current_size += escaped_size
-
-    if current:
-        chunks.append("".join(current))
-
-    return chunks
-
-
 def random_duel_start_phrase() -> str:
     return RANDOM.choice(DUEL_START_PHRASES)
 
@@ -3525,22 +2524,6 @@ def random_duel_win_phrase() -> str:
 
 def random_duel_tie_phrase() -> str:
     return RANDOM.choice(DUEL_TIE_PHRASES)
-
-
-def random_joke_duel_start_phrase() -> str:
-    return RANDOM.choice(JOKE_DUEL_START_PHRASES)
-
-
-def random_joke_duel_status_phrase() -> str:
-    return RANDOM.choice(JOKE_DUEL_STATUS_PHRASES)
-
-
-def random_joke_duel_win_phrase() -> str:
-    return RANDOM.choice(JOKE_DUEL_WIN_PHRASES)
-
-
-def random_joke_duel_tie_phrase() -> str:
-    return RANDOM.choice(JOKE_DUEL_TIE_PHRASES)
 
 
 def random_tournament_start_phrase() -> str:

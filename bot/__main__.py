@@ -8,20 +8,15 @@ from aiogram.types import BotCommand
 from bot.config import load_config
 from bot.handlers import build_router
 from bot.image_pool import ImagePool
-from bot.joke_pool import JokePool
 
 
 BOT_COMMANDS = [
     BotCommand(command="start", description="запустить картинный реактор"),
     BotCommand(command="menu", description="открыть главный пульт"),
     BotCommand(command="pic", description="выдать случайную пикчу"),
-    BotCommand(command="joke", description="достать случайный анекдот"),
     BotCommand(command="duel", description="устроить дуэль пикч"),
-    BotCommand(command="jokeduel", description="устроить дуэль анекдотов"),
     BotCommand(command="tournament", description="турнир четырёх пикч"),
-    BotCommand(command="weather", description="погода Малой Токмачки"),
     BotCommand(command="upload_pidor", description="загрузить пикчи в личке"),
-    BotCommand(command="upload_joke", description="загрузить анекдоты в личке"),
     BotCommand(command="stats", description="сводка склада"),
     BotCommand(command="me", description="моя карточка игрока"),
     BotCommand(command="top", description="топ поставщиков пикч"),
@@ -41,7 +36,6 @@ async def main() -> None:
     dispatcher.include_router(
         build_router(
             image_pool=ImagePool(config.image_pool_path, database_path=config.database_path),
-            joke_pool=JokePool(config.joke_pool_path, database_path=config.database_path),
             target_channel_id=config.target_channel_id,
             admin_user_ids=config.admin_user_ids,
         )

@@ -6,22 +6,19 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 def main_menu(
     is_private: bool = False,
     image_duel_active: bool = False,
-    joke_duel_active: bool = False,
     tournament_active: bool = False,
     image_duel_seconds: int | None = None,
-    joke_duel_seconds: int | None = None,
     tournament_seconds: int | None = None,
 ) -> InlineKeyboardMarkup:
     arena_seconds = [
         seconds
         for active, seconds in [
             (image_duel_active, image_duel_seconds),
-            (joke_duel_active, joke_duel_seconds),
             (tournament_active, tournament_seconds),
         ]
         if active and seconds is not None
     ]
-    arena_active = image_duel_active or joke_duel_active or tournament_active
+    arena_active = image_duel_active or tournament_active
     arena_label = (
         active_button_text("⚔️ Арены", True, min(arena_seconds))
         if arena_seconds
@@ -34,7 +31,7 @@ def main_menu(
         ],
         [
             InlineKeyboardButton(text="📦 Склад", callback_data="menu_storage"),
-            InlineKeyboardButton(text="🌦 Погода", callback_data="weather"),
+            InlineKeyboardButton(text="📥 Загрузка", callback_data="upload_hub"),
         ],
     ]
 
@@ -46,7 +43,6 @@ def random_menu() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
-                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
             ],
             [
                 InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
@@ -57,21 +53,14 @@ def random_menu() -> InlineKeyboardMarkup:
 
 def arena_menu(
     image_duel_active: bool = False,
-    joke_duel_active: bool = False,
     tournament_active: bool = False,
     image_duel_seconds: int | None = None,
-    joke_duel_seconds: int | None = None,
     tournament_seconds: int | None = None,
 ) -> InlineKeyboardMarkup:
     image_duel_label = (
         active_button_text("⚔️ Пикч-бой", image_duel_active, image_duel_seconds)
         if image_duel_active
         else "⚔️ Пикч-бой"
-    )
-    joke_duel_label = (
-        active_button_text("🥊 Шутко-бой", joke_duel_active, joke_duel_seconds)
-        if joke_duel_active
-        else "🥊 Шутко-бой"
     )
     tournament_label = (
         active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
@@ -82,13 +71,10 @@ def arena_menu(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text=image_duel_label, callback_data="duel_new"),
-                InlineKeyboardButton(text=joke_duel_label, callback_data="joke_duel_new"),
-            ],
-            [
                 InlineKeyboardButton(text=tournament_label, callback_data="tournament_new"),
-                InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
             ],
             [
+                InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
                 InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
             ],
         ]
@@ -121,10 +107,6 @@ def upload_hub(is_private: bool = False) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="📥 Пикчи" if is_private else "📬 Пикчи в личку",
                     callback_data="upload",
-                ),
-                InlineKeyboardButton(
-                    text="📝 Анекдоты" if is_private else "📬 Анекдоты в личку",
-                    callback_data="upload_joke",
                 ),
             ],
             [
@@ -170,24 +152,6 @@ def empty_picture_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup
                 ),
             ],
             [
-                InlineKeyboardButton(text="😂 Анекдот", callback_data="joke"),
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
-            ],
-        ]
-    )
-
-
-def empty_joke_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="📝 Анекдоты" if is_private else "📬 Как загрузить анекдоты",
-                    callback_data="upload_joke",
-                ),
-            ],
-            [
-                InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
                 InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
             ],
         ]
@@ -221,42 +185,6 @@ def new_duel() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
-            ],
-        ]
-    )
-
-
-def joke_duel_vote(
-    duel_id: str,
-    left_votes: int = 0,
-    right_votes: int = 0,
-) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"🅰️ Первый: {left_votes}",
-                    callback_data=f"joke_duel:{duel_id}:left",
-                ),
-                InlineKeyboardButton(
-                    text=f"🅱️ Второй: {right_votes}",
-                    callback_data=f"joke_duel:{duel_id}:right",
-                ),
-            ],
-        ]
-    )
-
-
-@lru_cache(maxsize=1)
-def new_joke_duel() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🥊 Реванш", callback_data="joke_duel_new"),
-                InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
-            ],
-            [
                 InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
             ],
         ]
@@ -353,46 +281,6 @@ def picture_actions_with_counts(
             InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
             InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
-        ],
-    ]
-
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-
-def joke_actions(joke_id: str) -> InlineKeyboardMarkup:
-    keyboard = [
-        [
-            InlineKeyboardButton(text="🤙🏻", callback_data=f"joke_react:like:{joke_id}"),
-            InlineKeyboardButton(text="🖕🏻", callback_data=f"joke_react:dislike:{joke_id}"),
-        ],
-        [
-            InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
-            InlineKeyboardButton(text="🥊 Дуэль", callback_data="joke_duel_new"),
-        ],
-    ]
-
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-
-def joke_actions_with_counts(
-    joke_id: str,
-    likes: int,
-    dislikes: int,
-) -> InlineKeyboardMarkup:
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                text=f"🤙🏻 {likes}",
-                callback_data=f"joke_react:like:{joke_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"🖕🏻 {dislikes}",
-                callback_data=f"joke_react:dislike:{joke_id}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(text="😂 Ещё", callback_data="joke"),
-            InlineKeyboardButton(text="🥊 Дуэль", callback_data="joke_duel_new"),
         ],
     ]
 

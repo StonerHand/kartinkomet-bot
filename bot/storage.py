@@ -76,42 +76,6 @@ class SQLiteDocumentStore:
                 value INTEGER NOT NULL DEFAULT 0
             );
 
-            CREATE TABLE IF NOT EXISTS jokes (
-                id TEXT PRIMARY KEY,
-                position INTEGER NOT NULL DEFAULT 0,
-                text TEXT NOT NULL,
-                normalized_text TEXT NOT NULL UNIQUE,
-                added_by INTEGER,
-                added_at TEXT,
-                shown_count INTEGER NOT NULL DEFAULT 0,
-                last_shown_at TEXT,
-                likes INTEGER NOT NULL DEFAULT 0,
-                dislikes INTEGER NOT NULL DEFAULT 0
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_jokes_added_by ON jokes(added_by);
-            CREATE INDEX IF NOT EXISTS idx_jokes_shown ON jokes(shown_count, last_shown_at);
-
-            CREATE TABLE IF NOT EXISTS joke_reactions (
-                joke_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                reaction TEXT NOT NULL,
-                PRIMARY KEY (joke_id, user_id),
-                FOREIGN KEY (joke_id) REFERENCES jokes(id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS joke_chat_history (
-                chat_id TEXT NOT NULL,
-                position INTEGER NOT NULL,
-                joke_id TEXT NOT NULL,
-                PRIMARY KEY (chat_id, position),
-                FOREIGN KEY (joke_id) REFERENCES jokes(id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS joke_stats (
-                key TEXT PRIMARY KEY,
-                value INTEGER NOT NULL DEFAULT 0
-            );
             """
         )
         self._connection.commit()
@@ -251,91 +215,6 @@ class SQLiteDocumentStore:
                         for key in IMAGE_DUEL_STAT_KEYS
                     },
                 },
-            )
-
-    def load_joke_pool(self) -> dict[str, Any] | None:
-        joke_rows = self._connection.execute(
-            """
-            SELECT id, text, normalized_text, added_by, added_at, shown_count,
-                   last_shown_at, likes, dislikes
-            FROM jokes
-            ORDER BY position, rowid
-            """
-        ).fetchall()
-        history_rows = self._connection.execute(
-            """
-            SELECT chat_id, joke_id
-            FROM joke_chat_history
-            ORDER BY chat_id, position
-            """
-        ).fetchall()
-        stat_rows = self._connection.execute(
-            "SELECT key, value FROM joke_stats"
-        ).fetchall()
-
-        if not joke_rows and not history_rows and not stat_rows:
-            return None
-
-        reactions = self._load_reactions("joke_reactions", "joke_id")
-        records = [
-            {
-                "id": row["id"],
-                "text": row["text"],
-                "normalized_text": row["normalized_text"],
-                "added_by": row["added_by"],
-                "added_at": row["added_at"],
-                "shown_count": row["shown_count"],
-                "last_shown_at": row["last_shown_at"],
-                "likes": row["likes"],
-                "dislikes": row["dislikes"],
-                "reactions_by_user": reactions.get(row["id"], {}),
-            }
-            for row in joke_rows
-        ]
-        return {
-            "version": self._stat_value(stat_rows, "version", 1),
-            "jokes": records,
-            "chat_history": self._history_from_rows(history_rows, "joke_id"),
-        }
-
-    def save_joke_pool(self, payload: dict[str, Any]) -> None:
-        records = list(payload.get("jokes") or [])
-        chat_history = dict(payload.get("chat_history") or {})
-
-        with self._connection:
-            self._connection.execute("DELETE FROM joke_reactions")
-            self._connection.execute("DELETE FROM joke_chat_history")
-            self._connection.execute("DELETE FROM jokes")
-
-            self._connection.executemany(
-                """
-                INSERT INTO jokes (
-                    id, position, text, normalized_text, added_by, added_at,
-                    shown_count, last_shown_at, likes, dislikes
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        str(record["id"]),
-                        position,
-                        str(record["text"]),
-                        str(record["normalized_text"]),
-                        record.get("added_by"),
-                        record.get("added_at"),
-                        int(record.get("shown_count") or 0),
-                        record.get("last_shown_at"),
-                        int(record.get("likes") or 0),
-                        int(record.get("dislikes") or 0),
-                    )
-                    for position, record in enumerate(records)
-                ],
-            )
-            self._save_reactions("joke_reactions", "joke_id", records)
-            self._save_history("joke_chat_history", "joke_id", chat_history)
-            self._save_stats(
-                "joke_stats",
-                {"version": int(payload.get("version") or 1)},
             )
 
     def _load_reactions(self, table: str, item_column: str) -> dict[str, dict[str, str]]:

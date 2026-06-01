@@ -1,8 +1,0 @@
-name = "kartinkomet-bot"
-main = "src/index.js"
-compatibility_date = "2026-05-25"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "kartinkomet-db"
-database_id = "33929376-f03f-46cc-9b7f-0e95259c9b5b"
