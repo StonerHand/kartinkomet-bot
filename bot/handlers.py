@@ -4,6 +4,7 @@ import random
 import tempfile
 from collections.abc import Awaitable, Callable
 from html import escape
+from io import BytesIO
 from pathlib import Path
 from time import monotonic
 from typing import Literal, TypeVar, TypedDict
@@ -18,6 +19,7 @@ from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message, 
 
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import (
+    admin_menu,
     arena_menu,
     duel_vote,
     empty_picture_pool_actions,
@@ -43,6 +45,7 @@ from bot.texts import (
     PICTURE_CAPTIONS,
     UPLOAD_START_PHRASES,
 )
+from bot.visual_hash import image_dhash
 
 UPLOAD_COMMAND = "upload_pidor"
 DUEL_SECONDS = 60
@@ -51,6 +54,9 @@ TOURNAMENT_SIZE = 4
 DUEL_TICK_SECONDS = 15
 DUEL_STALE_GRACE_SECONDS = 20
 UPLOAD_MARATHON_THRESHOLD = 100
+UPLOAD_BURST_LIMIT = 120
+UPLOAD_BURST_WINDOW_SECONDS = 60
+ADMIN_ERROR_THROTTLE_SECONDS = 300
 TELEGRAM_SEND_RETRIES = 3
 TELEGRAM_RETRY_BASE_DELAY = 0.45
 RANDOM = random.SystemRandom()
@@ -249,6 +255,8 @@ DuelKind = Literal["image"]
 
 
 active_uploads: dict[int, UploadSession] = {}
+upload_events_by_user: dict[int, list[float]] = {}
+admin_error_notifications: dict[str, float] = {}
 duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, dict[DuelKind, str]] = {}
 duel_locks: dict[int, asyncio.Lock] = {}
@@ -278,7 +286,7 @@ def build_router(
             parse_mode="HTML",
             reply_markup=ReplyKeyboardRemove(),
         )
-        await show_menu(message, image_pool)
+        await show_menu(message, image_pool, admin_user_ids=admin_user_ids)
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
@@ -288,7 +296,7 @@ def build_router(
     @router.message(Command("menu"))
     async def menu_command(message: Message) -> None:
         image_pool.remember_user(message.from_user)
-        await show_menu(message, image_pool)
+        await show_menu(message, image_pool, admin_user_ids=admin_user_ids)
 
     @router.message(Command("pic"))
     @router.channel_post(Command("pic"))
@@ -300,6 +308,7 @@ def build_router(
             image_pool=image_pool,
             target_channel_id=target_channel_id,
             answer_message=message,
+            admin_user_ids=admin_user_ids,
         )
 
     @router.message(Command("count"))
@@ -336,12 +345,22 @@ def build_router(
     @router.message(Command("duel"))
     async def duel_command(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
-        await send_duel(bot=bot, message=message, image_pool=image_pool)
+        await send_duel(
+            bot=bot,
+            message=message,
+            image_pool=image_pool,
+            admin_user_ids=admin_user_ids,
+        )
 
     @router.message(Command("tournament"))
     async def tournament_command(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
-        await send_tournament(bot=bot, message=message, image_pool=image_pool)
+        await send_tournament(
+            bot=bot,
+            message=message,
+            image_pool=image_pool,
+            admin_user_ids=admin_user_ids,
+        )
 
     @router.message(Command("reset_stats"))
     @router.channel_post(Command("reset_stats"))
@@ -378,6 +397,28 @@ def build_router(
 
         await send_backup(message, image_pool)
 
+    @router.message(Command("admin"))
+    async def admin_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        if not is_admin(message, admin_user_ids):
+            await message.answer(format_admin_only("Админка"))
+            return
+
+        await message.answer(
+            format_admin_panel(image_pool),
+            parse_mode="HTML",
+            reply_markup=admin_menu(),
+        )
+
+    @router.message(Command("health"))
+    async def health_command(message: Message) -> None:
+        image_pool.remember_user(message.from_user)
+        if not is_admin(message, admin_user_ids):
+            await message.answer(format_admin_only("Health"))
+            return
+
+        await message.answer(format_health(image_pool), parse_mode="HTML")
+
     @router.message(Command("id"))
     async def user_id(message: Message) -> None:
         if message.from_user is None:
@@ -407,7 +448,7 @@ def build_router(
 
     @router.message(F.photo | F.document)
     @router.channel_post(F.photo | F.document)
-    async def save_picture(message: Message, state: FSMContext) -> None:
+    async def save_picture(message: Message, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
         if not is_upload_active(message):
             return
@@ -417,7 +458,22 @@ def build_router(
         failed = int(data.get("failed", 0))
         duplicates = int(data.get("duplicates", 0))
 
-        result = image_pool.add_from_message(message)
+        if upload_burst_limited(message.from_user.id if message.from_user else None):
+            data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
+            await message.answer(format_upload_burst_limit(), parse_mode="HTML")
+            return
+
+        user_id = message.from_user.id if message.from_user else None
+        if isinstance(user_id, int) and image_pool.user_uploads_in_last_hour(user_id) >= UPLOAD_LIMIT_PER_HOUR:
+            data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
+            await message.answer(format_upload_limit(), parse_mode="HTML")
+            return
+
+        visual_hash = None
+        if not image_pool.message_is_exact_duplicate(message):
+            visual_hash = await message_visual_hash(bot, message)
+
+        result = image_pool.add_from_message(message, visual_hash=visual_hash)
         if result.added:
             data.update(
                 {
@@ -437,10 +493,10 @@ def build_router(
 
         if result.duplicate:
             data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
-            await message.answer(format_duplicate_skipped())
             return
 
         if result.rate_limited:
+            data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
             await message.answer(format_upload_limit(), parse_mode="HTML")
             return
 
@@ -459,6 +515,7 @@ def build_router(
             chat_id=callback.message.chat.id,
             image_pool=image_pool,
             target_channel_id=target_channel_id,
+            admin_user_ids=admin_user_ids,
         )
         await callback.answer()
 
@@ -484,8 +541,70 @@ def build_router(
     async def menu_callback(callback: CallbackQuery) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message:
-            await show_menu(callback.message, image_pool, edit_existing=True)
+            await show_menu(
+                callback.message,
+                image_pool,
+                edit_existing=True,
+                admin_user_ids=admin_user_ids,
+                actor_user_id=callback.from_user.id,
+            )
         await callback.answer()
+
+    @router.callback_query(F.data == "admin_menu")
+    async def admin_menu_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if not is_user_admin(callback.from_user.id, admin_user_ids):
+            await callback.answer("Только админка", show_alert=True)
+            return
+        if callback.message:
+            await answer_or_edit_panel(
+                callback.message,
+                format_admin_panel(image_pool),
+                admin_menu(),
+                "admin menu",
+            )
+        await callback.answer()
+
+    @router.callback_query(F.data == "admin_health")
+    async def admin_health_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if not is_user_admin(callback.from_user.id, admin_user_ids):
+            await callback.answer("Только админка", show_alert=True)
+            return
+        if callback.message:
+            await callback.message.answer(format_health(image_pool), parse_mode="HTML")
+        await callback.answer("Health готов")
+
+    @router.callback_query(F.data == "admin_backup")
+    async def admin_backup_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if not is_user_admin(callback.from_user.id, admin_user_ids):
+            await callback.answer("Только админка", show_alert=True)
+            return
+        if callback.message:
+            await send_backup(callback.message, image_pool)
+        await callback.answer("Бэкап собираю")
+
+    @router.callback_query(F.data == "admin_reset")
+    async def admin_reset_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if not is_user_admin(callback.from_user.id, admin_user_ids):
+            await callback.answer("Только админка", show_alert=True)
+            return
+        image_pool.reset_stats()
+        if callback.message:
+            await callback.message.answer(format_reset_stats_done(), parse_mode="HTML")
+        await callback.answer("Стата сброшена")
+
+    @router.callback_query(F.data == "admin_dedupe")
+    async def admin_dedupe_callback(callback: CallbackQuery) -> None:
+        image_pool.remember_user(callback.from_user)
+        if not is_user_admin(callback.from_user.id, admin_user_ids):
+            await callback.answer("Только админка", show_alert=True)
+            return
+        if callback.message:
+            await callback.message.answer(format_dedupe_usage(), parse_mode="HTML")
+        await callback.answer("Команда скрытая")
 
     @router.callback_query(F.data == "menu_random")
     async def menu_random_callback(callback: CallbackQuery) -> None:
@@ -773,6 +892,7 @@ def build_router(
             message=callback.message,
             image_pool=image_pool,
             silent_if_active=True,
+            admin_user_ids=admin_user_ids,
         )
         if duel_result == "started":
             await callback.answer("Запускаю новую дуэль")
@@ -795,6 +915,7 @@ def build_router(
             image_pool=image_pool,
             silent_if_active=True,
             champion_id=champion_id,
+            admin_user_ids=admin_user_ids,
         )
         if duel_result == "started":
             await callback.answer("Чемпион вышел на дуэль")
@@ -815,6 +936,7 @@ def build_router(
             message=callback.message,
             image_pool=image_pool,
             silent_if_active=True,
+            admin_user_ids=admin_user_ids,
         )
         if tournament_result == "started":
             await callback.answer("Запускаю турнир")
@@ -848,6 +970,7 @@ async def send_picture(
     target_channel_id: str | None = None,
     answer_message: Message | None = None,
     avoid_recent: bool = True,
+    admin_user_ids: frozenset[int] = frozenset(),
 ) -> None:
     destination_chat_id = target_channel_id or chat_id
     image = image_pool.random_image(
@@ -886,6 +1009,13 @@ async def send_picture(
         )
     except TelegramAPIError:
         LOGGER.warning("Failed to send random picture", exc_info=True)
+        await notify_admins(
+            bot,
+            admin_user_ids,
+            "<b>⚠️ Telegram не отдал рандомную пикчу</b>\n\n"
+            f"Чат: <code>{destination_chat_id}</code>",
+            key=f"send_picture:{destination_chat_id}",
+        )
         if answer_message:
             await answer_message.answer("Telegram не отдал пикчу. Попробуйте ещё раз")
         return
@@ -1056,6 +1186,7 @@ async def send_duel(
     image_pool: ImagePool,
     silent_if_active: bool = False,
     champion_id: str | None = None,
+    admin_user_ids: frozenset[int] = frozenset(),
 ) -> DuelStartResult:
     chat_id = message.chat.id
     async with duel_lock_for(chat_id):
@@ -1085,6 +1216,13 @@ async def send_duel(
             "image duel",
         )
         if not media_sent:
+            await notify_admins(
+                bot,
+                admin_user_ids,
+                "<b>⚠️ Telegram не отдал альбом дуэли</b>\n\n"
+                f"Чат: <code>{chat_id}</code>",
+                key=f"duel_album:{chat_id}",
+            )
             await message.answer("⚔️ Дуэль сорвалась. Telegram не отдал картинки")
             return "failed"
 
@@ -1116,6 +1254,13 @@ async def send_duel(
         except TelegramAPIError:
             duel_sessions.pop(duel_id, None)
             LOGGER.warning("Failed to send duel vote message", exc_info=True)
+            await notify_admins(
+                bot,
+                admin_user_ids,
+                "<b>⚠️ Telegram не отдал голосовалку дуэли</b>\n\n"
+                f"Чат: <code>{chat_id}</code>",
+                key=f"duel_vote:{chat_id}",
+            )
             return "failed"
 
         register_active_duel(chat_id, "image", duel_id)
@@ -1128,6 +1273,7 @@ async def send_tournament(
     message: Message,
     image_pool: ImagePool,
     silent_if_active: bool = False,
+    admin_user_ids: frozenset[int] = frozenset(),
 ) -> DuelStartResult:
     chat_id = message.chat.id
     async with tournament_lock_for(chat_id):
@@ -1157,6 +1303,13 @@ async def send_tournament(
             "image tournament",
         )
         if not media_sent:
+            await notify_admins(
+                bot,
+                admin_user_ids,
+                "<b>⚠️ Telegram не отдал альбом турнира</b>\n\n"
+                f"Чат: <code>{chat_id}</code>",
+                key=f"tournament_album:{chat_id}",
+            )
             await message.answer("🏟 Турнир сорвался. Telegram не отдал картинки")
             return "failed"
 
@@ -1186,6 +1339,13 @@ async def send_tournament(
         except TelegramAPIError:
             tournament_sessions.pop(tournament_id, None)
             LOGGER.warning("Failed to send tournament vote message", exc_info=True)
+            await notify_admins(
+                bot,
+                admin_user_ids,
+                "<b>⚠️ Telegram не отдал голосовалку турнира</b>\n\n"
+                f"Чат: <code>{chat_id}</code>",
+                key=f"tournament_vote:{chat_id}",
+            )
             return "failed"
 
         register_active_tournament(chat_id, tournament_id)
@@ -1767,16 +1927,99 @@ def upload_data(message: Message) -> UploadSession:
     )
 
 
+def is_user_admin(user_id: int | None, admin_user_ids: frozenset[int]) -> bool:
+    return isinstance(user_id, int) and user_id in admin_user_ids
+
+
+def is_admin(message: Message, admin_user_ids: frozenset[int]) -> bool:
+    user_id = message.from_user.id if message.from_user else None
+    return is_user_admin(user_id, admin_user_ids)
+
+
+def upload_burst_limited(user_id: int | None) -> bool:
+    if user_id is None:
+        return False
+
+    now = monotonic()
+    cutoff = now - UPLOAD_BURST_WINDOW_SECONDS
+    events = upload_events_by_user.setdefault(user_id, [])
+    events[:] = [event for event in events if event >= cutoff]
+    events.append(now)
+    return len(events) > UPLOAD_BURST_LIMIT
+
+
+def message_image_file_id(message: Message) -> str | None:
+    if message.photo:
+        return message.photo[-1].file_id
+    if message.document and message.document.mime_type:
+        if message.document.mime_type.startswith("image/"):
+            return message.document.file_id
+    return None
+
+
+async def message_visual_hash(bot: Bot, message: Message) -> str | None:
+    file_id = message_image_file_id(message)
+    if file_id is None:
+        return None
+
+    try:
+        telegram_file = await telegram_request_with_retry(
+            lambda: bot.get_file(file_id),
+            "visual hash get_file",
+        )
+        if telegram_file.file_path is None:
+            return None
+
+        buffer = BytesIO()
+        await telegram_request_with_retry(
+            lambda: bot.download_file(telegram_file.file_path, destination=buffer),
+            "visual hash download",
+        )
+        return image_dhash(buffer.getvalue())
+    except TelegramAPIError:
+        LOGGER.warning("Failed to calculate visual hash", exc_info=True)
+        return None
+
+
+async def notify_admins(
+    bot: Bot,
+    admin_user_ids: frozenset[int],
+    text: str,
+    key: str,
+) -> None:
+    if not admin_user_ids:
+        return
+
+    now = monotonic()
+    if now - admin_error_notifications.get(key, 0) < ADMIN_ERROR_THROTTLE_SECONDS:
+        return
+
+    admin_error_notifications[key] = now
+    for admin_id in admin_user_ids:
+        try:
+            await bot.send_message(admin_id, text, parse_mode="HTML")
+        except TelegramAPIError:
+            LOGGER.warning("Failed to notify admin %s", admin_id, exc_info=True)
+
+
 async def show_menu(
     message: Message,
     image_pool: ImagePool,
     edit_existing: bool = False,
+    admin_user_ids: frozenset[int] = frozenset(),
+    actor_user_id: int | None = None,
 ) -> None:
     is_private = is_private_chat(message)
     chat_id = message.chat.id
     arena_state = active_arena_snapshot(chat_id)
+    actor_is_admin = (
+        is_user_admin(actor_user_id, admin_user_ids)
+        if actor_user_id is not None
+        else is_admin(message, admin_user_ids)
+    )
     reply_markup = main_menu(
         is_private=is_private,
+        is_admin=actor_is_admin,
         image_duel_active=arena_state["image_seconds"] is not None,
         tournament_active=arena_state["tournament_seconds"] is not None,
         image_duel_seconds=arena_state["image_seconds"],
@@ -2147,6 +2390,14 @@ def format_upload_limit() -> str:
     )
 
 
+def format_upload_burst_limit() -> str:
+    return (
+        "<b>🧯 Загрузка приторможена</b>\n\n"
+        f"{format_metric('Темп', f'{UPLOAD_BURST_LIMIT} сообщений в минуту')}\n"
+        "Слишком плотный поток. Дайте боту пару секунд разобрать склад"
+    )
+
+
 def format_duplicate_skipped() -> str:
     return "♻️ Дубликат. Уже лежит на складе"
 
@@ -2232,6 +2483,67 @@ def format_dedupe_result(result) -> str:
         f"{format_metric('🔎 Проверено его пикч', result.scanned)}\n"
         f"{format_metric('🧹 Убрано дублей', result.removed)}\n"
         f"{format_metric('📦 Осталось его пикч', result.remaining)}"
+    )
+
+
+def format_admin_panel(image_pool: ImagePool) -> str:
+    health = image_pool.health()
+    stats = image_pool.stats()
+    visual_coverage = (
+        f"{health.visual_hashes}/{health.total_images}"
+        if health.total_images
+        else "0/0"
+    )
+    return "\n\n".join(
+        [
+            "<b>🧰 Админка kartinkomet</b>",
+            format_section(
+                "🩺 Health",
+                format_metric("Backend", health.backend),
+                format_metric("SQLite", Path(health.database_path).name if health.database_path else "нет"),
+                format_metric("JSON", Path(health.json_path).name),
+            ),
+            format_section(
+                "📦 Склад",
+                format_metric("Пикч", stats.total_images),
+                format_metric("Пользователей", health.total_users),
+                format_metric("Visual hash", visual_coverage),
+            ),
+            format_section(
+                "⚙️ Лимиты",
+                format_metric("Пикч в час", UPLOAD_LIMIT_PER_HOUR),
+                format_metric("Пакетный темп", f"{UPLOAD_BURST_LIMIT}/мин"),
+                format_metric("Автоудаление", f"{AUTO_DELETE_DISLIKES} 🖕🏻"),
+            ),
+        ]
+    )
+
+
+def format_health(image_pool: ImagePool) -> str:
+    health = image_pool.health()
+    stats = image_pool.stats()
+    return "\n\n".join(
+        [
+            "<b>🩺 Health kartinkomet</b>",
+            format_section(
+                "🗄 Хранилище",
+                format_metric("Backend", health.backend),
+                format_metric("SQLite path", health.database_path or "нет"),
+                format_metric("JSON path", health.json_path),
+            ),
+            format_section(
+                "📦 Контент",
+                format_metric("Пикч", health.total_images),
+                format_metric("Visual hash", health.visual_hashes),
+                format_metric("Пользователей", health.total_users),
+            ),
+            format_section(
+                "🎲 Активность",
+                format_metric("Выдач", stats.total_shows),
+                format_metric("Дуэлей", stats.total_duels),
+                format_metric("Турниров", stats.total_tournaments),
+            ),
+        ]
     )
 
 

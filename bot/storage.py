@@ -46,6 +46,7 @@ class SQLiteDocumentStore:
                 file_unique_id TEXT NOT NULL UNIQUE,
                 added_by INTEGER,
                 added_at TEXT,
+                visual_hash TEXT,
                 shown_count INTEGER NOT NULL DEFAULT 0,
                 last_shown_at TEXT,
                 likes INTEGER NOT NULL DEFAULT 0,
@@ -54,6 +55,7 @@ class SQLiteDocumentStore:
 
             CREATE INDEX IF NOT EXISTS idx_images_added_by ON images(added_by);
             CREATE INDEX IF NOT EXISTS idx_images_shown ON images(shown_count, last_shown_at);
+            CREATE INDEX IF NOT EXISTS idx_images_visual_hash ON images(visual_hash);
 
             CREATE TABLE IF NOT EXISTS image_reactions (
                 image_id TEXT NOT NULL,
@@ -78,6 +80,7 @@ class SQLiteDocumentStore:
 
             """
         )
+        self._ensure_image_columns()
         self._connection.commit()
 
     def load(self, name: str) -> Any | None:
@@ -112,8 +115,8 @@ class SQLiteDocumentStore:
     def load_image_pool(self) -> dict[str, Any] | None:
         image_rows = self._connection.execute(
             """
-            SELECT id, file_id, file_unique_id, added_by, added_at, shown_count,
-                   last_shown_at, likes, dislikes
+            SELECT id, file_id, file_unique_id, added_by, added_at, visual_hash,
+                   shown_count, last_shown_at, likes, dislikes
             FROM images
             ORDER BY position, rowid
             """
@@ -147,6 +150,7 @@ class SQLiteDocumentStore:
                 "file_unique_id": row["file_unique_id"],
                 "added_by": row["added_by"],
                 "added_at": row["added_at"],
+                "visual_hash": row["visual_hash"],
                 "shown_count": row["shown_count"],
                 "last_shown_at": row["last_shown_at"],
                 "likes": row["likes"],
@@ -156,7 +160,7 @@ class SQLiteDocumentStore:
             for row in image_rows
         ]
         return {
-            "version": self._stat_value(stat_rows, "version", 4),
+            "version": self._stat_value(stat_rows, "version", 5),
             "images": records,
             "chat_history": self._history_from_rows(history_rows, "image_id"),
             "users": self._users_from_rows(user_rows),
@@ -183,10 +187,10 @@ class SQLiteDocumentStore:
             self._connection.executemany(
                 """
                 INSERT INTO images (
-                    id, position, file_id, file_unique_id, added_by, added_at,
+                    id, position, file_id, file_unique_id, added_by, added_at, visual_hash,
                     shown_count, last_shown_at, likes, dislikes
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -196,6 +200,7 @@ class SQLiteDocumentStore:
                         str(record["file_unique_id"]),
                         record.get("added_by"),
                         record.get("added_at"),
+                        record.get("visual_hash"),
                         int(record.get("shown_count") or 0),
                         record.get("last_shown_at"),
                         int(record.get("likes") or 0),
@@ -209,7 +214,7 @@ class SQLiteDocumentStore:
             self._save_stats(
                 "image_stats",
                 {
-                    "version": int(payload.get("version") or 4),
+                    "version": int(payload.get("version") or 5),
                     **{
                         key: int(duel_stats.get(key) or 0)
                         for key in IMAGE_DUEL_STAT_KEYS
@@ -225,6 +230,17 @@ class SQLiteDocumentStore:
         for row in rows:
             reactions.setdefault(row[item_column], {})[row["user_id"]] = row["reaction"]
         return reactions
+
+    def _ensure_image_columns(self) -> None:
+        columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(images)").fetchall()
+        }
+        if "visual_hash" not in columns:
+            self._connection.execute("ALTER TABLE images ADD COLUMN visual_hash TEXT")
+            self._connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_images_visual_hash ON images(visual_hash)"
+            )
 
     def _history_from_rows(
         self,

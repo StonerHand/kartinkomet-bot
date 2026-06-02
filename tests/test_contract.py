@@ -15,6 +15,7 @@ from bot.handlers import (
     clear_active_duel,
     clear_active_tournament,
     duel_sessions,
+    format_admin_panel,
     format_arena_menu,
     format_count,
     format_count_alert,
@@ -23,11 +24,13 @@ from bot.handlers import (
     format_duel_score,
     format_empty_picture_pool,
     format_help,
+    format_health,
     format_main_menu,
     format_random_menu,
     format_start,
     format_stats,
     format_storage_menu,
+    format_upload_burst_limit,
     format_tournament_result,
     format_tournament_score,
     format_upload_hub,
@@ -42,6 +45,7 @@ from bot.handlers import (
 )
 from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
 from bot.keyboards import (
+    admin_menu,
     arena_menu,
     duel_vote,
     empty_picture_pool_actions,
@@ -57,6 +61,7 @@ from bot.keyboards import (
     upload_menu,
 )
 from bot.texts import AUTO_DELETE_DISLIKES, PICTURE_CAPTIONS
+from bot.visual_hash import visual_hash_distance
 from scripts.visual_dedupe import HashResult, clean_chat_history, find_duplicates, hamming_distance
 
 
@@ -135,10 +140,15 @@ class BotContractTest(unittest.TestCase):
                         "SELECT name FROM sqlite_master WHERE type = 'table'"
                     )
                 }
+                image_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(images)")
+                }
 
         self.assertIn("images", tables)
         self.assertIn("image_reactions", tables)
         self.assertIn("image_chat_history", tables)
+        self.assertIn("visual_hash", image_columns)
         self.assertNotIn("jokes", tables)
         self.assertNotIn("joke_reactions", tables)
 
@@ -154,13 +164,28 @@ class BotContractTest(unittest.TestCase):
     def test_image_pool_add_react_random_and_duel_delete(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             pool = ImagePool(str(Path(raw_temp_dir) / "image_pool.json"))
+            visual_hashes = [
+                "0000000000000000",
+                "ffffffffffffffff",
+                "aaaaaaaaaaaaaaaa",
+            ]
             for index in range(3):
-                result = pool.add_from_message(fake_photo_message(f"file-{index}", f"unique-{index}"))
+                result = pool.add_from_message(
+                    fake_photo_message(f"file-{index}", f"unique-{index}"),
+                    visual_hash=visual_hashes[index],
+                )
                 self.assertTrue(result.added)
 
             duplicate = pool.add_from_message(fake_photo_message("file-0", "unique-0"))
             self.assertTrue(duplicate.duplicate)
+            visual_duplicate = pool.add_from_message(
+                fake_photo_message("file-visual", "unique-visual"),
+                visual_hash="0000000000000001",
+            )
+            self.assertTrue(visual_duplicate.duplicate)
+            self.assertTrue(visual_duplicate.visual_duplicate)
             self.assertEqual(pool.count(), 3)
+            self.assertEqual(pool.health().visual_hashes, 3)
 
             first = pool.random_image(chat_id=10)
             second = pool.random_image(chat_id=10)
@@ -214,6 +239,14 @@ class BotContractTest(unittest.TestCase):
             button_texts(main_menu()),
             ["🎲 Рандом", "⚔️ Арены", "📦 Склад", "📥 Загрузка"],
         )
+        self.assertEqual(
+            button_texts(main_menu(is_private=True, is_admin=True)),
+            ["🎲 Рандом", "⚔️ Арены", "📦 Склад", "📥 Загрузка", "🧰 Админка"],
+        )
+        self.assertEqual(
+            button_texts(admin_menu()),
+            ["🩺 Health", "🗄 Бэкап", "♻️ Сброс стат", "🧹 Дубли", "🎛 Пульт"],
+        )
         self.assertEqual(button_texts(upload_hub(is_private=True)), ["📥 Начать загрузку", "↩️ Пульт"])
         self.assertEqual(button_texts(upload_menu()), ["✅ Закончить", "❌ Отмена"])
         self.assertEqual(
@@ -250,7 +283,10 @@ class BotContractTest(unittest.TestCase):
                 format_stats(pool, chat_id=1),
                 format_count(pool),
                 format_count_alert(pool),
+                format_admin_panel(pool),
+                format_health(pool),
                 format_upload_hub(is_private=True),
+                format_upload_burst_limit(),
                 format_upload_private_only(),
                 format_upload_not_active(),
                 format_empty_picture_pool("Пока пусто", is_private=False),
@@ -327,6 +363,8 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(duplicates[0].duplicate_id, "duplicate")
         self.assertEqual(duplicates[0].keeper_id, "keep")
         self.assertEqual(hamming_distance(0b11110000, 0b11110001), 1)
+        self.assertEqual(visual_hash_distance("0000000000000000", "0000000000000001"), 1)
+        self.assertIsNone(visual_hash_distance("nope", "0000000000000001"))
 
         data = {"chat_history": {"1": ["keep", "remove"], "2": ["remove"]}}
         clean_chat_history(data, {"remove"})

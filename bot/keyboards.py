@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 def main_menu(
     is_private: bool = False,
+    is_admin: bool = False,
     image_duel_active: bool = False,
     tournament_active: bool = False,
     image_duel_seconds: int | None = None,
@@ -34,6 +35,12 @@ def main_menu(
             InlineKeyboardButton(text="📥 Загрузка", callback_data="upload_hub"),
         ],
     ]
+    if is_private and is_admin:
+        keyboard.append(
+            [
+                InlineKeyboardButton(text="🧰 Админка", callback_data="admin_menu"),
+            ]
+        )
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -285,3 +292,22 @@ def picture_actions_with_counts(
     ]
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+@lru_cache(maxsize=1)
+def admin_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🩺 Health", callback_data="admin_health"),
+                InlineKeyboardButton(text="🗄 Бэкап", callback_data="admin_backup"),
+            ],
+            [
+                InlineKeyboardButton(text="♻️ Сброс стат", callback_data="admin_reset"),
+                InlineKeyboardButton(text="🧹 Дубли", callback_data="admin_dedupe"),
+            ],
+            [
+                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+            ],
+        ]
+    )

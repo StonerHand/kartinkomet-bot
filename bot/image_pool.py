@@ -10,17 +10,19 @@ from uuid import uuid4
 from aiogram.types import Message, User
 
 from bot.storage import SQLiteDocumentStore
+from bot.visual_hash import visual_hash_distance
 
 REACTION_FIELDS = {
     "like": "likes",
     "dislike": "dislikes",
 }
-STORAGE_VERSION = 4
+STORAGE_VERSION = 5
 IMAGE_DOCUMENT_NAME = "image_pool"
 MAX_CHAT_HISTORY = 500
 UPLOAD_LIMIT_PER_HOUR = 1000
 RANDOM_CANDIDATE_LIMIT = 120
 GLOBAL_RECENT_LIMIT = 250
+VISUAL_DUPLICATE_DISTANCE = 4
 RANDOM = random.SystemRandom()
 
 
@@ -28,6 +30,7 @@ RANDOM = random.SystemRandom()
 class AddResult:
     added: bool
     duplicate: bool = False
+    visual_duplicate: bool = False
     rate_limited: bool = False
 
 
@@ -74,6 +77,16 @@ class DedupeResult:
     remaining: int
 
 
+@dataclass(frozen=True)
+class PoolHealth:
+    backend: str
+    database_path: str | None
+    json_path: str
+    total_images: int
+    total_users: int
+    visual_hashes: int
+
+
 class ImagePool:
     def __init__(self, storage_path: str, database_path: str | None = None) -> None:
         self.storage_path = Path(storage_path)
@@ -89,6 +102,16 @@ class ImagePool:
 
         self._store.export_database(destination_path)
         return True
+
+    def health(self) -> PoolHealth:
+        return PoolHealth(
+            backend="SQLite WAL" if self._store else "JSON",
+            database_path=str(self._store.database_path) if self._store else None,
+            json_path=str(self.storage_path),
+            total_images=len(self._records),
+            total_users=len(self._users),
+            visual_hashes=len(self._visual_hashes),
+        )
 
     def count(self) -> int:
         return len(self._records)
@@ -188,7 +211,7 @@ class ImagePool:
         self._mark_shown_many([(record, tournament_chat_id) for record in selected_records])
         return [self._to_image_record(record) for record in selected_records]
 
-    def add_from_message(self, message: Message) -> AddResult:
+    def add_from_message(self, message: Message, visual_hash: str | None = None) -> AddResult:
         self.remember_user(message.from_user)
         image_data = self._extract_image_data(message)
         if image_data is None:
@@ -197,6 +220,8 @@ class ImagePool:
         file_id, file_unique_id = image_data
         if file_unique_id in self._unique_ids or file_id in self._file_ids:
             return AddResult(added=False, duplicate=True)
+        if self._is_visual_duplicate(visual_hash):
+            return AddResult(added=False, duplicate=True, visual_duplicate=True)
 
         user_id = message.from_user.id if message.from_user else None
         if isinstance(user_id, int) and self.user_uploads_in_last_hour(user_id) >= UPLOAD_LIMIT_PER_HOUR:
@@ -209,12 +234,21 @@ class ImagePool:
                 "file_unique_id": file_unique_id,
                 "added_by": user_id,
                 "added_at": datetime.now(UTC).isoformat(),
+                "visual_hash": visual_hash,
             }
         )
         self._records.append(record)
         self._index_record(record)
         self._write()
         return AddResult(added=True)
+
+    def message_is_exact_duplicate(self, message: Message) -> bool:
+        image_data = self._extract_image_data(message)
+        if image_data is None:
+            return False
+
+        file_id, file_unique_id = image_data
+        return file_unique_id in self._unique_ids or file_id in self._file_ids
 
     def react(self, image_id: str, reaction: str, user_id: int) -> ReactionUpdate | None:
         field = REACTION_FIELDS.get(reaction)
@@ -493,8 +527,15 @@ class ImagePool:
             return records[0]
 
         max_shown = max(record["shown_count"] for record in records)
-        weights = [(max_shown - record["shown_count"]) + 1 for record in records]
+        weights = [self._random_weight(record, max_shown) for record in records]
         return RANDOM.choices(records, weights=weights, k=1)[0]
+
+    def _random_weight(self, record: dict, max_shown: int) -> float:
+        shown_score = (max_shown - record["shown_count"]) + 1
+        like_boost = 1.0 + min(record["likes"], 30) * 0.08
+        dislike_penalty = 1.0 + min(record["dislikes"], 8) * 0.35
+        novelty_boost = 1.5 if not record.get("last_shown_at") else 1.0
+        return max(0.05, shown_score * like_boost * novelty_boost / dislike_penalty)
 
     def _weighted_random_sample(self, records: list[dict], size: int) -> list[dict]:
         selected: list[dict] = []
@@ -667,6 +708,7 @@ class ImagePool:
                 "file_unique_id": item,
                 "added_by": None,
                 "added_at": None,
+                "visual_hash": None,
                 "shown_count": 0,
                 "last_shown_at": None,
                 "likes": 0,
@@ -697,6 +739,7 @@ class ImagePool:
             "file_unique_id": str(item.get("file_unique_id") or file_id),
             "added_by": added_by,
             "added_at": item.get("added_at"),
+            "visual_hash": self._normalize_visual_hash(item.get("visual_hash")),
             "shown_count": int(item.get("shown_count") or 0),
             "last_shown_at": item.get("last_shown_at"),
             "likes": reaction_totals["likes"],
@@ -729,6 +772,8 @@ class ImagePool:
         self._record_by_id: dict[str, dict] = {}
         self._unique_ids: set[str] = set()
         self._file_ids: set[str] = set()
+        self._visual_hashes: list[str] = []
+        self._visual_hash_set: set[str] = set()
         self._uploads_by_user: dict[int, int] = {}
         self._records_by_user: dict[int, list[dict]] = {}
         self._upload_times_by_user: dict[int, list[datetime]] = {}
@@ -741,6 +786,9 @@ class ImagePool:
         self._record_by_id[record["id"]] = record
         self._unique_ids.add(record["file_unique_id"])
         self._file_ids.add(record["file_id"])
+        if record.get("visual_hash"):
+            self._visual_hashes.append(record["visual_hash"])
+            self._visual_hash_set.add(record["visual_hash"])
         if isinstance(record["added_by"], int):
             self._uploads_by_user[record["added_by"]] = (
                 self._uploads_by_user.get(record["added_by"], 0) + 1
@@ -828,6 +876,32 @@ class ImagePool:
         stats["total"] = max(stats["total"], stats["executions"] + stats["ties"])
         stats["tournament_ties"] = min(stats["tournament_ties"], stats["tournaments"])
         return stats
+
+    def _normalize_visual_hash(self, value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+
+        normalized = value.strip().lower()
+        if len(normalized) != 16:
+            return None
+        try:
+            int(normalized, 16)
+        except ValueError:
+            return None
+        return normalized
+
+    def _is_visual_duplicate(self, visual_hash: str | None) -> bool:
+        normalized_hash = self._normalize_visual_hash(visual_hash)
+        if normalized_hash is None:
+            return False
+        if normalized_hash in self._visual_hash_set:
+            return True
+
+        for known_hash in self._visual_hashes:
+            distance = visual_hash_distance(normalized_hash, known_hash)
+            if distance is not None and distance <= VISUAL_DUPLICATE_DISTANCE:
+                return True
+        return False
 
     def _atomic_write(
         self,

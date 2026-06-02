@@ -17,6 +17,7 @@ Core rule: the bot **does not store image files**. It stores Telegram `file_id` 
 | --- | --- |
 | 🎲 Random | Sends a random image with per-chat and global anti-repeat memory |
 | 📥 Uploads | Accepts photos, packs, albums, and forwarded images in private chat |
+| 🧬 Anti-duplicates | Skips exact duplicates and visually similar images with perceptual hashing |
 | 🤙🏻 / 🖕🏻 | One reaction per user; users can switch their vote |
 | ⚖️ Jury rule | `2 🖕🏻` remove an image from the pool |
 | ⚔️ Duel | Two images, 60 second vote, loser is removed |
@@ -24,7 +25,8 @@ Core rule: the bot **does not store image files**. It stores Telegram `file_id` 
 | 📊 Stats | Pool, random drops, reactions, duels, tournaments, and active arenas |
 | 🏆 Top | Uploader leaderboard with Telegram names and titles |
 | 👤 Profile | Personal contribution, reactions on uploaded images, achievements |
-| 🧹 Maintenance | Backups, stat reset, and user dedupe for admins |
+| 🧰 Admin panel | Health, backup, stat reset, and dedupe controls for admins |
+| 🧯 Protection | Upload rate limits, quiet duplicate skips, and throttled admin alerts |
 
 ## Architecture
 
@@ -60,6 +62,8 @@ Hidden admin commands:
 
 | Command | Purpose |
 | --- | --- |
+| `/admin` | Open the hidden admin panel in private chat |
+| `/health` | Show storage health, counters, and backend |
 | `/backup` | Send SQLite backup and JSON safety export to admin |
 | `/reset_stats` | Reset shows, reactions, and random memory |
 | `/dedupe_user <telegram_id>` | Remove exact duplicates uploaded by one user |
@@ -84,7 +88,13 @@ In groups, the upload button explains that uploads happen in private chat. This 
 4. Finish with `✅ Закончить` or `/done`
 5. Cancel with `❌ Отмена` or `/cancel`
 
-The bot stores only `file_id` and `file_unique_id`. Duplicates by `file_unique_id` and `file_id` are skipped immediately. Upload limit: `1000` new images per hour per user.
+The bot stores only `file_id`, `file_unique_id`, and a service `visual_hash`. Exact duplicates by `file_unique_id` or `file_id` are skipped immediately; visually similar images are caught by perceptual hash checks. Repeated duplicates during batch uploads are skipped quietly, so the chat does not drown in status messages.
+
+Limits:
+
+- `1000` new images per hour per user;
+- `120` incoming upload messages per minute while upload mode is active;
+- invalid files go into the batch error counter.
 
 ### Random Picker
 
@@ -93,6 +103,8 @@ The picker does more than select a random row:
 - avoids recent images in the current chat;
 - avoids globally recent images;
 - favors less shown images;
+- gives a small bonus to new and rarely shown images;
+- lowers the weight of images with many 🖕🏻;
 - samples from a candidate window to keep the pool from looping on the same content.
 
 ### Duels And Tournaments
@@ -161,6 +173,7 @@ erDiagram
         string id
         string file_id
         string file_unique_id
+        string visual_hash
         int added_by
         int shown_count
         int likes
@@ -231,9 +244,32 @@ The test suite checks:
 - duel loser deletion;
 - tournament result logic;
 - keyboards;
-- visual dedupe helpers.
+- perceptual hash dedupe helpers;
+- admin panel and health copy.
 
 ## Maintenance
+
+### Admin Panel
+
+```text
+/admin
+```
+
+Shows the private admin cockpit:
+
+- storage backend and paths;
+- image and user counters;
+- visual hash coverage;
+- upload and auto-delete limits;
+- buttons for backup, health, stat reset, and dedupe.
+
+### Health
+
+```text
+/health
+```
+
+Reports the current storage state, content counters, and activity counters.
 
 ### Backup
 
@@ -284,6 +320,7 @@ bot/
   keyboards.py    # inline keyboards
   storage.py      # SQLite + legacy JSON
   texts.py        # large phrase pools
+  visual_hash.py  # perceptual hash helper for visual dedupe
 scripts/
   visual_dedupe.py
 tests/
