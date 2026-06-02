@@ -10,8 +10,6 @@ from uuid import uuid4
 from aiogram.types import Message, User
 
 from bot.storage import SQLiteDocumentStore
-from bot.visual_hash import visual_hash_distance
-
 REACTION_FIELDS = {
     "like": "likes",
     "dislike": "dislikes",
@@ -774,6 +772,7 @@ class ImagePool:
         self._file_ids: set[str] = set()
         self._visual_hashes: list[str] = []
         self._visual_hash_set: set[str] = set()
+        self._visual_hash_ints: list[int] = []
         self._uploads_by_user: dict[int, int] = {}
         self._records_by_user: dict[int, list[dict]] = {}
         self._upload_times_by_user: dict[int, list[datetime]] = {}
@@ -787,8 +786,10 @@ class ImagePool:
         self._unique_ids.add(record["file_unique_id"])
         self._file_ids.add(record["file_id"])
         if record.get("visual_hash"):
-            self._visual_hashes.append(record["visual_hash"])
-            self._visual_hash_set.add(record["visual_hash"])
+            visual_hash = record["visual_hash"]
+            self._visual_hashes.append(visual_hash)
+            self._visual_hash_set.add(visual_hash)
+            self._visual_hash_ints.append(int(visual_hash, 16))
         if isinstance(record["added_by"], int):
             self._uploads_by_user[record["added_by"]] = (
                 self._uploads_by_user.get(record["added_by"], 0) + 1
@@ -897,9 +898,9 @@ class ImagePool:
         if normalized_hash in self._visual_hash_set:
             return True
 
-        for known_hash in self._visual_hashes:
-            distance = visual_hash_distance(normalized_hash, known_hash)
-            if distance is not None and distance <= VISUAL_DUPLICATE_DISTANCE:
+        hash_value = int(normalized_hash, 16)
+        for known_hash in self._visual_hash_ints:
+            if (hash_value ^ known_hash).bit_count() <= VISUAL_DUPLICATE_DISTANCE:
                 return True
         return False
 

@@ -81,6 +81,7 @@ class SQLiteDocumentStore:
         )
         self._ensure_image_columns()
         self._connection.commit()
+        self._connection.execute("PRAGMA optimize")
 
     def load(self, name: str) -> Any | None:
         row = self._connection.execute(

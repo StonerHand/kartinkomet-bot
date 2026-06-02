@@ -247,6 +247,17 @@ The test suite checks:
 - perceptual hash dedupe helpers;
 - admin panel and health copy.
 
+## Operations Notes
+
+Production facts worth remembering:
+
+- **one Railway replica** is required because Telegram long polling does not support multiple active `getUpdates` consumers;
+- **Volume mounted at `/data`** is mandatory: SQLite, WAL files, and the legacy JSON safety export live there;
+- **SQLite WAL** is the primary backend, keeping reads fast and data persistent across deploys;
+- **Telegram `file_id`** remains the media source of truth, so image files do not consume server disk;
+- **visual anti-duplicate checks** store perceptual hashes and compare them through a fast integer cache;
+- **admin commands are hidden** from Telegram's public command menu and guarded by `ADMIN_USER_IDS`.
+
 ## Maintenance
 
 ### Admin Panel
@@ -262,6 +273,8 @@ Shows the private admin cockpit:
 - visual hash coverage;
 - upload and auto-delete limits;
 - buttons for backup, health, stat reset, and dedupe.
+
+The command works only for users listed in `ADMIN_USER_IDS`.
 
 ### Health
 
@@ -288,7 +301,7 @@ The bot sends the admin:
 /reset_stats
 ```
 
-Resets:
+Hidden admin command. Resets:
 
 - shows;
 - reactions;
@@ -303,7 +316,7 @@ The image pool remains intact.
 /dedupe_user 1045485205
 ```
 
-Removes exact duplicates from one uploader by `file_unique_id` and `file_id`. For visual duplicate audits, use:
+Hidden admin command. Removes exact duplicates from one uploader by `file_unique_id` and `file_id`. For visual duplicate audits, use:
 
 ```bash
 python scripts/visual_dedupe.py --user-id 1045485205 --dry-run --threshold 3
