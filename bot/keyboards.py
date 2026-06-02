@@ -26,7 +26,7 @@ def main_menu(
     )
     keyboard = [
         [
-            InlineKeyboardButton(text="🎲 Выдача", callback_data="menu_random"),
+            InlineKeyboardButton(text="🎲 Рандом", callback_data="menu_random"),
             InlineKeyboardButton(text=arena_label, callback_data="menu_arena"),
         ],
         [
@@ -42,10 +42,10 @@ def random_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🎲 Пикча", callback_data="pic"),
+                InlineKeyboardButton(text="🎲 Рандомная пикча", callback_data="pic"),
             ],
             [
-                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
             ],
         ]
     )
@@ -74,19 +74,19 @@ def arena_menu(
                 InlineKeyboardButton(text=tournament_label, callback_data="tournament_new"),
             ],
             [
-                InlineKeyboardButton(text="📊 Сводка", callback_data="stats"),
-                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+                InlineKeyboardButton(text="📊 Сводка арен", callback_data="stats"),
+                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
             ],
         ]
     )
 
 
 def storage_menu(is_private: bool = False) -> InlineKeyboardMarkup:
-    upload_label = "📥 Загрузка" if is_private else "📬 В личку"
+    upload_label = "📥 Загрузить" if is_private else "📬 В личку"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📦 Склад", callback_data="count"),
+                InlineKeyboardButton(text="📦 Счётчик", callback_data="count"),
                 InlineKeyboardButton(text=upload_label, callback_data="upload_hub"),
             ],
             [
@@ -94,7 +94,7 @@ def storage_menu(is_private: bool = False) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
             ],
             [
-                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
             ],
         ]
     )
@@ -105,12 +105,12 @@ def upload_hub(is_private: bool = False) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📥 Пикчи" if is_private else "📬 Пикчи в личку",
+                    text="📥 Начать загрузку" if is_private else "📬 Загрузка в личке",
                     callback_data="upload",
                 ),
             ],
             [
-                InlineKeyboardButton(text="🎛 Назад в пульт", callback_data="menu"),
+                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
             ],
         ]
     )
@@ -147,7 +147,7 @@ def empty_picture_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📥 Пикчи" if is_private else "📬 Как загрузить пикчи",
+                    text="📥 Начать загрузку" if is_private else "📬 Как загрузить пикчи",
                     callback_data="upload",
                 ),
             ],
@@ -181,7 +181,7 @@ def new_duel() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="⚔️ Реванш", callback_data="duel_new"),
-                InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
             ],
             [
                 InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
@@ -235,7 +235,7 @@ def new_tournament(winner_id: str | None = None) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="🏟 Реванш", callback_data="tournament_new"),
-                InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
             ],
             [
                 duel_button,
@@ -252,7 +252,7 @@ def picture_actions(image_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
         ],
         [
-            InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
             InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
         ],
@@ -278,7 +278,7 @@ def picture_actions_with_counts(
             ),
         ],
         [
-            InlineKeyboardButton(text="🎲 Ещё", callback_data="pic"),
+            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
             InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
             InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
         ],

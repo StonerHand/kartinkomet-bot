@@ -1850,9 +1850,9 @@ def format_main_menu(
     )
     return (
         "<b>🎛 Пульт kartinkomet</b>\n"
-        "<i>один экран, все рычаги</i>\n\n"
+        "<i>рандом, арены, склад и загрузка без лишнего шума</i>\n\n"
         "<b>📦 Склад</b>\n"
-        f"Пикчи <b>{image_pool.count()}</b>\n\n"
+        f"Пикч внутри: <b>{image_pool.count()}</b>\n\n"
         "<b>⚔️ Арены</b>\n"
         f"Пикч-бой <b>{active_duel_status(chat_id, 'image')}</b> · "
         f"Турнир <b>{active_tournament_status(chat_id)}</b>\n\n"
@@ -1863,10 +1863,10 @@ def format_main_menu(
 
 def format_random_menu() -> str:
     return (
-        "<b>🎲 Выдача</b>\n\n"
-        "Контент-подача без лишних церемоний\n\n"
+        "<b>🎲 Рандом</b>\n\n"
+        "Одна кнопка, один выстрел из общего склада\n\n"
         "<b>Доступно</b>\n"
-        "<code>🎲 Пикча</code> — случайный визуальный выстрел"
+        "<code>🎲 Рандомная пикча</code> — достать случайный экспонат"
     )
 
 
@@ -1887,7 +1887,8 @@ def format_storage_menu(image_pool: ImagePool) -> str:
         "<b>📦 Склад</b>\n\n"
         "Инвентарь, вклад и вход в загрузку\n\n"
         "<b>Внутри</b>\n"
-        f"Пикчи: <b>{image_pool.count()}</b>\n"
+        f"Пикч внутри: <b>{image_pool.count()}</b>\n"
+        "\n"
         "<b>Навигация</b>\n"
         "Счётчик, топ, личная карточка и загрузочный отсек"
     )
@@ -1906,15 +1907,15 @@ def format_stats(
     chat_id: int | None = None,
 ) -> str:
     stats = image_pool.stats()
-    pool_lines = [format_metric("Пикчи", stats.total_images)]
-    random_lines = [format_metric("Пикчи", stats.total_shows)]
+    pool_lines = [format_metric("Пикч внутри", stats.total_images)]
+    random_lines = [format_metric("Выстрелов рандома", stats.total_shows)]
     reaction_lines = [
         f"Пикчи: 🤙🏻 <b>{stats.total_likes}</b> · 🖕🏻 <b>{stats.total_dislikes}</b>",
     ]
     sections = [
-        "<b>📊 Сводка склада</b>",
+        "<b>📊 Сводка kartinkomet</b>",
         format_section("📦 Контент", *pool_lines),
-        format_section("🎲 Выдача", *random_lines),
+        format_section("🎲 Рандом", *random_lines),
         format_section(
             "⚔️ Арены",
             format_metric("Дуэли", stats.total_duels),
@@ -1993,14 +1994,14 @@ def active_tournament_status(chat_id: int) -> str:
 def format_start() -> str:
     return (
         "<b>👋 @kartinkomet_bot на связи</b>\n\n"
-        "Склад пикч, арены для голосований и народный суд без лишней мишуры\n\n"
+        "Общий склад пикч, рандомные выдачи, дуэли, турниры и народный суд без лишней мишуры\n\n"
         "<b>🎛 Быстрый старт</b>\n"
-        "<code>🎲 Пикча</code> — случайная выдача\n"
+        "<code>🎲 Рандомная пикча</code> — случайная выдача\n"
         "<code>⚔️ Пикч-бой</code> — дуэль двух пикч\n"
-        "<code>🏟 Турнир</code> - четыре пикчи, один чемпион\n\n"
+        "<code>🏟 Турнир</code> — четыре пикчи, один чемпион\n\n"
         "<b>📥 Загрузка</b>\n"
-        "<code>📥 Загрузка</code> в личке принимает контент\n"
-        "<code>📬 В личку</code> в группе показывает маршрут"
+        "<code>📥 Начать загрузку</code> в личке принимает контент\n"
+        "<code>📬 Загрузка в личке</code> в группе показывает маршрут"
     )
 
 
@@ -2009,12 +2010,12 @@ def format_help() -> str:
         "<b>🧭 Карта команд kartinkomet</b>",
         format_section(
             "🎛 Навигация",
-            "<code>/start</code> — запустить картинный реактор",
-            "<code>/menu</code> — открыть главный пульт",
+            "<code>/start</code> — запуск и пульт",
+            "<code>/menu</code> — главный пульт",
             "<code>/help</code> — показать карту команд",
         ),
         format_section(
-            "🎲 Выдача",
+            "🎲 Рандом",
             "<code>/pic</code> — случайная пикча со склада",
         ),
         format_section(
@@ -2047,7 +2048,7 @@ def format_count(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Склад</b>\n\n"
         "<b>Контент</b>\n"
-        f"{format_metric('Пикчи', image_pool.count())}"
+        f"{format_metric('Пикч внутри', image_pool.count())}"
     )
 
 
@@ -2055,8 +2056,8 @@ def format_count_alert(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
         "📦 Склад\n"
-        f"Пикч: {image_pool.count()}\n"
-        f"Пикч-дуэлей: {stats.total_duels}\n"
+        f"Пикч внутри: {image_pool.count()}\n"
+        f"Дуэлей: {stats.total_duels}\n"
         f"Турниров: {stats.total_tournaments}"
     )
 
@@ -2065,8 +2066,9 @@ def format_upload_hub(is_private: bool = False) -> str:
     if is_private:
         return (
             "<b>📬 Загрузочный отсек</b>\n\n"
-            "Выберите, что заносим в общий склад\n\n"
-            "<code>📥 Пикчи</code> — фото, пачки, альбомы\n"
+            "Пополняем общий склад через личку, чтобы Telegram точно отдал боту все фото\n\n"
+            "<b>Доступно</b>\n"
+            "<code>📥 Начать загрузку</code> — фото, пачки, альбомы"
         )
 
     return (
@@ -2083,7 +2085,7 @@ def format_upload_private_only() -> str:
         "<b>Маршрут</b>\n"
         "Откройте <a href=\"https://t.me/kartinkomet_bot\">@kartinkomet_bot</a>\n"
         f"Отправьте <code>/{UPLOAD_COMMAND}</code>\n"
-        "Кидайте пикчи туда"
+        "Кидайте пикчи туда, склад общий"
     )
 
 
@@ -2158,9 +2160,9 @@ def format_invalid_file() -> str:
 
 def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
     action = (
-        "Нажмите <code>📥 Пикчи</code> и кидайте пакет сюда"
+        "Нажмите <code>📥 Начать загрузку</code> и кидайте пакет сюда"
         if is_private
-        else "Нажмите <code>📬 Как загрузить пикчи</code> и бот покажет маршрут в личку"
+        else "Нажмите <code>📬 Как загрузить пикчи</code>, бот покажет маршрут в личку"
     )
     return (
         "<b>📭 Склад пикч пуст</b>\n\n"
@@ -2281,19 +2283,19 @@ def format_top_uploaders(image_pool: ImagePool, limit: int = 10) -> str:
     top_uploaders = image_pool.top_uploaders(limit=limit)
     if not top_uploaders:
         return (
-            "<b>🏆 Топ поставщиков</b>\n\n"
+            "<b>🏆 Топ загрузчиков пикч</b>\n\n"
             "Пьедестал пока пустует. Кто-то должен занести первую пикчу"
         )
 
-    lines = ["<b>🏆 Топ поставщиков</b>", ""]
+    lines = ["<b>🏆 Топ загрузчиков пикч</b>", ""]
     medals = ["🥇", "🥈", "🥉"]
     for position, (user_id, count) in enumerate(top_uploaders, start=1):
         if position == 1:
-            lines.append("<b>👑 Элита</b>")
+            lines.append("<b>👑 Пьедестал</b>")
             lines.append("")
         if position == 4:
             lines.append("")
-            lines.append("<b>📦 Складская смена</b>")
+            lines.append("<b>📦 Остальные поставщики</b>")
             lines.append("")
 
         prefix = medals[position - 1] if position <= len(medals) else f"{position}."

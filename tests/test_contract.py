@@ -101,6 +101,7 @@ class BotContractTest(unittest.TestCase):
                 "tournament",
                 "upload_pidor",
                 "stats",
+                "count",
                 "me",
                 "top",
                 "help",
@@ -204,16 +205,16 @@ class BotContractTest(unittest.TestCase):
         self.assertIsNone(parse_user_id_argument(SimpleNamespace(text="/dedupe_user nope", caption=None)))
 
     def test_keyboards_have_clean_image_only_navigation(self) -> None:
-        self.assertEqual(button_texts(random_menu()), ["🎲 Пикча", "🎛 Назад в пульт"])
+        self.assertEqual(button_texts(random_menu()), ["🎲 Рандомная пикча", "↩️ Пульт"])
         self.assertEqual(
             button_texts(arena_menu()),
-            ["⚔️ Пикч-бой", "🏟 Турнир", "📊 Сводка", "🎛 Назад в пульт"],
+            ["⚔️ Пикч-бой", "🏟 Турнир", "📊 Сводка арен", "↩️ Пульт"],
         )
         self.assertEqual(
             button_texts(main_menu()),
-            ["🎲 Выдача", "⚔️ Арены", "📦 Склад", "📥 Загрузка"],
+            ["🎲 Рандом", "⚔️ Арены", "📦 Склад", "📥 Загрузка"],
         )
-        self.assertEqual(button_texts(upload_hub(is_private=True)), ["📥 Пикчи", "🎛 Назад в пульт"])
+        self.assertEqual(button_texts(upload_hub(is_private=True)), ["📥 Начать загрузку", "↩️ Пульт"])
         self.assertEqual(button_texts(upload_menu()), ["✅ Закончить", "❌ Отмена"])
         self.assertEqual(
             callback_data(picture_actions("image-id")),
@@ -231,9 +232,9 @@ class BotContractTest(unittest.TestCase):
             button_texts(tournament_vote("tournament-id")),
             ["1️⃣ Первая: 0", "2️⃣ Вторая: 0", "3️⃣ Третья: 0", "4️⃣ Четвёртая: 0"],
         )
-        self.assertEqual(button_texts(new_duel()), ["⚔️ Реванш", "🎲 Ещё", "🏟 Турнир", "🎛 Пульт"])
-        self.assertEqual(button_texts(new_tournament()), ["🏟 Реванш", "🎲 Ещё", "⚔️ Дуэль", "🎛 Пульт"])
-        self.assertEqual(button_texts(storage_menu()), ["📦 Склад", "📬 В личку", "🏆 Топ", "👤 Мой вклад", "🎛 Назад в пульт"])
+        self.assertEqual(button_texts(new_duel()), ["⚔️ Реванш", "🎲 Рандом", "🏟 Турнир", "🎛 Пульт"])
+        self.assertEqual(button_texts(new_tournament()), ["🏟 Реванш", "🎲 Рандом", "⚔️ Дуэль", "🎛 Пульт"])
+        self.assertEqual(button_texts(storage_menu()), ["📦 Счётчик", "📬 В личку", "🏆 Топ", "👤 Мой вклад", "↩️ Пульт"])
         self.assertEqual(button_texts(empty_picture_pool_actions()), ["📬 Как загрузить пикчи", "🎛 Пульт"])
 
     def test_ui_text_is_current_and_not_feature_noisy(self) -> None:

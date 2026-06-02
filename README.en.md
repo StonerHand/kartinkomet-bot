@@ -70,7 +70,7 @@ Hidden admin commands:
 ### Main Panel
 
 ```text
-🎲 Выдача      ⚔️ Арены
+🎲 Рандом      ⚔️ Арены
 📦 Склад       📥 Загрузка
 ```
 
@@ -79,7 +79,7 @@ In groups, the upload button explains that uploads happen in private chat. This 
 ### Upload Flow
 
 1. Open private chat with the bot
-2. Send `/upload_pidor` or press `📥 Загрузка`
+2. Send `/upload_pidor` or press `📥 Начать загрузку`
 3. Send photos, packs, albums, or forwarded images
 4. Finish with `✅ Закончить` or `/done`
 5. Cancel with `❌ Отмена` or `/cancel`
@@ -115,6 +115,7 @@ Tournament:
 Stability rules:
 
 - one active duel and one active tournament per chat;
+- duel and tournament can run at the same time because they are separate arenas;
 - stale sessions are cleared;
 - repeated taps on the same button do not inflate votes.
 
