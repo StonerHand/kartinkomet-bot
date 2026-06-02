@@ -152,6 +152,46 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("jokes", tables)
         self.assertNotIn("joke_reactions", tables)
 
+    def test_existing_sqlite_database_migrates_visual_hash_column(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            database_path = temp_dir / "kartinkomet.sqlite"
+            with sqlite3.connect(database_path) as connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE images (
+                        id TEXT PRIMARY KEY,
+                        position INTEGER NOT NULL DEFAULT 0,
+                        file_id TEXT NOT NULL,
+                        file_unique_id TEXT NOT NULL UNIQUE,
+                        added_by INTEGER,
+                        added_at TEXT,
+                        shown_count INTEGER NOT NULL DEFAULT 0,
+                        last_shown_at TEXT,
+                        likes INTEGER NOT NULL DEFAULT 0,
+                        dislikes INTEGER NOT NULL DEFAULT 0
+                    );
+                    INSERT INTO images (
+                        id, position, file_id, file_unique_id, shown_count, likes, dislikes
+                    )
+                    VALUES ('legacy', 0, 'file-id', 'unique-id', 0, 0, 0);
+                    """
+                )
+
+            pool = ImagePool(
+                str(temp_dir / "image_pool.json"),
+                database_path=str(database_path),
+            )
+
+            with sqlite3.connect(database_path) as connection:
+                image_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(images)")
+                }
+
+        self.assertEqual(pool.count(), 1)
+        self.assertIn("visual_hash", image_columns)
+
     def test_backup_sources_are_railway_image_storage_only(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             pool = ImagePool(str(Path(raw_temp_dir) / "image_pool.json"))

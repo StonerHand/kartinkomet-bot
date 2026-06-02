@@ -55,7 +55,6 @@ class SQLiteDocumentStore:
 
             CREATE INDEX IF NOT EXISTS idx_images_added_by ON images(added_by);
             CREATE INDEX IF NOT EXISTS idx_images_shown ON images(shown_count, last_shown_at);
-            CREATE INDEX IF NOT EXISTS idx_images_visual_hash ON images(visual_hash);
 
             CREATE TABLE IF NOT EXISTS image_reactions (
                 image_id TEXT NOT NULL,
@@ -238,9 +237,9 @@ class SQLiteDocumentStore:
         }
         if "visual_hash" not in columns:
             self._connection.execute("ALTER TABLE images ADD COLUMN visual_hash TEXT")
-            self._connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_images_visual_hash ON images(visual_hash)"
-            )
+        self._connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_images_visual_hash ON images(visual_hash)"
+        )
 
     def _history_from_rows(
         self,
