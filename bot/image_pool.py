@@ -123,6 +123,8 @@ class ImagePool:
             return None
 
         records = self._selectable_records(avoid_recent=avoid_recent, chat_id=chat_id)
+        if not records:
+            records = self._records
         record = self._weighted_random_record(records)
         self._mark_shown(record, chat_id=chat_id)
         return self._to_image_record(record)
@@ -521,6 +523,8 @@ class ImagePool:
         return candidates
 
     def _weighted_random_record(self, records: list[dict]) -> dict:
+        if not records:
+            raise ValueError("Cannot choose a random image from an empty candidate list")
         if len(records) == 1:
             return records[0]
 

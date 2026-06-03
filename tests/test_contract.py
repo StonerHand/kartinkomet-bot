@@ -252,6 +252,16 @@ class BotContractTest(unittest.TestCase):
             self.assertEqual(pool.count(), 2)
             self.assertEqual(pool.stats().duel_executions, 1)
 
+    def test_random_image_falls_back_when_candidate_window_is_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            pool = ImagePool(str(Path(raw_temp_dir) / "image_pool.json"))
+            pool.add_from_message(fake_photo_message("file-one", "unique-one"))
+            pool._selectable_records = lambda *args, **kwargs: []  # type: ignore[method-assign]
+
+            image = pool.random_image(chat_id=10)
+
+        self.assertIsNotNone(image)
+
     def test_upload_limit_and_user_labels(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             pool = ImagePool(str(Path(raw_temp_dir) / "image_pool.json"))
@@ -338,6 +348,15 @@ class BotContractTest(unittest.TestCase):
         self.assertNotIn("анек", joined)
         self.assertNotIn("погод", joined)
         self.assertNotIn("cloudflare", joined)
+
+    def test_readme_keeps_admin_commands_out_of_public_command_map(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        for readme_name in ("README.md", "README.en.md"):
+            text = (root / readme_name).read_text(encoding="utf-8")
+            public_commands = text.split("## UX", maxsplit=1)[0]
+
+            self.assertNotIn("/reset_stats", public_commands)
+            self.assertIn("/reset_stats", text)
 
     def test_duel_and_tournament_sessions_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:

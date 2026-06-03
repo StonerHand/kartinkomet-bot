@@ -25,7 +25,7 @@ Core rule: the bot **does not store image files**. It stores Telegram `file_id` 
 | 📊 Stats | Pool, random drops, reactions, duels, tournaments, and active arenas |
 | 🏆 Top | Uploader leaderboard with Telegram names and titles |
 | 👤 Profile | Personal contribution, reactions on uploaded images, achievements |
-| 🧰 Admin panel | Health, backup, stat reset, and dedupe controls for admins |
+| 🧰 Admin panel | Health, backup, stat reset, and dedupe controls for admins, hidden from the public menu |
 | 🧯 Protection | Upload rate limits, quiet duplicate skips, and throttled admin alerts |
 
 ## Architecture
@@ -58,16 +58,7 @@ Production runtime: **Railway + long polling + SQLite on a Volume**. No webhook 
 | `/top` | Image uploader leaderboard |
 | `/help` | Command map |
 
-Hidden admin commands:
-
-| Command | Purpose |
-| --- | --- |
-| `/admin` | Open the hidden admin panel in private chat |
-| `/health` | Show storage health, counters, and backend |
-| `/backup` | Send SQLite backup and JSON safety export to admin |
-| `/reset_stats` | Reset shows, reactions, and random memory |
-| `/dedupe_user <telegram_id>` | Remove exact duplicates uploaded by one user |
-| `/id` | Show Telegram user ID |
+Private operations commands are not added to Telegram's public command menu. They are documented below in [Maintenance](#maintenance) and are guarded by `ADMIN_USER_IDS`.
 
 ## UX Model
 

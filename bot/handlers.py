@@ -2095,7 +2095,7 @@ def format_main_menu(
         "<b>🎛 Пульт kartinkomet</b>\n"
         "<i>рандом, арены, склад и загрузка без лишнего шума</i>\n\n"
         "<b>📦 Склад</b>\n"
-        f"Пикч внутри: <b>{image_pool.count()}</b>\n\n"
+        f"Пикч на складе: <b>{image_pool.count()}</b>\n\n"
         "<b>⚔️ Арены</b>\n"
         f"Пикч-бой <b>{active_duel_status(chat_id, 'image')}</b> · "
         f"Турнир <b>{active_tournament_status(chat_id)}</b>\n\n"
@@ -2130,7 +2130,7 @@ def format_storage_menu(image_pool: ImagePool) -> str:
         "<b>📦 Склад</b>\n\n"
         "Инвентарь, вклад и вход в загрузку\n\n"
         "<b>Внутри</b>\n"
-        f"Пикч внутри: <b>{image_pool.count()}</b>\n"
+        f"Пикч на складе: <b>{image_pool.count()}</b>\n"
         "\n"
         "<b>Навигация</b>\n"
         "Счётчик, топ, личная карточка и загрузочный отсек"
@@ -2150,7 +2150,7 @@ def format_stats(
     chat_id: int | None = None,
 ) -> str:
     stats = image_pool.stats()
-    pool_lines = [format_metric("Пикч внутри", stats.total_images)]
+    pool_lines = [format_metric("Пикч на складе", stats.total_images)]
     random_lines = [format_metric("Выстрелов рандома", stats.total_shows)]
     reaction_lines = [
         f"Пикчи: 🤙🏻 <b>{stats.total_likes}</b> · 🖕🏻 <b>{stats.total_dislikes}</b>",
@@ -2291,7 +2291,7 @@ def format_count(image_pool: ImagePool) -> str:
     return (
         "<b>📦 Склад</b>\n\n"
         "<b>Контент</b>\n"
-        f"{format_metric('Пикч внутри', image_pool.count())}"
+        f"{format_metric('Пикч на складе', image_pool.count())}"
     )
 
 
@@ -2299,9 +2299,9 @@ def format_count_alert(image_pool: ImagePool) -> str:
     stats = image_pool.stats()
     return (
         "📦 Склад\n"
-        f"Пикч внутри: {image_pool.count()}\n"
-        f"Дуэлей: {stats.total_duels}\n"
-        f"Турниров: {stats.total_tournaments}"
+        f"Пикч на складе: {image_pool.count()}\n"
+        f"⚔️ Дуэлей: {stats.total_duels}\n"
+        f"🏟 Турниров: {stats.total_tournaments}"
     )
 
 
