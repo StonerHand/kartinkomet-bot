@@ -11,6 +11,8 @@
 
 Core rule: the bot **does not store image files**. It stores Telegram `file_id` and `file_unique_id`; the real media files stay on Telegram's side. The server stores only identifiers, reactions, random history, users, and statistics.
 
+Detailed project map: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). It documents files, data flow, storage, random logic, UI, maintenance scenarios, and invariants that should not be broken.
+
 ## Features
 
 | Area | Behavior |
