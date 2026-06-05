@@ -73,6 +73,8 @@ Private operations commands are not added to Telegram's public command menu. The
 
 In groups, the upload button explains that uploads happen in private chat. This avoids Telegram Privacy Mode issues and makes albums, packs, and forwarded images much more reliable.
 
+Buttons are built with semantic styles in `bot/keyboards.py`: `primary` for core actions, `success` for confirmations and constructive actions, and `danger` for cancellation, resets, and negative votes. Telegram clients that support colored inline buttons can render them more clearly; older clients simply fall back to normal buttons without breaking the UX.
+
 ### Upload Flow
 
 1. Open private chat with the bot
@@ -137,6 +139,8 @@ Legacy JSON safety export:
 ```text
 /data/image_pool.json
 ```
+
+In production, the source of truth is the SQLite file `kartinkomet.sqlite` on the Railway Volume. JSON exists as a legacy fallback and compatibility layer for older utilities; it should not be treated as the primary live database during migration or backup. For a live backup, use `/backup`, because it creates a consistent SQLite copy through the backup API.
 
 SQLite settings:
 

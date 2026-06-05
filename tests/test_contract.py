@@ -375,6 +375,21 @@ class BotContractTest(unittest.TestCase):
             self.assertNotIn("/reset_stats", public_commands)
             self.assertIn("/reset_stats", text)
 
+    def test_docs_describe_current_storage_and_button_styles(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        docs = [
+            (root / "README.md").read_text(encoding="utf-8"),
+            (root / "README.en.md").read_text(encoding="utf-8"),
+            (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8"),
+        ]
+
+        for text in docs:
+            self.assertIn("kartinkomet.sqlite", text)
+            self.assertIn("primary", text)
+            self.assertIn("success", text)
+            self.assertIn("danger", text)
+            self.assertNotIn("Cloudflare Worker", text)
+
     def test_duel_and_tournament_sessions_are_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             pool = ImagePool(str(Path(raw_temp_dir) / "image_pool.json"))

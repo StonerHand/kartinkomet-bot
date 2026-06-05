@@ -62,6 +62,8 @@ TELEGRAM_RETRY_BASE_DELAY = 0.45
 RANDOM = random.SystemRandom()
 LOGGER = logging.getLogger(__name__)
 T = TypeVar("T")
+DUEL_OPTION_LABELS = ("🅰️ Первый", "🅱️ Второй")
+TOURNAMENT_OPTION_LABELS = ("1️⃣ Первая", "2️⃣ Вторая", "3️⃣ Третья", "4️⃣ Четвёртая")
 
 TOURNAMENT_START_PHRASES = (
     "Открыт короткий чемпионат подозрительных пикч",
@@ -2694,6 +2696,22 @@ def combo_achievements_for(stats) -> list[str]:
     return combos[:4]
 
 
+def format_duel_score_lines(left_votes: int, right_votes: int) -> str:
+    return (
+        f"{DUEL_OPTION_LABELS[0]}: <b>{left_votes}</b>\n"
+        f"{DUEL_OPTION_LABELS[1]}: <b>{right_votes}</b>"
+    )
+
+
+def format_tournament_score_lines(votes: list[int]) -> str:
+    return (
+        f"{TOURNAMENT_OPTION_LABELS[0]}: <b>{votes[0]}</b> · "
+        f"{TOURNAMENT_OPTION_LABELS[1]}: <b>{votes[1]}</b>\n"
+        f"{TOURNAMENT_OPTION_LABELS[2]}: <b>{votes[2]}</b> · "
+        f"{TOURNAMENT_OPTION_LABELS[3]}: <b>{votes[3]}</b>"
+    )
+
+
 def format_duel_score(
     left_votes: int,
     right_votes: int,
@@ -2714,8 +2732,7 @@ def format_duel_score(
         f"{escape(title or random_duel_start_phrase())}\n"
         f"{escape(status or random_duel_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ Первый: <b>{left_votes}</b>\n"
-        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
+        f"{format_duel_score_lines(left_votes, right_votes)}\n\n"
         "<b>Статус</b>\n"
         f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
     )
@@ -2736,8 +2753,7 @@ def format_duel_result(left_votes: int, right_votes: int, winner: str | None) ->
         "<b>⚖️ Приговор арены</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
-        f"🅰️ Первый: <b>{left_votes}</b>\n"
-        f"🅱️ Второй: <b>{right_votes}</b>\n\n"
+        f"{format_duel_score_lines(left_votes, right_votes)}\n\n"
         "<b>История боя</b>\n"
         f"{format_battle_history(left_votes, right_votes, winner, item_label='мем')}\n\n"
         "<b>Вердикт</b>\n"
@@ -2793,8 +2809,7 @@ def format_tournament_score(
         f"{escape(title or random_tournament_start_phrase())}\n"
         f"{escape(status or random_tournament_status_phrase())}\n\n"
         "<b>Счёт</b>\n"
-        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
-        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
+        f"{format_tournament_score_lines(votes)}\n\n"
         "<b>Статус</b>\n"
         f"⏱ <b>{format_timer(seconds_left)}</b> · {verdict}"
     )
@@ -2812,16 +2827,14 @@ def format_tournament_result(votes: list[int], winner: int | None) -> str:
         "<b>🏁 Финал витрины</b>\n\n"
         f"{escape(phrase)}\n\n"
         "<b>Счёт</b>\n"
-        f"1️⃣ Первая: <b>{votes[0]}</b> · 2️⃣ Вторая: <b>{votes[1]}</b>\n"
-        f"3️⃣ Третья: <b>{votes[2]}</b> · 4️⃣ Четвёртая: <b>{votes[3]}</b>\n\n"
+        f"{format_tournament_score_lines(votes)}\n\n"
         "<b>Итог</b>\n"
         f"{verdict}"
     )
 
 
 def tournament_option_label(index: int) -> str:
-    labels = ["1️⃣ Первая", "2️⃣ Вторая", "3️⃣ Третья", "4️⃣ Четвёртая"]
-    return labels[index]
+    return TOURNAMENT_OPTION_LABELS[index]
 
 
 def random_duel_start_phrase() -> str:
