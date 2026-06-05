@@ -2,6 +2,21 @@ from functools import lru_cache
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+STYLE_PRIMARY = "primary"
+STYLE_SUCCESS = "success"
+STYLE_DANGER = "danger"
+
+
+def styled_button(
+    text: str,
+    callback_data: str,
+    style: str | None = None,
+) -> InlineKeyboardButton:
+    data = {"text": text, "callback_data": callback_data}
+    if style:
+        data["style"] = style
+    return InlineKeyboardButton(**data)
+
 
 def main_menu(
     is_private: bool = False,
@@ -27,18 +42,18 @@ def main_menu(
     )
     keyboard = [
         [
-            InlineKeyboardButton(text="🎲 Рандом", callback_data="menu_random"),
-            InlineKeyboardButton(text=arena_label, callback_data="menu_arena"),
+            styled_button("🎲 Рандом", "menu_random", STYLE_PRIMARY),
+            styled_button(arena_label, "menu_arena", STYLE_PRIMARY),
         ],
         [
-            InlineKeyboardButton(text="📦 Склад", callback_data="menu_storage"),
-            InlineKeyboardButton(text="📥 Загрузка", callback_data="upload_hub"),
+            styled_button("📦 Склад", "menu_storage", STYLE_PRIMARY),
+            styled_button("📥 Загрузка", "upload_hub", STYLE_SUCCESS),
         ],
     ]
     if is_private and is_admin:
         keyboard.append(
             [
-                InlineKeyboardButton(text="🧰 Админка", callback_data="admin_menu"),
+                styled_button("🧰 Админка", "admin_menu", STYLE_PRIMARY),
             ]
         )
 
@@ -49,10 +64,10 @@ def random_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🎲 Рандомная пикча", callback_data="pic"),
+                styled_button("🎲 Рандомная пикча", "pic", STYLE_PRIMARY),
             ],
             [
-                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
+                styled_button("↩️ Пульт", "menu"),
             ],
         ]
     )
@@ -77,12 +92,12 @@ def arena_menu(
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=image_duel_label, callback_data="duel_new"),
-                InlineKeyboardButton(text=tournament_label, callback_data="tournament_new"),
+                styled_button(image_duel_label, "duel_new", STYLE_PRIMARY),
+                styled_button(tournament_label, "tournament_new", STYLE_PRIMARY),
             ],
             [
-                InlineKeyboardButton(text="📊 Сводка арен", callback_data="stats"),
-                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
+                styled_button("📊 Сводка арен", "stats", STYLE_PRIMARY),
+                styled_button("↩️ Пульт", "menu"),
             ],
         ]
     )
@@ -93,15 +108,15 @@ def storage_menu(is_private: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📦 Счётчик", callback_data="count"),
-                InlineKeyboardButton(text=upload_label, callback_data="upload_hub"),
+                styled_button("📦 Счётчик", "count", STYLE_PRIMARY),
+                styled_button(upload_label, "upload_hub", STYLE_SUCCESS),
             ],
             [
-                InlineKeyboardButton(text="🏆 Топ", callback_data="top"),
-                InlineKeyboardButton(text="👤 Мой вклад", callback_data="me"),
+                styled_button("🏆 Топ", "top", STYLE_PRIMARY),
+                styled_button("👤 Мой вклад", "me", STYLE_PRIMARY),
             ],
             [
-                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
+                styled_button("↩️ Пульт", "menu"),
             ],
         ]
     )
@@ -111,13 +126,14 @@ def upload_hub(is_private: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="📥 Начать загрузку" if is_private else "📬 Загрузка в личке",
-                    callback_data="upload",
+                styled_button(
+                    "📥 Начать загрузку" if is_private else "📬 Загрузка в личке",
+                    "upload",
+                    STYLE_SUCCESS,
                 ),
             ],
             [
-                InlineKeyboardButton(text="↩️ Пульт", callback_data="menu"),
+                styled_button("↩️ Пульт", "menu"),
             ],
         ]
     )
@@ -142,8 +158,8 @@ def upload_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Закончить", callback_data="done"),
-                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_upload"),
+                styled_button("✅ Закончить", "done", STYLE_SUCCESS),
+                styled_button("❌ Отмена", "cancel_upload", STYLE_DANGER),
             ],
         ]
     )
@@ -153,13 +169,14 @@ def empty_picture_pool_actions(is_private: bool = False) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="📥 Начать загрузку" if is_private else "📬 Как загрузить пикчи",
-                    callback_data="upload",
+                styled_button(
+                    "📥 Начать загрузку" if is_private else "📬 Как загрузить пикчи",
+                    "upload",
+                    STYLE_SUCCESS,
                 ),
             ],
             [
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+                styled_button("🎛 Пульт", "menu"),
             ],
         ]
     )
@@ -169,14 +186,8 @@ def duel_vote(duel_id: str, left_votes: int = 0, right_votes: int = 0) -> Inline
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text=f"🅰️ Первый: {left_votes}",
-                    callback_data=f"duel:{duel_id}:left",
-                ),
-                InlineKeyboardButton(
-                    text=f"🅱️ Второй: {right_votes}",
-                    callback_data=f"duel:{duel_id}:right",
-                ),
+                styled_button(f"🅰️ Первый: {left_votes}", f"duel:{duel_id}:left", STYLE_PRIMARY),
+                styled_button(f"🅱️ Второй: {right_votes}", f"duel:{duel_id}:right", STYLE_PRIMARY),
             ],
         ]
     )
@@ -187,12 +198,12 @@ def new_duel() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="⚔️ Реванш", callback_data="duel_new"),
-                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+                styled_button("⚔️ Реванш", "duel_new", STYLE_SUCCESS),
+                styled_button("🎲 Рандом", "pic", STYLE_PRIMARY),
             ],
             [
-                InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+                styled_button("🏟 Турнир", "tournament_new", STYLE_PRIMARY),
+                styled_button("🎛 Пульт", "menu"),
             ],
         ]
     )
@@ -206,23 +217,27 @@ def tournament_vote(
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text=f"1️⃣ Первая: {counts[0]}",
-                    callback_data=f"tournament:{tournament_id}:0",
+                styled_button(
+                    f"1️⃣ Первая: {counts[0]}",
+                    f"tournament:{tournament_id}:0",
+                    STYLE_PRIMARY,
                 ),
-                InlineKeyboardButton(
-                    text=f"2️⃣ Вторая: {counts[1]}",
-                    callback_data=f"tournament:{tournament_id}:1",
+                styled_button(
+                    f"2️⃣ Вторая: {counts[1]}",
+                    f"tournament:{tournament_id}:1",
+                    STYLE_PRIMARY,
                 ),
             ],
             [
-                InlineKeyboardButton(
-                    text=f"3️⃣ Третья: {counts[2]}",
-                    callback_data=f"tournament:{tournament_id}:2",
+                styled_button(
+                    f"3️⃣ Третья: {counts[2]}",
+                    f"tournament:{tournament_id}:2",
+                    STYLE_PRIMARY,
                 ),
-                InlineKeyboardButton(
-                    text=f"4️⃣ Четвёртая: {counts[3]}",
-                    callback_data=f"tournament:{tournament_id}:3",
+                styled_button(
+                    f"4️⃣ Четвёртая: {counts[3]}",
+                    f"tournament:{tournament_id}:3",
+                    STYLE_PRIMARY,
                 ),
             ],
         ]
@@ -231,22 +246,19 @@ def tournament_vote(
 
 def new_tournament(winner_id: str | None = None) -> InlineKeyboardMarkup:
     duel_button = (
-        InlineKeyboardButton(
-            text="⚔️ Чемпион",
-            callback_data=f"duel_champion:{winner_id}",
-        )
+        styled_button("⚔️ Чемпион", f"duel_champion:{winner_id}", STYLE_SUCCESS)
         if winner_id
-        else InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new")
+        else styled_button("⚔️ Дуэль", "duel_new", STYLE_PRIMARY)
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🏟 Реванш", callback_data="tournament_new"),
-                InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
+                styled_button("🏟 Реванш", "tournament_new", STYLE_SUCCESS),
+                styled_button("🎲 Рандом", "pic", STYLE_PRIMARY),
             ],
             [
                 duel_button,
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+                styled_button("🎛 Пульт", "menu"),
             ],
         ]
     )
@@ -255,13 +267,13 @@ def new_tournament(winner_id: str | None = None) -> InlineKeyboardMarkup:
 def picture_actions(image_id: str) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(text="🤙🏻", callback_data=f"react:like:{image_id}"),
-            InlineKeyboardButton(text="🖕🏻", callback_data=f"react:dislike:{image_id}"),
+            styled_button("🤙🏻", f"react:like:{image_id}", STYLE_SUCCESS),
+            styled_button("🖕🏻", f"react:dislike:{image_id}", STYLE_DANGER),
         ],
         [
-            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
-            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
-            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
+            styled_button("🎲 Рандом", "pic", STYLE_PRIMARY),
+            styled_button("⚔️ Дуэль", "duel_new", STYLE_PRIMARY),
+            styled_button("🏟 Турнир", "tournament_new", STYLE_PRIMARY),
         ],
     ]
 
@@ -275,19 +287,13 @@ def picture_actions_with_counts(
 ) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton(
-                text=f"🤙🏻 {likes}",
-                callback_data=f"react:like:{image_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"🖕🏻 {dislikes}",
-                callback_data=f"react:dislike:{image_id}",
-            ),
+            styled_button(f"🤙🏻 {likes}", f"react:like:{image_id}", STYLE_SUCCESS),
+            styled_button(f"🖕🏻 {dislikes}", f"react:dislike:{image_id}", STYLE_DANGER),
         ],
         [
-            InlineKeyboardButton(text="🎲 Рандом", callback_data="pic"),
-            InlineKeyboardButton(text="⚔️ Дуэль", callback_data="duel_new"),
-            InlineKeyboardButton(text="🏟 Турнир", callback_data="tournament_new"),
+            styled_button("🎲 Рандом", "pic", STYLE_PRIMARY),
+            styled_button("⚔️ Дуэль", "duel_new", STYLE_PRIMARY),
+            styled_button("🏟 Турнир", "tournament_new", STYLE_PRIMARY),
         ],
     ]
 
@@ -299,15 +305,15 @@ def admin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🩺 Health", callback_data="admin_health"),
-                InlineKeyboardButton(text="🗄 Бэкап", callback_data="admin_backup"),
+                styled_button("🩺 Health", "admin_health", STYLE_PRIMARY),
+                styled_button("🗄 Бэкап", "admin_backup", STYLE_SUCCESS),
             ],
             [
-                InlineKeyboardButton(text="♻️ Сброс стат", callback_data="admin_reset"),
-                InlineKeyboardButton(text="🧹 Дубли", callback_data="admin_dedupe"),
+                styled_button("♻️ Сброс стат", "admin_reset", STYLE_DANGER),
+                styled_button("🧹 Дубли", "admin_dedupe", STYLE_PRIMARY),
             ],
             [
-                InlineKeyboardButton(text="🎛 Пульт", callback_data="menu"),
+                styled_button("🎛 Пульт", "menu"),
             ],
         ]
     )

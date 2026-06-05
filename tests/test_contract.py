@@ -86,6 +86,10 @@ def callback_data(markup) -> list[str | None]:
     return [button.callback_data for row in markup.inline_keyboard for button in row]
 
 
+def button_styles(markup) -> list[str | None]:
+    return [getattr(button, "style", None) for row in markup.inline_keyboard for button in row]
+
+
 class BotContractTest(unittest.TestCase):
     def tearDown(self) -> None:
         active_duels_by_chat.clear()
@@ -319,6 +323,19 @@ class BotContractTest(unittest.TestCase):
         self.assertEqual(button_texts(new_tournament()), ["🏟 Реванш", "🎲 Рандом", "⚔️ Дуэль", "🎛 Пульт"])
         self.assertEqual(button_texts(storage_menu()), ["📦 Счётчик", "📬 В личку", "🏆 Топ", "👤 Мой вклад", "↩️ Пульт"])
         self.assertEqual(button_texts(empty_picture_pool_actions()), ["📬 Как загрузить пикчи", "🎛 Пульт"])
+
+    def test_keyboards_use_semantic_button_styles(self) -> None:
+        self.assertEqual(
+            button_styles(main_menu()),
+            ["primary", "primary", "primary", "success"],
+        )
+        self.assertEqual(button_styles(upload_menu()), ["success", "danger"])
+        self.assertEqual(button_styles(picture_actions_with_counts("image-id", 3, 1))[:2], ["success", "danger"])
+        self.assertEqual(button_styles(random_menu()), ["primary", None])
+        self.assertEqual(
+            button_styles(admin_menu()),
+            ["primary", "success", "danger", "primary", None],
+        )
 
     def test_ui_text_is_current_and_not_feature_noisy(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
