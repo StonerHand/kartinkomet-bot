@@ -26,27 +26,27 @@ def main_menu(
     image_duel_seconds: int | None = None,
     tournament_seconds: int | None = None,
 ) -> InlineKeyboardMarkup:
-    arena_seconds = [
-        seconds
-        for active, seconds in [
-            (image_duel_active, image_duel_seconds),
-            (tournament_active, tournament_seconds),
-        ]
-        if active and seconds is not None
-    ]
-    arena_active = image_duel_active or tournament_active
-    arena_label = (
-        active_button_text("⚔️ Арены", True, min(arena_seconds))
-        if arena_seconds
-        else active_button_text("⚔️ Арены", arena_active)
+    duel_label = (
+        active_button_text("⚔️ Дуэль", image_duel_active, image_duel_seconds)
+        if image_duel_active
+        else "⚔️ Дуэль"
+    )
+    tournament_label = (
+        active_button_text("🏟 Турнир", tournament_active, tournament_seconds)
+        if tournament_active
+        else "🏟 Турнир"
     )
     keyboard = [
         [
             styled_button("🎲 Рандом", "menu_random", STYLE_PRIMARY),
-            styled_button(arena_label, "menu_arena", STYLE_PRIMARY),
+            styled_button(duel_label, "duel_new", STYLE_PRIMARY),
         ],
         [
+            styled_button(tournament_label, "tournament_new", STYLE_PRIMARY),
             styled_button("📦 Склад", "menu_storage", STYLE_PRIMARY),
+        ],
+        [
+            styled_button("📊 Сводка", "stats", STYLE_PRIMARY),
             styled_button("📥 Загрузка", "upload_hub", STYLE_SUCCESS),
         ],
     ]

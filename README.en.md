@@ -67,9 +67,12 @@ Private operations commands are not added to Telegram's public command menu. The
 ### Main Panel
 
 ```text
-🎲 Рандом      ⚔️ Арены
-📦 Склад       📥 Загрузка
+🎲 Рандом      ⚔️ Дуэль
+🏟 Турнир      📦 Склад
+📊 Сводка      📥 Загрузка
 ```
+
+The main panel starts core flows directly from the first screen: random image, duel, tournament, storage, stats, and upload. This removes the extra arena submenu hop for everyday actions and makes the bot faster to use.
 
 In groups, the upload button explains that uploads happen in private chat. This avoids Telegram Privacy Mode issues and makes albums, packs, and forwarded images much more reliable.
 
@@ -83,7 +86,7 @@ Buttons are built with semantic styles in `bot/keyboards.py`: `primary` for core
 4. Finish with `✅ Закончить` or `/done`
 5. Cancel with `❌ Отмена` or `/cancel`
 
-The bot stores only `file_id`, `file_unique_id`, and a service `visual_hash`. Exact duplicates by `file_unique_id` or `file_id` are skipped immediately; visually similar images are caught by perceptual hash checks. Repeated duplicates during batch uploads are skipped quietly, so the chat does not drown in status messages.
+The bot stores only `file_id`, `file_unique_id`, and a service `visual_hash`. Exact duplicates by `file_unique_id` or `file_id` are skipped immediately; visually similar images are caught by perceptual hash checks. Repeated duplicates during batch uploads are skipped quietly, so the chat does not drown in status messages. Group chats do not accept upload files directly: the upload button routes users to private chat, where Telegram reliably delivers photos, packs, albums, and forwarded images to the bot.
 
 Limits:
 

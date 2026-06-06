@@ -291,11 +291,11 @@ class BotContractTest(unittest.TestCase):
         )
         self.assertEqual(
             button_texts(main_menu()),
-            ["🎲 Рандом", "⚔️ Арены", "📦 Склад", "📥 Загрузка"],
+            ["🎲 Рандом", "⚔️ Дуэль", "🏟 Турнир", "📦 Склад", "📊 Сводка", "📥 Загрузка"],
         )
         self.assertEqual(
             button_texts(main_menu(is_private=True, is_admin=True)),
-            ["🎲 Рандом", "⚔️ Арены", "📦 Склад", "📥 Загрузка", "🧰 Админка"],
+            ["🎲 Рандом", "⚔️ Дуэль", "🏟 Турнир", "📦 Склад", "📊 Сводка", "📥 Загрузка", "🧰 Админка"],
         )
         self.assertEqual(
             button_texts(admin_menu()),
@@ -327,7 +327,7 @@ class BotContractTest(unittest.TestCase):
     def test_keyboards_use_semantic_button_styles(self) -> None:
         self.assertEqual(
             button_styles(main_menu()),
-            ["primary", "primary", "primary", "success"],
+            ["primary", "primary", "primary", "primary", "primary", "success"],
         )
         self.assertEqual(button_styles(upload_menu()), ["success", "danger"])
         self.assertEqual(button_styles(picture_actions_with_counts("image-id", 3, 1))[:2], ["success", "danger"])
