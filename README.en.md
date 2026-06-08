@@ -86,7 +86,7 @@ Buttons are built with semantic styles in `bot/keyboards.py`: `primary` for core
 4. Finish with `✅ Закончить` or `/done`
 5. Cancel with `❌ Отмена` or `/cancel`
 
-The bot stores only `file_id`, `file_unique_id`, and a service `visual_hash`. Exact duplicates by `file_unique_id` or `file_id` are skipped immediately; visually similar images are caught by perceptual hash checks. Repeated duplicates during batch uploads are skipped quietly, so the chat does not drown in status messages. Group chats do not accept upload files directly: the upload button routes users to private chat, where Telegram reliably delivers photos, packs, albums, and forwarded images to the bot.
+The bot stores only `file_id`, `file_unique_id`, and a service `visual_hash`. Exact duplicates by `file_unique_id` or `file_id` are skipped immediately; visually similar images are caught by perceptual hash checks. Batch uploads use one live progress card: the bot updates it after the first processed file and then every `5` processed events, while finish and cancel edit the same panel. Group chats do not accept upload files directly: the upload button routes users to private chat, where Telegram reliably delivers photos, packs, albums, and forwarded images to the bot.
 
 Limits:
 
@@ -126,6 +126,7 @@ Stability rules:
 
 - one active duel and one active tournament per chat;
 - duel and tournament can run at the same time because they are separate arenas;
+- starting an already active arena refreshes the current scoreboard instead of creating a duplicate;
 - stale sessions are cleared;
 - repeated taps on the same button do not inflate votes.
 

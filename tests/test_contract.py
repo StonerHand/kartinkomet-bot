@@ -31,11 +31,15 @@ from bot.handlers import (
     format_stats,
     format_storage_menu,
     format_upload_burst_limit,
+    format_upload_cancelled,
+    format_upload_opened,
+    format_upload_progress,
     format_tournament_result,
     format_tournament_score,
     format_upload_hub,
     format_upload_not_active,
     format_upload_private_only,
+    new_upload_session,
     parse_user_id_argument,
     register_active_duel,
     register_active_tournament,
@@ -43,7 +47,13 @@ from bot.handlers import (
     resolve_tournament_result,
     tournament_sessions,
 )
-from bot.image_pool import UPLOAD_LIMIT_PER_HOUR, ImagePool
+from bot.image_pool import (
+    GLOBAL_RECENT_LIMIT,
+    MAX_CHAT_HISTORY,
+    RANDOM_CANDIDATE_LIMIT,
+    UPLOAD_LIMIT_PER_HOUR,
+    ImagePool,
+)
 from bot.keyboards import (
     admin_menu,
     arena_menu,
@@ -275,6 +285,11 @@ class BotContractTest(unittest.TestCase):
             self.assertEqual(pool.user_label(777), "NamedUser")
             self.assertEqual(UPLOAD_LIMIT_PER_HOUR, 1000)
 
+    def test_random_memory_constants_are_tuned_for_large_pool(self) -> None:
+        self.assertGreaterEqual(RANDOM_CANDIDATE_LIMIT, 180)
+        self.assertGreaterEqual(GLOBAL_RECENT_LIMIT, 500)
+        self.assertGreaterEqual(MAX_CHAT_HISTORY, 900)
+
     def test_hidden_dedupe_argument_parser(self) -> None:
         self.assertEqual(
             parse_user_id_argument(SimpleNamespace(text="/dedupe_user 1045485205", caption=None)),
@@ -353,6 +368,9 @@ class BotContractTest(unittest.TestCase):
                 format_admin_panel(pool),
                 format_health(pool),
                 format_upload_hub(is_private=True),
+                format_upload_opened("Скидывайте визуальные улики"),
+                format_upload_progress(new_upload_session()),
+                format_upload_cancelled(),
                 format_upload_burst_limit(),
                 format_upload_private_only(),
                 format_upload_not_active(),
@@ -442,6 +460,23 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("Чемпион", format_tournament_result([0, 3, 1, 1], winner=1))
         self.assertIn("чемпион не выбран", format_tournament_result([1, 1, 1, 1], winner=None).lower())
         self.assertIn("пикчевая арена", format_duel_already_active())
+
+    def test_upload_panel_uses_one_compact_progress_card(self) -> None:
+        data = new_upload_session()
+        data["added"] = 7
+        data["duplicates"] = 2
+        data["failed"] = 1
+
+        progress = format_upload_progress(data)
+        cancelled = format_upload_cancelled()
+
+        self.assertIn("Прогресс пакета", progress)
+        self.assertIn("✅ Добавлено: <b>7</b>", progress)
+        self.assertIn("♻️ Дубли: <b>2</b>", progress)
+        self.assertIn("🚫 Не принято: <b>1</b>", progress)
+        self.assertIn("<code>✅ Закончить</code>", progress)
+        self.assertIn("<code>❌ Отмена</code>", progress)
+        self.assertNotIn("Уже добавлено", cancelled)
 
     def test_visual_dedupe_helpers(self) -> None:
         hashes = [

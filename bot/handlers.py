@@ -56,6 +56,7 @@ DUEL_STALE_GRACE_SECONDS = 20
 UPLOAD_MARATHON_THRESHOLD = 100
 UPLOAD_BURST_LIMIT = 120
 UPLOAD_BURST_WINDOW_SECONDS = 60
+UPLOAD_PROGRESS_UPDATE_EVERY = 5
 ADMIN_ERROR_THROTTLE_SECONDS = 300
 TELEGRAM_SEND_RETRIES = 3
 TELEGRAM_RETRY_BASE_DELAY = 0.45
@@ -248,6 +249,9 @@ class UploadSession(TypedDict):
     added: int
     failed: int
     duplicates: int
+    panel_message_id: int | None
+    panel_text: str
+    last_panel_processed: int
     announced_achievements: set[int]
     achievement_names: list[str]
 
@@ -432,21 +436,21 @@ def build_router(
 
     @router.message(Command(UPLOAD_COMMAND))
     @router.channel_post(Command(UPLOAD_COMMAND))
-    async def start_upload(message: Message, state: FSMContext) -> None:
+    async def start_upload(message: Message, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
-        await activate_upload(message, state)
+        await activate_upload(message, state, bot)
 
     @router.message(Command("done"))
     @router.channel_post(Command("done"))
-    async def done_upload(message: Message, state: FSMContext) -> None:
+    async def done_upload(message: Message, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
-        await finish_upload_or_warn(message, state)
+        await finish_upload_or_warn(message, state, bot)
 
     @router.message(Command("cancel"))
     @router.channel_post(Command("cancel"))
-    async def cancel_upload_command(message: Message, state: FSMContext) -> None:
+    async def cancel_upload_command(message: Message, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
-        await cancel_upload(message, state)
+        await cancel_upload(message, state, bot)
 
     @router.message(F.photo | F.document)
     @router.channel_post(F.photo | F.document)
@@ -462,13 +466,13 @@ def build_router(
 
         if upload_burst_limited(message.from_user.id if message.from_user else None):
             data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-            await message.answer(format_upload_burst_limit(), parse_mode="HTML")
+            await update_upload_panel(bot, message, data, force=True)
             return
 
         user_id = message.from_user.id if message.from_user else None
         if isinstance(user_id, int) and image_pool.user_uploads_in_last_hour(user_id) >= UPLOAD_LIMIT_PER_HOUR:
             data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-            await message.answer(format_upload_limit(), parse_mode="HTML")
+            await update_upload_panel(bot, message, data, force=True)
             return
 
         visual_hash = None
@@ -491,19 +495,21 @@ def build_router(
                         current_achievement_for(image_pool.count_by_user(message.from_user.id))
                     )
                 await message.answer(achievement, parse_mode="HTML")
+            await update_upload_panel(bot, message, data)
             return
 
         if result.duplicate:
             data.update({"added": added, "failed": failed, "duplicates": duplicates + 1})
+            await update_upload_panel(bot, message, data)
             return
 
         if result.rate_limited:
             data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-            await message.answer(format_upload_limit(), parse_mode="HTML")
+            await update_upload_panel(bot, message, data, force=True)
             return
 
         data.update({"added": added, "failed": failed + 1, "duplicates": duplicates})
-        await message.answer(format_invalid_file())
+        await update_upload_panel(bot, message, data, force=True)
 
     @router.callback_query(F.data == "pic")
     async def pic_callback(callback: CallbackQuery, bot: Bot) -> None:
@@ -687,11 +693,11 @@ def build_router(
             await callback.answer()
             return
 
-        activated = await activate_upload(callback.message, state)
+        activated = await activate_upload(callback.message, state, bot)
         await callback.answer("Загрузка открыта" if activated else "Открой личку с ботом")
 
     @router.callback_query(F.data == "done")
-    async def done_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    async def done_callback(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
@@ -702,11 +708,11 @@ def build_router(
             await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
-        await finish_upload_or_warn(callback.message, state)
+        await finish_upload_or_warn(callback.message, state, bot)
         await callback.answer()
 
     @router.callback_query(F.data == "cancel_upload")
-    async def cancel_upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    async def cancel_upload_callback(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
         image_pool.remember_user(callback.from_user)
         if callback.message is None:
             await callback.answer()
@@ -717,7 +723,7 @@ def build_router(
             await callback.answer("Загрузка не открыта", show_alert=False)
             return
 
-        await cancel_upload(callback.message, state)
+        await cancel_upload(callback.message, state, bot)
         await callback.answer()
 
     @router.callback_query(F.data.startswith("react:"))
@@ -899,7 +905,8 @@ def build_router(
         if duel_result == "started":
             await callback.answer("Запускаю новую дуэль")
         elif duel_result == "active":
-            await callback.answer("Дуэль уже идёт")
+            await refresh_active_duel_panel(bot, callback.message.chat.id)
+            await callback.answer("Табло дуэли обновлено")
         else:
             await callback.answer("Дуэль не запустилась")
 
@@ -922,7 +929,8 @@ def build_router(
         if duel_result == "started":
             await callback.answer("Чемпион вышел на дуэль")
         elif duel_result == "active":
-            await callback.answer("Дуэль уже идёт")
+            await refresh_active_duel_panel(bot, callback.message.chat.id)
+            await callback.answer("Табло дуэли обновлено")
         else:
             await callback.answer("Чемпион не нашёл соперника")
 
@@ -943,7 +951,8 @@ def build_router(
         if tournament_result == "started":
             await callback.answer("Запускаю турнир")
         elif tournament_result == "active":
-            await callback.answer("Турнир уже идёт")
+            await refresh_active_tournament_panel(bot, callback.message.chat.id)
+            await callback.answer("Табло турнира обновлено")
         else:
             await callback.answer("Турнир не запустился")
 
@@ -954,13 +963,13 @@ def build_router(
 
     @router.message()
     @router.channel_post()
-    async def fallback(message: Message) -> None:
+    async def fallback(message: Message, bot: Bot) -> None:
         image_pool.remember_user(message.from_user)
         if is_upload_active(message):
             data = upload_data(message)
             failed = int(data.get("failed", 0))
             data["failed"] = failed + 1
-            await message.answer(format_invalid_file())
+            await update_upload_panel(bot, message, data, force=True)
 
     return router
 
@@ -1193,6 +1202,7 @@ async def send_duel(
     chat_id = message.chat.id
     async with duel_lock_for(chat_id):
         if active_duel_id_for_chat(chat_id, "image"):
+            await refresh_active_duel_panel(bot, chat_id)
             if not silent_if_active:
                 await message.answer(format_duel_already_active("image"), parse_mode="HTML")
             return "active"
@@ -1265,6 +1275,7 @@ async def send_duel(
             )
             return "failed"
 
+        duel_sessions[duel_id]["score_message_id"] = score_message.message_id
         register_active_duel(chat_id, "image", duel_id)
         schedule_duel_finalizer(duel_id, bot, image_pool, chat_id, score_message.message_id)
         return "started"
@@ -1280,6 +1291,7 @@ async def send_tournament(
     chat_id = message.chat.id
     async with tournament_lock_for(chat_id):
         if active_tournament_id_for_chat(chat_id):
+            await refresh_active_tournament_panel(bot, chat_id)
             if not silent_if_active:
                 await message.answer(format_tournament_already_active(), parse_mode="HTML")
             return "active"
@@ -1350,6 +1362,7 @@ async def send_tournament(
             )
             return "failed"
 
+        tournament_sessions[tournament_id]["score_message_id"] = score_message.message_id
         register_active_tournament(chat_id, tournament_id)
         schedule_tournament_finalizer(
             tournament_id,
@@ -1678,6 +1691,54 @@ async def update_tournament_score_message(
     )
 
 
+async def refresh_active_duel_panel(bot: Bot, chat_id: int) -> bool:
+    duel_id = active_duel_id_for_chat(chat_id, "image")
+    if duel_id is None:
+        return False
+
+    duel = duel_sessions.get(duel_id)
+    if duel is None:
+        return False
+
+    message_id = duel.get("score_message_id")
+    if not isinstance(message_id, int):
+        return False
+
+    await update_duel_score_message(
+        bot=bot,
+        chat_id=chat_id,
+        message_id=message_id,
+        duel_id=duel_id,
+        duel=duel,
+        remaining_seconds=duel_remaining_seconds(duel),
+    )
+    return True
+
+
+async def refresh_active_tournament_panel(bot: Bot, chat_id: int) -> bool:
+    tournament_id = active_tournament_id_for_chat(chat_id)
+    if tournament_id is None:
+        return False
+
+    tournament = tournament_sessions.get(tournament_id)
+    if tournament is None:
+        return False
+
+    message_id = tournament.get("score_message_id")
+    if not isinstance(message_id, int):
+        return False
+
+    await update_tournament_score_message(
+        bot=bot,
+        chat_id=chat_id,
+        message_id=message_id,
+        tournament_id=tournament_id,
+        tournament=tournament,
+        remaining_seconds=tournament_remaining_seconds(tournament),
+    )
+    return True
+
+
 def duel_vote_counts(duel: dict) -> tuple[int, int]:
     votes = duel.get("votes", {})
     return (
@@ -1834,43 +1895,62 @@ def clear_active_tournament(chat_id: int, tournament_id: str) -> None:
         active_tournaments_by_chat.pop(chat_id, None)
 
 
-async def activate_upload(message: Message, state: FSMContext) -> bool:
+async def activate_upload(message: Message, state: FSMContext, bot: Bot) -> bool:
     if not is_private_chat(message):
         await message.answer(format_upload_private_only(), parse_mode="HTML")
         return False
 
     await state.set_state(AddPicture.uploading)
-    active_uploads[message.chat.id] = new_upload_session()
+    if is_upload_active(message):
+        await update_upload_panel(bot, message, upload_data(message), force=True)
+        return True
+
+    data = new_upload_session()
+    active_uploads[message.chat.id] = data
     upload_text = format_upload_opened(RANDOM.choice(UPLOAD_START_PHRASES))
-    await message.answer(
+    panel_message = await message.answer(
         upload_text,
         parse_mode="HTML",
         reply_markup=upload_menu(),
     )
+    data["panel_message_id"] = panel_message.message_id
+    data["panel_text"] = upload_text
     return True
 
 
-async def finish_upload_or_warn(message: Message, state: FSMContext) -> None:
+async def finish_upload_or_warn(message: Message, state: FSMContext, bot: Bot) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
 
-    await finish_upload(message, state)
+    await finish_upload(message, state, bot)
 
 
-async def cancel_upload(message: Message, state: FSMContext) -> None:
+async def cancel_upload(message: Message, state: FSMContext, bot: Bot) -> None:
     current_state = await state.get_state()
     if current_state != AddPicture.uploading.state and not is_upload_active(message):
         await message.answer(format_upload_not_active(), parse_mode="HTML")
         return
 
+    data = active_uploads.get(message.chat.id)
     await state.clear()
     active_uploads.pop(message.chat.id, None)
+    if data:
+        await edit_upload_panel(
+            bot=bot,
+            message=message,
+            data=data,
+            text=format_upload_cancelled(),
+            reply_markup=None,
+            log_context="upload cancelled panel",
+        )
+        return
+
     await message.answer(format_upload_cancelled(), parse_mode="HTML")
 
 
-async def finish_upload(message: Message, state: FSMContext) -> None:
+async def finish_upload(message: Message, state: FSMContext, bot: Bot) -> None:
     data = upload_data(message)
     added = int(data.get("added", 0))
     failed = int(data.get("failed", 0))
@@ -1894,7 +1974,14 @@ async def finish_upload(message: Message, state: FSMContext) -> None:
     if easter_egg:
         lines.extend(["", easter_egg])
 
-    await message.answer("\n".join(lines), parse_mode="HTML")
+    await edit_upload_panel(
+        bot=bot,
+        message=message,
+        data=data,
+        text="\n".join(lines),
+        reply_markup=None,
+        log_context="upload final panel",
+    )
 
 
 def is_upload_active(message: Message) -> bool:
@@ -1917,9 +2004,83 @@ def new_upload_session() -> UploadSession:
         "added": 0,
         "failed": 0,
         "duplicates": 0,
+        "panel_message_id": None,
+        "panel_text": "",
+        "last_panel_processed": 0,
         "announced_achievements": set(),
         "achievement_names": [],
     }
+
+
+def upload_processed_count(data: UploadSession) -> int:
+    return (
+        int(data.get("added", 0))
+        + int(data.get("failed", 0))
+        + int(data.get("duplicates", 0))
+    )
+
+
+async def update_upload_panel(
+    bot: Bot,
+    message: Message,
+    data: UploadSession,
+    force: bool = False,
+) -> None:
+    processed = upload_processed_count(data)
+    last_processed = int(data.get("last_panel_processed", 0))
+    if (
+        not force
+        and processed != 1
+        and processed - last_processed < UPLOAD_PROGRESS_UPDATE_EVERY
+    ):
+        return
+
+    data["last_panel_processed"] = processed
+    await edit_upload_panel(
+        bot=bot,
+        message=message,
+        data=data,
+        text=format_upload_progress(data),
+        reply_markup=upload_menu(),
+        log_context="upload progress panel",
+    )
+
+
+async def edit_upload_panel(
+    bot: Bot,
+    message: Message,
+    data: UploadSession,
+    text: str,
+    reply_markup,
+    log_context: str,
+) -> None:
+    if data.get("panel_text") == text:
+        return
+
+    panel_message_id = data.get("panel_message_id")
+    if isinstance(panel_message_id, int):
+        try:
+            await bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=panel_message_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+            data["panel_text"] = text
+            return
+        except TelegramAPIError as error:
+            if telegram_message_not_modified(error):
+                data["panel_text"] = text
+                return
+            LOGGER.warning("Failed to edit %s", log_context, exc_info=True)
+
+    try:
+        panel_message = await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
+        data["panel_message_id"] = panel_message.message_id
+        data["panel_text"] = text
+    except TelegramAPIError:
+        LOGGER.warning("Failed to send %s", log_context, exc_info=True)
 
 
 def upload_data(message: Message) -> UploadSession:
@@ -2339,9 +2500,26 @@ def format_upload_opened(intro: str) -> str:
     return (
         "<b>📥 Приём пикч открыт</b>\n\n"
         f"{escape(intro)}\n\n"
-        "<b>Кидайте</b>\n"
+        "<b>🖼 Что кидать</b>\n"
         "Фото, пачки, альбомы и пересланные изображения\n\n"
-        "<b>Управление</b>\n"
+        "<b>📦 Прогресс</b>\n"
+        "✅ Добавлено: <b>0</b>\n"
+        "♻️ Дубли: <b>0</b>\n"
+        "🚫 Не принято: <b>0</b>\n\n"
+        "<b>🎛 Управление</b>\n"
+        "<code>✅ Закончить</code> — сохранить пакет\n"
+        "<code>❌ Отмена</code> — закрыть без отчёта"
+    )
+
+
+def format_upload_progress(data: UploadSession) -> str:
+    return (
+        "<b>📥 Пикчи принимаю</b>\n\n"
+        "<b>📦 Прогресс пакета</b>\n"
+        f"{format_metric('✅ Добавлено', int(data.get('added', 0)))}\n"
+        f"{format_metric('♻️ Дубли', int(data.get('duplicates', 0)))}\n"
+        f"{format_metric('🚫 Не принято', int(data.get('failed', 0)))}\n\n"
+        "<b>🎛 Финиш</b>\n"
         "<code>✅ Закончить</code> — сохранить пакет\n"
         "<code>❌ Отмена</code> — закрыть без отчёта"
     )
@@ -2419,10 +2597,12 @@ def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
         else "Нажмите <code>📬 Как загрузить пикчи</code>, бот покажет маршрут в личку"
     )
     return (
-        "<b>📭 Склад пикч пуст</b>\n\n"
-        f"{escape(phrase)}\n"
-        "На полках пока только пыль и ожидание\n\n"
-        "<b>Маршрут</b>\n"
+        "<b>📭 Склад пуст</b>\n\n"
+        f"{escape(phrase)}\n\n"
+        "<b>📦 Состояние</b>\n"
+        "Пикч внутри: <b>0</b>\n"
+        "Рандом ждёт первый экспонат\n\n"
+        "<b>📥 Что делать</b>\n"
         f"{action}"
     )
 
