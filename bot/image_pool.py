@@ -237,9 +237,11 @@ class ImagePool:
                 "visual_hash": visual_hash,
             }
         )
+        if self._store:
+            self._store.insert_image(record)
         self._records.append(record)
         self._index_record(record)
-        self._write()
+        self._finish_incremental_write()
         return AddResult(added=True)
 
     def message_is_exact_duplicate(self, message: Message) -> bool:
@@ -265,13 +267,33 @@ class ImagePool:
         if previous_reaction == reaction:
             return ReactionUpdate(image=self._to_image_record(record), changed=False)
 
+        likes = int(record["likes"])
+        dislikes = int(record["dislikes"])
         if previous_reaction in REACTION_FIELDS:
             previous_field = REACTION_FIELDS[previous_reaction]
-            record[previous_field] = max(0, record[previous_field] - 1)
+            if previous_field == "likes":
+                likes = max(0, likes - 1)
+            else:
+                dislikes = max(0, dislikes - 1)
+
+        if field == "likes":
+            likes += 1
+        else:
+            dislikes += 1
+
+        if self._store:
+            self._store.update_image_reaction(
+                image_id=image_id,
+                user_id=user_id,
+                reaction=reaction,
+                likes=likes,
+                dislikes=dislikes,
+            )
 
         reactions_by_user[user_key] = reaction
-        record[field] += 1
-        self._write()
+        record["likes"] = likes
+        record["dislikes"] = dislikes
+        self._finish_incremental_write()
         return ReactionUpdate(image=self._to_image_record(record), changed=True)
 
     def delete(self, image_id: str) -> bool:
@@ -279,27 +301,38 @@ class ImagePool:
         if record is None:
             return False
 
+        if self._store:
+            self._store.delete_images({image_id})
         self._records.remove(record)
         self._remove_from_chat_history({image_id})
         self._rebuild_indexes()
-        self._write()
+        self._finish_incremental_write()
         return True
 
     def finish_duel(self, loser_id: str | None) -> bool:
         removed = False
+        removed_ids: set[str] = set()
+        next_stats = dict(self._duel_stats)
         if loser_id is None:
-            self._duel_stats["ties"] += 1
+            next_stats["ties"] += 1
         else:
             record = self._find(loser_id)
             if record is not None:
-                self._records.remove(record)
-                self._remove_from_chat_history({loser_id})
-                self._rebuild_indexes()
+                removed_ids.add(loser_id)
                 removed = True
-            self._duel_stats["executions"] += 1
+            next_stats["executions"] += 1
 
-        self._duel_stats["total"] += 1
-        self._write()
+        next_stats["total"] += 1
+        if self._store:
+            self._store.delete_images(removed_ids, self._storage_stats(next_stats))
+        if removed_ids:
+            self._records = [
+                record for record in self._records if record["id"] not in removed_ids
+            ]
+            self._remove_from_chat_history(removed_ids)
+            self._rebuild_indexes()
+        self._duel_stats = next_stats
+        self._finish_incremental_write()
         return removed
 
     def stats(self) -> PoolStats:
@@ -319,21 +352,20 @@ class ImagePool:
         )
         return self._stats_cache
 
-    def record_duel_result(self, *, tied: bool) -> None:
-        self._duel_stats["total"] += 1
-        if tied:
-            self._duel_stats["ties"] += 1
-        else:
-            self._duel_stats["executions"] += 1
-        self._write()
-
     def record_tournament_result(self, *, tied: bool) -> None:
-        self._duel_stats["tournaments"] += 1
+        next_stats = dict(self._duel_stats)
+        next_stats["tournaments"] += 1
         if tied:
-            self._duel_stats["tournament_ties"] += 1
-        self._write()
+            next_stats["tournament_ties"] += 1
+        if self._store:
+            self._store.save_image_stats(self._storage_stats(next_stats))
+        self._duel_stats = next_stats
+        self._finish_incremental_write()
 
     def reset_stats(self) -> None:
+        next_stats = self._normalize_duel_stats({})
+        if self._store:
+            self._store.reset_image_stats(self._storage_stats(next_stats))
         for record in self._records:
             record["shown_count"] = 0
             record["last_shown_at"] = None
@@ -342,8 +374,8 @@ class ImagePool:
             record["reactions_by_user"] = {}
 
         self._chat_history.clear()
-        self._duel_stats = self._normalize_duel_stats({})
-        self._write()
+        self._duel_stats = next_stats
+        self._finish_incremental_write()
 
     def count_by_user(self, user_id: int) -> int:
         return self._uploads_by_user.get(user_id, 0)
@@ -409,10 +441,12 @@ class ImagePool:
                 remaining=scanned,
             )
 
+        if self._store:
+            self._store.delete_images(removed_ids)
         self._records = kept_records
         self._remove_from_chat_history(removed_ids)
         self._rebuild_indexes()
-        self._write()
+        self._finish_incremental_write()
         return DedupeResult(
             user_id=user_id,
             scanned=scanned,
@@ -441,8 +475,10 @@ class ImagePool:
             "last_name": user.last_name,
             "updated_at": datetime.now(UTC).isoformat(),
         }
+        if self._store:
+            self._store.upsert_user(user_data)
         self._users[user_key] = user_data
-        self._write()
+        self._finish_incremental_write(invalidate_cache=False)
 
     def user_label(self, user_id: int) -> str:
         user = self._users.get(str(user_id))
@@ -561,8 +597,7 @@ class ImagePool:
         if fresh_records:
             return fresh_records
 
-        self._chat_history[str(chat_id)] = history[-1:]
-        last_id = set(self._chat_history[str(chat_id)])
+        last_id = {history[-1]}
         return [record for record in self._records if record["id"] not in last_id] or self._records
 
     def _mark_shown(self, record: dict, chat_id: int | str | None) -> None:
@@ -570,25 +605,77 @@ class ImagePool:
 
     def _mark_shown_many(self, shows: list[tuple[dict, int | str | None]]) -> None:
         shown_at = datetime.now(UTC).isoformat()
+        previous_records = {
+            str(record["id"]): (
+                record,
+                int(record["shown_count"]),
+                record.get("last_shown_at"),
+            )
+            for record, _ in shows
+        }
+        affected_chat_keys = {
+            str(chat_id)
+            for _, chat_id in shows
+            if chat_id is not None
+        }
+        previous_histories = {
+            chat_key: list(self._chat_history.get(chat_key, []))
+            for chat_key in affected_chat_keys
+        }
+        appended_by_chat: dict[str, list[str]] = {}
+        removed_by_chat: dict[str, set[str]] = {}
         for record, chat_id in shows:
             record["shown_count"] += 1
             record["last_shown_at"] = shown_at
-            self._remember_chat_show(record["id"], chat_id)
+            removed_ids = self._remember_chat_show(record["id"], chat_id)
+            if chat_id is not None:
+                chat_key = str(chat_id)
+                appended_by_chat.setdefault(chat_key, []).append(str(record["id"]))
+                removed_by_chat.setdefault(chat_key, set()).update(removed_ids)
 
-        self._write()
+        if self._store:
+            try:
+                self._store.update_image_shows(
+                    records=[record for record, _ in shows],
+                    chat_updates={
+                        chat_key: (
+                            appended_by_chat.get(chat_key, []),
+                            removed_by_chat.get(chat_key, set()),
+                        )
+                        for chat_key in affected_chat_keys
+                    },
+                )
+            except Exception:
+                for record, shown_count, last_shown_at in previous_records.values():
+                    record["shown_count"] = shown_count
+                    record["last_shown_at"] = last_shown_at
+                for chat_key, history in previous_histories.items():
+                    if history:
+                        self._chat_history[chat_key] = history
+                    else:
+                        self._chat_history.pop(chat_key, None)
+                raise
+        self._finish_incremental_write()
 
-    def _remember_chat_show(self, image_id: str, chat_id: int | str | None) -> None:
+    def _remember_chat_show(
+        self,
+        image_id: str,
+        chat_id: int | str | None,
+    ) -> set[str]:
         if chat_id is None:
-            return
+            return set()
 
         chat_key = str(chat_id)
         history = self._chat_history.setdefault(chat_key, [])
+        removed_ids = {image_id} if image_id in history else set()
         history[:] = [shown_id for shown_id in history if shown_id != image_id]
         history.append(image_id)
 
         max_history = min(MAX_CHAT_HISTORY, max(1, len(self._records) - 1))
         if len(history) > max_history:
+            removed_ids.update(history[:-max_history])
             del history[:-max_history]
+        return removed_ids
 
     def _remove_from_chat_history(self, image_ids: set[str]) -> None:
         for chat_key, history in list(self._chat_history.items()):
@@ -765,6 +852,20 @@ class ImagePool:
             totals[REACTION_FIELDS[reaction]] += 1
 
         return totals
+
+    def _storage_stats(self, stats: dict[str, int]) -> dict[str, int]:
+        return {
+            "version": STORAGE_VERSION,
+            **{key: int(value) for key, value in stats.items()},
+        }
+
+    def _finish_incremental_write(self, invalidate_cache: bool = True) -> None:
+        if self._store:
+            if invalidate_cache:
+                self._invalidate_cache()
+            return
+
+        self._write()
 
     def _write(self) -> None:
         self._atomic_write(self._records, self._chat_history, self._users, self._duel_stats)

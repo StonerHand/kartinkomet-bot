@@ -11,6 +11,7 @@ IMAGE_DUEL_STAT_KEYS = (
     "tournaments",
     "tournament_ties",
 )
+SQLITE_DELETE_BATCH_SIZE = 500
 
 
 class SQLiteDocumentStore:
@@ -221,6 +222,172 @@ class SQLiteDocumentStore:
                     },
                 },
             )
+
+    def insert_image(self, record: dict[str, Any]) -> None:
+        with self._connection:
+            next_position = self._connection.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM images"
+            ).fetchone()[0]
+            self._connection.execute(
+                """
+                INSERT INTO images (
+                    id, position, file_id, file_unique_id, added_by, added_at, visual_hash,
+                    shown_count, last_shown_at, likes, dislikes
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(record["id"]),
+                    int(next_position),
+                    str(record["file_id"]),
+                    str(record["file_unique_id"]),
+                    record.get("added_by"),
+                    record.get("added_at"),
+                    record.get("visual_hash"),
+                    int(record.get("shown_count") or 0),
+                    record.get("last_shown_at"),
+                    int(record.get("likes") or 0),
+                    int(record.get("dislikes") or 0),
+                ),
+            )
+
+    def upsert_user(self, user: dict[str, Any]) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO users (user_id, username, first_name, last_name, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    username = excluded.username,
+                    first_name = excluded.first_name,
+                    last_name = excluded.last_name,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    int(user["id"]),
+                    user.get("username"),
+                    user.get("first_name"),
+                    user.get("last_name"),
+                    user.get("updated_at"),
+                ),
+            )
+
+    def update_image_reaction(
+        self,
+        image_id: str,
+        user_id: int,
+        reaction: str,
+        likes: int,
+        dislikes: int,
+    ) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO image_reactions (image_id, user_id, reaction)
+                VALUES (?, ?, ?)
+                ON CONFLICT(image_id, user_id) DO UPDATE SET
+                    reaction = excluded.reaction
+                """,
+                (image_id, str(user_id), reaction),
+            )
+            self._connection.execute(
+                "UPDATE images SET likes = ?, dislikes = ? WHERE id = ?",
+                (int(likes), int(dislikes), image_id),
+            )
+
+    def update_image_shows(
+        self,
+        records: list[dict[str, Any]],
+        chat_updates: dict[str, tuple[list[str], set[str]]],
+    ) -> None:
+        unique_records = {str(record["id"]): record for record in records}
+        with self._connection:
+            self._connection.executemany(
+                """
+                UPDATE images
+                SET shown_count = ?, last_shown_at = ?
+                WHERE id = ?
+                """,
+                [
+                    (
+                        int(record.get("shown_count") or 0),
+                        record.get("last_shown_at"),
+                        image_id,
+                    )
+                    for image_id, record in unique_records.items()
+                ],
+            )
+            for chat_id, (appended_ids, removed_ids) in chat_updates.items():
+                ids_to_remove = set(appended_ids) | removed_ids
+                if ids_to_remove:
+                    placeholders = ",".join("?" for _ in ids_to_remove)
+                    self._connection.execute(
+                        f"""
+                        DELETE FROM image_chat_history
+                        WHERE chat_id = ? AND image_id IN ({placeholders})
+                        """,
+                        (str(chat_id), *sorted(ids_to_remove)),
+                    )
+
+                next_position = self._connection.execute(
+                    """
+                    SELECT COALESCE(MAX(position), -1) + 1
+                    FROM image_chat_history
+                    WHERE chat_id = ?
+                    """,
+                    (str(chat_id),),
+                ).fetchone()[0]
+                self._connection.executemany(
+                    """
+                    INSERT INTO image_chat_history (chat_id, position, image_id)
+                    VALUES (?, ?, ?)
+                    """,
+                    [
+                        (str(chat_id), int(next_position) + offset, str(image_id))
+                        for offset, image_id in enumerate(appended_ids)
+                    ],
+                )
+
+    def delete_images(
+        self,
+        image_ids: set[str],
+        stats: dict[str, int] | None = None,
+    ) -> None:
+        if not image_ids and stats is None:
+            return
+
+        with self._connection:
+            if image_ids:
+                sorted_ids = sorted(image_ids)
+                for offset in range(0, len(sorted_ids), SQLITE_DELETE_BATCH_SIZE):
+                    batch = sorted_ids[offset : offset + SQLITE_DELETE_BATCH_SIZE]
+                    placeholders = ",".join("?" for _ in batch)
+                    self._connection.execute(
+                        f"DELETE FROM images WHERE id IN ({placeholders})",
+                        tuple(batch),
+                    )
+            if stats is not None:
+                self._save_stats("image_stats", stats)
+
+    def save_image_stats(self, stats: dict[str, int]) -> None:
+        with self._connection:
+            self._save_stats("image_stats", stats)
+
+    def reset_image_stats(self, stats: dict[str, int]) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE images
+                SET shown_count = 0,
+                    last_shown_at = NULL,
+                    likes = 0,
+                    dislikes = 0
+                """
+            )
+            self._connection.execute("DELETE FROM image_reactions")
+            self._connection.execute("DELETE FROM image_chat_history")
+            self._connection.execute("DELETE FROM image_stats")
+            self._save_stats("image_stats", stats)
 
     def _load_reactions(self, table: str, item_column: str) -> dict[str, dict[str, str]]:
         rows = self._connection.execute(

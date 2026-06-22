@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from aiogram.exceptions import TelegramRetryAfter
+
 from bot.__main__ import BOT_COMMANDS
 from bot.config import parse_user_ids
 from bot.handlers import (
@@ -16,7 +18,9 @@ from bot.handlers import (
     clear_active_tournament,
     duel_sessions,
     format_admin_panel,
+    format_action_error,
     format_arena_menu,
+    format_arena_shortage,
     format_count,
     format_count_alert,
     format_duel_already_active,
@@ -30,7 +34,6 @@ from bot.handlers import (
     format_start,
     format_stats,
     format_storage_menu,
-    format_upload_burst_limit,
     format_upload_cancelled,
     format_upload_opened,
     format_upload_progress,
@@ -46,6 +49,7 @@ from bot.handlers import (
     resolve_image_duel_result,
     resolve_tournament_result,
     tournament_sessions,
+    telegram_request_with_retry,
 )
 from bot.image_pool import (
     GLOBAL_RECENT_LIMIT,
@@ -70,6 +74,7 @@ from bot.keyboards import (
     upload_hub,
     upload_menu,
 )
+from bot.storage import SQLiteDocumentStore
 from bot.texts import AUTO_DELETE_DISLIKES, PICTURE_CAPTIONS
 from bot.visual_hash import visual_hash_distance
 from scripts.visual_dedupe import HashResult, clean_chat_history, find_duplicates, hamming_distance
@@ -205,6 +210,71 @@ class BotContractTest(unittest.TestCase):
 
         self.assertEqual(pool.count(), 1)
         self.assertIn("visual_hash", image_columns)
+
+    def test_sqlite_hot_paths_do_not_rewrite_the_whole_pool(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            database_path = temp_dir / "kartinkomet.sqlite"
+            pool = ImagePool(
+                str(temp_dir / "image_pool.json"),
+                database_path=str(database_path),
+            )
+            assert pool._store is not None
+            pool._store.save_image_pool = lambda payload: self.fail(  # type: ignore[method-assign]
+                "hot path attempted a full SQLite rewrite"
+            )
+
+            first_add = pool.add_from_message(fake_photo_message("file-a", "unique-a", 101))
+            second_add = pool.add_from_message(fake_photo_message("file-b", "unique-b", 202))
+            self.assertTrue(first_add.added)
+            self.assertTrue(second_add.added)
+
+            image = pool.random_image(chat_id=77)
+            self.assertIsNotNone(image)
+            assert image is not None
+            reaction = pool.react(image.id, "like", user_id=303)
+            self.assertIsNotNone(reaction)
+            pool.record_tournament_result(tied=False)
+
+            reloaded = ImagePool(
+                str(temp_dir / "image_pool.json"),
+                database_path=str(database_path),
+            )
+
+            self.assertEqual(reloaded.count(), 2)
+            self.assertEqual(reloaded.stats().total_shows, 1)
+            self.assertEqual(reloaded.stats().total_likes, 1)
+            self.assertEqual(reloaded.stats().total_tournaments, 1)
+            self.assertEqual(reloaded.user_label(101), "user_101")
+            self.assertIn(image.id, reloaded._chat_history["77"])
+
+    def test_sqlite_bulk_delete_is_split_into_safe_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            store = SQLiteDocumentStore(str(Path(raw_temp_dir) / "kartinkomet.sqlite"))
+            records = [
+                {
+                    "id": f"image-{index}",
+                    "file_id": f"file-{index}",
+                    "file_unique_id": f"unique-{index}",
+                }
+                for index in range(505)
+            ]
+            store.save_image_pool(
+                {
+                    "version": 5,
+                    "images": records,
+                    "chat_history": {},
+                    "users": {},
+                    "duel_stats": {},
+                }
+            )
+
+            store.delete_images({record["id"] for record in records})
+            loaded = store.load_image_pool()
+
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertEqual(loaded["images"], [])
 
     def test_backup_sources_are_railway_image_storage_only(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
@@ -371,7 +441,6 @@ class BotContractTest(unittest.TestCase):
                 format_upload_opened("Скидывайте визуальные улики"),
                 format_upload_progress(new_upload_session()),
                 format_upload_cancelled(),
-                format_upload_burst_limit(),
                 format_upload_private_only(),
                 format_upload_not_active(),
                 format_empty_picture_pool("Пока пусто", is_private=False),
@@ -461,6 +530,21 @@ class BotContractTest(unittest.TestCase):
         self.assertIn("чемпион не выбран", format_tournament_result([1, 1, 1, 1], winner=None).lower())
         self.assertIn("пикчевая арена", format_duel_already_active())
 
+    def test_errors_use_structured_recovery_cards(self) -> None:
+        shortage = format_arena_shortage("Турнир", required=4, available=1)
+        delivery = format_action_error(
+            "Telegram притормозил",
+            "Медиа не дошло",
+            "Повторите запуск",
+        )
+
+        self.assertIn("Арена ждёт контент", shortage)
+        self.assertIn("Сейчас: <b>1</b>", shortage)
+        self.assertIn("Нужно: <b>4</b>", shortage)
+        self.assertIn("Добавьте ещё <b>3</b> пикч", shortage)
+        self.assertIn("Что делать", delivery)
+        self.assertIn("Повторите запуск", delivery)
+
     def test_upload_panel_uses_one_compact_progress_card(self) -> None:
         data = new_upload_session()
         data["added"] = 7
@@ -499,6 +583,28 @@ class BotContractTest(unittest.TestCase):
     def test_picture_caption_pool_is_large(self) -> None:
         self.assertGreaterEqual(len(PICTURE_CAPTIONS), 1500)
         self.assertEqual(AUTO_DELETE_DISLIKES, 2)
+
+
+class TelegramRetryTest(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_after_is_retried(self) -> None:
+        attempts = 0
+
+        async def operation() -> str:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise TelegramRetryAfter(
+                    method=SimpleNamespace(),
+                    message="retry later",
+                    retry_after=0,
+                )
+            return "ok"
+
+        with self.assertLogs("bot.handlers", level="WARNING"):
+            result = await telegram_request_with_retry(operation, "test retry")
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(attempts, 2)
 
 
 if __name__ == "__main__":

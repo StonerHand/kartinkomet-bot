@@ -153,6 +153,10 @@ SQLite settings:
 - `journal_mode=WAL`;
 - `synchronous=NORMAL`.
 
+Hot operations use incremental writes: a new image inserts one row, a reaction updates one vote, a show touches only its counter and the relevant chat-history tail, and Telegram user metadata is persisted with an upsert. Full transactional table rebuilds remain limited to migrations and rare bulk maintenance. Large dedupe removals are split into safe SQLite batches.
+
+Telegram requests retry temporary network/server failures and honor `retry_after`, so a short API incident should not abort an image delivery or arena launch on the first attempt.
+
 Database shape:
 
 ```mermaid
@@ -240,8 +244,11 @@ The test suite checks:
 - public command list;
 - removed features are absent from menus and copy;
 - SQLite schema;
+- incremental SQLite writes without rebuilding the whole pool;
+- safe batched bulk deletion;
 - reaction switching;
 - random anti-repeat behavior;
+- Telegram request retry after `retry_after`;
 - duel loser deletion;
 - tournament result logic;
 - keyboards;
@@ -255,6 +262,7 @@ Production facts worth remembering:
 - **one Railway replica** is required because Telegram long polling does not support multiple active `getUpdates` consumers;
 - **Volume mounted at `/data`** is mandatory: SQLite, WAL files, and the legacy JSON safety export live there;
 - **SQLite WAL** is the primary backend, keeping reads fast and data persistent across deploys;
+- **incremental transactions** avoid rewriting thousands of images on every show, vote, or upload;
 - **Telegram `file_id`** remains the media source of truth, so image files do not consume server disk;
 - **visual anti-duplicate checks** store perceptual hashes and compare them through a fast integer cache;
 - **admin commands are hidden** from Telegram's public command menu and guarded by `ADMIN_USER_IDS`.

@@ -9,9 +9,15 @@ from pathlib import Path
 from time import monotonic
 from typing import Literal, TypeVar, TypedDict
 from uuid import uuid4
+from weakref import WeakValueDictionary
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -265,11 +271,11 @@ upload_events_by_user: dict[int, list[float]] = {}
 admin_error_notifications: dict[str, float] = {}
 duel_sessions: dict[str, dict] = {}
 active_duels_by_chat: dict[int, dict[DuelKind, str]] = {}
-duel_locks: dict[int, asyncio.Lock] = {}
+duel_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
 duel_tasks: dict[str, asyncio.Task] = {}
 tournament_sessions: dict[str, dict] = {}
 active_tournaments_by_chat: dict[int, str] = {}
-tournament_locks: dict[int, asyncio.Lock] = {}
+tournament_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
 tournament_tasks: dict[str, asyncio.Task] = {}
 
 
@@ -1028,7 +1034,15 @@ async def send_picture(
             key=f"send_picture:{destination_chat_id}",
         )
         if answer_message:
-            await answer_message.answer("Telegram не отдал пикчу. Попробуйте ещё раз")
+            await answer_message.answer(
+                format_action_error(
+                    "📡 Telegram не отдал пикчу",
+                    "Выдача не добралась до чата",
+                    "Нажмите «🎲 Рандом» ещё раз через несколько секунд",
+                ),
+                parse_mode="HTML",
+                reply_markup=random_menu(),
+            )
         return
 
     if (
@@ -1050,11 +1064,23 @@ async def telegram_request_with_retry(
     for attempt in range(1, TELEGRAM_SEND_RETRIES + 1):
         try:
             return await operation()
-        except TelegramNetworkError:
+        except TelegramRetryAfter as error:
+            if attempt == TELEGRAM_SEND_RETRIES:
+                raise
+            delay = max(0.0, float(error.retry_after))
+            LOGGER.warning(
+                "Telegram rate limit during %s, retrying in %.2fs (%s/%s)",
+                description,
+                delay,
+                attempt,
+                TELEGRAM_SEND_RETRIES,
+            )
+            await asyncio.sleep(delay)
+        except (TelegramNetworkError, TelegramServerError):
             if attempt == TELEGRAM_SEND_RETRIES:
                 raise
             LOGGER.warning(
-                "Telegram network error during %s, retrying %s/%s",
+                "Temporary Telegram error during %s, retrying %s/%s",
                 description,
                 attempt,
                 TELEGRAM_SEND_RETRIES,
@@ -1208,7 +1234,11 @@ async def send_duel(
             return "active"
 
         if image_pool.count() < 2:
-            await message.answer("⚔️ Для дуэли нужно хотя бы две пикчи в пуле")
+            await message.answer(
+                format_arena_shortage("Дуэль", required=2, available=image_pool.count()),
+                parse_mode="HTML",
+                reply_markup=empty_picture_pool_actions(is_private=is_private_chat(message)),
+            )
             return "failed"
 
         duel_pair = (
@@ -1217,7 +1247,15 @@ async def send_duel(
             else image_pool.random_duel_pair(chat_id=chat_id)
         )
         if duel_pair is None:
-            await message.answer("⚔️ Дуэль сорвалась. Пул пустоват")
+            await message.answer(
+                format_action_error(
+                    "⚔️ Дуэль не собралась",
+                    "Склад не смог подобрать пару без повторов",
+                    "Повторите запуск или проверьте склад через /count",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
+            )
             return "failed"
         left, right = duel_pair
 
@@ -1235,7 +1273,15 @@ async def send_duel(
                 f"Чат: <code>{chat_id}</code>",
                 key=f"duel_album:{chat_id}",
             )
-            await message.answer("⚔️ Дуэль сорвалась. Telegram не отдал картинки")
+            await message.answer(
+                format_action_error(
+                    "📡 Дуэль не стартовала",
+                    "Telegram не отдал обе картинки арены",
+                    "Повторите запуск через несколько секунд",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
+            )
             return "failed"
 
         duel_id = uuid4().hex
@@ -1273,6 +1319,15 @@ async def send_duel(
                 f"Чат: <code>{chat_id}</code>",
                 key=f"duel_vote:{chat_id}",
             )
+            await message.answer(
+                format_action_error(
+                    "📡 Голосование не открылось",
+                    "Картинки отправлены, но Telegram не отдал кнопки дуэли",
+                    "Повторите запуск через несколько секунд",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
+            )
             return "failed"
 
         duel_sessions[duel_id]["score_message_id"] = score_message.message_id
@@ -1298,7 +1353,13 @@ async def send_tournament(
 
         if image_pool.count() < TOURNAMENT_SIZE:
             await message.answer(
-                f"🏟 Для турнира нужно хотя бы {TOURNAMENT_SIZE} пикчи в пуле",
+                format_arena_shortage(
+                    "Турнир",
+                    required=TOURNAMENT_SIZE,
+                    available=image_pool.count(),
+                ),
+                parse_mode="HTML",
+                reply_markup=empty_picture_pool_actions(is_private=is_private_chat(message)),
             )
             return "failed"
 
@@ -1307,7 +1368,15 @@ async def send_tournament(
             size=TOURNAMENT_SIZE,
         )
         if candidates is None:
-            await message.answer("🏟 Турнир сорвался. Пул не набрал состав")
+            await message.answer(
+                format_action_error(
+                    "🏟 Турнир не собрался",
+                    "Склад не смог подобрать четвёрку без повторов",
+                    "Повторите запуск или проверьте склад через /count",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
+            )
             return "failed"
 
         media_sent = await send_photo_album_with_fallback(
@@ -1324,7 +1393,15 @@ async def send_tournament(
                 f"Чат: <code>{chat_id}</code>",
                 key=f"tournament_album:{chat_id}",
             )
-            await message.answer("🏟 Турнир сорвался. Telegram не отдал картинки")
+            await message.answer(
+                format_action_error(
+                    "📡 Турнир не стартовал",
+                    "Telegram не отдал все четыре картинки",
+                    "Повторите запуск через несколько секунд",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
+            )
             return "failed"
 
         tournament_id = uuid4().hex
@@ -1359,6 +1436,15 @@ async def send_tournament(
                 "<b>⚠️ Telegram не отдал голосовалку турнира</b>\n\n"
                 f"Чат: <code>{chat_id}</code>",
                 key=f"tournament_vote:{chat_id}",
+            )
+            await message.answer(
+                format_action_error(
+                    "📡 Голосование не открылось",
+                    "Картинки отправлены, но Telegram не отдал кнопки турнира",
+                    "Повторите запуск через несколько секунд",
+                ),
+                parse_mode="HTML",
+                reply_markup=arena_menu(),
             )
             return "failed"
 
@@ -2310,6 +2396,35 @@ def format_section(title: str, *lines: str) -> str:
     return "\n".join([f"<b>{title}</b>", *lines])
 
 
+def format_action_error(title: str, detail: str, action: str) -> str:
+    return "\n\n".join(
+        [
+            f"<b>{escape(title)}</b>",
+            escape(detail),
+            format_section("🔁 Что делать", escape(action)),
+        ]
+    )
+
+
+def format_arena_shortage(arena: str, required: int, available: int) -> str:
+    missing = max(0, required - available)
+    return "\n\n".join(
+        [
+            "<b>🧱 Арена ждёт контент</b>",
+            f"{escape(arena)} пока не стартует",
+            format_section(
+                "📦 Склад",
+                format_metric("Сейчас", available),
+                format_metric("Нужно", required),
+            ),
+            format_section(
+                "📥 Следующий шаг",
+                f"Добавьте ещё <b>{missing}</b> пикч",
+            ),
+        ]
+    )
+
+
 def format_stats(
     image_pool: ImagePool,
     chat_id: int | None = None,
@@ -2561,33 +2676,6 @@ def parse_user_id_argument(message: Message) -> int | None:
         return int(parts[1].strip())
     except ValueError:
         return None
-
-
-def format_upload_limit() -> str:
-    return (
-        "<b>🧯 Стоп-кран сработал</b>\n\n"
-        f"{format_metric('Лимит', f'{UPLOAD_LIMIT_PER_HOUR} новых пикч в час')}\n"
-        "Пауза, склад перегрелся"
-    )
-
-
-def format_upload_burst_limit() -> str:
-    return (
-        "<b>🧯 Загрузка приторможена</b>\n\n"
-        f"{format_metric('Темп', f'{UPLOAD_BURST_LIMIT} сообщений в минуту')}\n"
-        "Слишком плотный поток. Дайте боту пару секунд разобрать склад"
-    )
-
-
-def format_duplicate_skipped() -> str:
-    return "♻️ Дубликат. Уже лежит на складе"
-
-
-def format_invalid_file() -> str:
-    return (
-        "⚠️ Файл не принят\n\n"
-        "Отправьте фото или изображение как документ: JPG, PNG, WEBP"
-    )
 
 
 def format_empty_picture_pool(phrase: str, is_private: bool = False) -> str:
