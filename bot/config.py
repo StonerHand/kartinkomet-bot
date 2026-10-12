@@ -11,6 +11,7 @@ class Config:
     database_path: Path
     legacy_database_path: Path
     admin_user_ids: frozenset[int]
+    tz_offset_hours: int
 
 
 def load_config() -> Config:
@@ -28,6 +29,8 @@ def load_config() -> Config:
             os.getenv("LEGACY_DATABASE_PATH") or data_dir / "kartinkomet.sqlite"
         ),
         admin_user_ids=parse_user_ids(os.getenv("ADMIN_USER_IDS", "")),
+        # Used only to decide what counts as a night upload. Default: Moscow (UTC+3).
+        tz_offset_hours=int(os.getenv("BOT_TZ_OFFSET", "3")),
     )
 
 

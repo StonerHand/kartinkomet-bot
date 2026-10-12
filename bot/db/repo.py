@@ -52,6 +52,8 @@ class Battle:
     status: str
     streak: int
     title: str
+    winner_slot: int | None
+    result_streak: int | None
     pics: tuple[Pic, ...]
     votes: dict[int, int]
 
@@ -74,6 +76,8 @@ class Court:
     started_at: int
     ends_at: int
     status: str
+    title: str
+    pic_message_id: int | None
     last_word: str | None
     votes: dict[int, str]
 
@@ -143,6 +147,10 @@ class Repo:
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
         return int(row["value"]) if row else default
 
+    def meta_str(self, key: str) -> str | None:
+        row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
     def set_meta(self, key: str, value: int | str) -> None:
         with self.db:
             self.db.execute(
@@ -200,6 +208,14 @@ class Repo:
             return "@" + str(row["username"]).lstrip("@")
         name = " ".join(part for part in (row["first_name"], row["last_name"]) if part).strip()
         return name or str(user_id)
+
+    def all_user_ids(self) -> list[int]:
+        return [
+            row[0]
+            for row in self.db.execute(
+                "SELECT user_id FROM users UNION SELECT added_by FROM pics WHERE added_by IS NOT NULL"
+            )
+        ]
 
     def count_users(self) -> int:
         return self.db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -489,6 +505,8 @@ class Repo:
             status=row["status"],
             streak=row["streak"],
             title=row["title"],
+            winner_slot=row["winner_slot"],
+            result_streak=row["result_streak"],
             pics=pics,
             votes=votes,
         )
@@ -530,6 +548,15 @@ class Repo:
             )
         return cursor.rowcount == 1
 
+    def set_battle_result(
+        self, battle_id: str, winner_slot: int | None, result_streak: int | None
+    ) -> None:
+        with self.db:
+            self.db.execute(
+                "UPDATE battles SET winner_slot = ?, result_streak = ? WHERE id = ?",
+                (winner_slot, result_streak, battle_id),
+            )
+
     # ── courts ──────────────────────────────────────────────────────────
 
     def create_court(
@@ -540,13 +567,25 @@ class Repo:
         started_by: int | None,
         now: int,
         duration: int,
+        title: str = "",
+        pic_message_id: int | None = None,
     ) -> str:
         court_id = uuid4().hex[:16]
         with self.db:
             self.db.execute(
-                "INSERT INTO courts (id, chat_id, pic_id, reason, started_by, started_at, ends_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (court_id, chat_id, pic_id, reason, started_by, now, now + duration),
+                "INSERT INTO courts (id, chat_id, pic_id, reason, started_by, started_at, ends_at, "
+                "title, pic_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    court_id,
+                    chat_id,
+                    pic_id,
+                    reason,
+                    started_by,
+                    now,
+                    now + duration,
+                    title,
+                    pic_message_id,
+                ),
             )
         return court_id
 
@@ -583,6 +622,8 @@ class Repo:
             started_at=row["started_at"],
             ends_at=row["ends_at"],
             status=row["status"],
+            title=row["title"],
+            pic_message_id=row["pic_message_id"],
             last_word=row["last_word"],
             votes=votes,
         )

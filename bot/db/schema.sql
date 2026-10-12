@@ -67,7 +67,9 @@ CREATE TABLE IF NOT EXISTS battles (
     ends_at INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'done')),
     streak INTEGER NOT NULL DEFAULT 0,
-    title TEXT NOT NULL DEFAULT ''
+    title TEXT NOT NULL DEFAULT '',
+    winner_slot INTEGER,
+    result_streak INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_battles_active ON battles(status, chat_id, kind);
@@ -96,6 +98,8 @@ CREATE TABLE IF NOT EXISTS courts (
     started_at INTEGER NOT NULL,
     ends_at INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'executed', 'pardoned')),
+    title TEXT NOT NULL DEFAULT '',
+    pic_message_id INTEGER,
     last_word TEXT
 );
 
