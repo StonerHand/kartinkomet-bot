@@ -110,28 +110,37 @@ def battle_card(battle: Battle, remaining: int) -> str:
 
 
 def battle_result(report: BattleReport, uploaders: list[str]) -> str:
+    """One line per pic, best first: marker, slot, uploader, rating change."""
     battle = report.battle
     is_duel = battle.kind == "duel"
     labels = DUEL_LABELS if is_duel else TOURNAMENT_LABELS
-    head = "⚔️ <b>ИТОГ ДУЭЛИ</b>" if is_duel else "🏟 <b>ИТОГ ТУРНИРА</b>"
+    title = "⚔️ <b>ИТОГ ДУЭЛИ</b>" if is_duel else "🏟 <b>ИТОГ ТУРНИРА</b>"
 
     if not report.counted:
-        return f"{head}\n{quote(pick(arena_texts.NOBODY_VOTED, battle.chat_id))}"
+        return f"{title}\n\n{quote(pick(arena_texts.NOBODY_VOTED, battle.chat_id))}"
 
     counts = battle.vote_counts()
-    leader = max(counts)
-    lines = [head, ""]
-    for slot, pic in enumerate(battle.pics):
-        mark = " 👑" if slot == report.winner else ""
-        if report.executed and report.executed.id == pic.id:
-            mark = " ⚰️"
-        lines.append(f"{labels[slot]} <b>{counts[slot]}</b>{bar(counts[slot], leader, SLOT_COLORS[slot])}{mark}")
-        lines.append(
-            f"<i>      ⭐ {rating(report.rating_after[slot])} "
-            f"({delta(report.rating_before[slot], report.rating_after[slot])}) · {who(uploaders[slot])}</i>"
-        )
-
+    total = sum(counts)
+    score = " : ".join(str(count) for count in counts) if is_duel else f"{total} {plural(total, 'голос', 'голоса', 'голосов')}"
+    lines = [f"{title} · <b>{score}</b>", ""]
+    executed_id = report.executed.id if report.executed else None
+    order = sorted(range(len(battle.pics)), key=lambda slot: (-counts[slot], slot))
+    for slot in order:
+        pic = battle.pics[slot]
+        if slot == report.winner:
+            marker = "👑"
+        elif pic.id == executed_id:
+            marker = "⚰️"
+        elif report.winner is None and counts[slot] == max(counts):
+            marker = "🤝"
+        else:
+            marker = "▫️"
+        votes = "" if is_duel else f" · {counts[slot]} {plural(counts[slot], 'голос', 'голоса', 'голосов')}"
+        name = f"<b>{who(uploaders[slot])}</b>" if slot == report.winner else who(uploaders[slot])
+        change = delta(report.rating_before[slot], report.rating_after[slot])
+        lines.append(f"{marker} {labels[slot]} {name}{votes} · ⭐ {rating(report.rating_after[slot])} <i>({change})</i>")
     lines.append("")
+
     if is_duel:
         pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
         lines.append(quote(pick(pool, battle.chat_id)))
@@ -145,7 +154,7 @@ def battle_result(report: BattleReport, uploaders: list[str]) -> str:
     else:
         pool = arena_texts.TOURNAMENT_DRAW if report.winner is None else arena_texts.TOURNAMENT_WIN
         lines.append(quote(pick(pool, battle.chat_id)))
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip()
 
 
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
