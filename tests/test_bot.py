@@ -40,15 +40,18 @@ class FakeSession(BaseSession):
     async def close(self) -> None:
         pass
 
-    async def stream_content(self, *args, **kwargs):  # pragma: no cover - not used
-        yield b""
+    image: bytes | None = None  # served by downloads when a test enables collages
 
-    def message(self, chat_id: int) -> Message:
+    async def stream_content(self, *args, **kwargs):
+        yield self.image or b""
+
+    def message(self, chat_id: int, photo: bool = False) -> Message:
         return Message(
             message_id=next(self.ids),
             date=datetime.now(UTC),
             chat=Chat(id=chat_id, type="private" if chat_id > 0 else "supergroup"),
             from_user=BOT_USER,
+            photo=[PhotoSize(file_id="sent", file_unique_id="sent", width=1, height=1)] if photo else None,
         )
 
     async def make_request(self, bot, method, timeout=None):
@@ -61,13 +64,13 @@ class FakeSession(BaseSession):
         if name == "SendEphemeralMessage":
             return {"message_id": 0}
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
-            return self.message(int(method.chat_id))
+            return self.message(int(method.chat_id), photo=name == "SendPhoto")
         if name == "SendMediaGroup":
             return [self.message(int(method.chat_id)) for _ in method.media]
         if name == "GetMe":
             return BOT_USER
         if name == "GetFile":
-            return File(file_id=method.file_id, file_unique_id="x", file_path=None)
+            return File(file_id=method.file_id, file_unique_id="x", file_path="photos/x.jpg" if self.image else None)
         return True
 
     def of(self, name: str) -> list[TelegramMethod]:
@@ -287,6 +290,28 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
     async def test_same_photo_twice_in_parallel_is_one_pic(self) -> None:
         self.assertIsNotNone(self.game.add_pic("same", "same-uniq", 5, None))
         self.assertIsNone(self.game.add_pic("same", "same-uniq", 5, None))
+
+
+    async def test_duel_is_one_numbered_collage_message(self) -> None:
+        from io import BytesIO
+
+        from PIL import Image
+
+        buffer = BytesIO()
+        Image.new("RGB", (300, 200), (200, 30, 30)).save(buffer, "JPEG")
+        self.session.image = buffer.getvalue()
+
+        await self.send("/duel")
+        self.assertEqual(self.session.of("SendMediaGroup"), [])
+        card = self.session.of("SendPhoto")[-1]
+        self.assertIn("ДУЭЛЬ", card.caption)
+        battle_id = self.buttons(card)[0].split(":")[1]
+        self.assertTrue(self.game.repo.get_battle(battle_id).card_is_photo)
+
+        await self.press(f"v:{battle_id}:0", sender=3)
+        self.clock.advance(DUEL_SECONDS + 1)
+        await self.live.finish_battle(battle_id)
+        self.assertIn("ИТОГ ДУЭЛИ", self.session.of("EditMessageCaption")[-1].caption)
 
 
 if __name__ == "__main__":

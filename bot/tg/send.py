@@ -16,6 +16,7 @@ from aiogram.exceptions import (
 from aiogram.methods import TelegramMethod
 from aiogram.types import (
     InlineKeyboardMarkup,
+    InputFile,
     InputMediaPhoto,
     Message,
     ReactionTypeEmoji,
@@ -145,7 +146,7 @@ async def send_text(
 async def send_photo(
     bot: Bot,
     chat_id: int,
-    file_id: str,
+    file_id: str | InputFile,
     caption: str,
     markup: InlineKeyboardMarkup | None = None,
     reply_to: int | None = None,
@@ -164,7 +165,7 @@ async def send_photo(
         )
     except TelegramBadRequest as error:
         # Pics uploaded as documents can't be sent as photos.
-        if "document" not in str(error).casefold():
+        if not isinstance(file_id, str) or "document" not in str(error).casefold():
             LOGGER.warning("Failed to send photo to %s: %s", chat_id, error)
             return None
     except TelegramAPIError as error:

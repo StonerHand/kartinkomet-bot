@@ -54,6 +54,7 @@ class Battle:
     title: str
     winner_slot: int | None
     result_streak: int | None
+    card_is_photo: bool
     pics: tuple[Pic, ...]
     votes: dict[int, int]
 
@@ -112,6 +113,12 @@ def connect(database_path: Path | str) -> sqlite3.Connection:
 
 def apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    # Columns added after the first v2 release: CREATE TABLE IF NOT EXISTS won't add them.
+    battle_columns = {row[1] for row in connection.execute("PRAGMA table_info(battles)")}
+    if "card_is_photo" not in battle_columns:
+        connection.execute(
+            "ALTER TABLE battles ADD COLUMN card_is_photo INTEGER NOT NULL DEFAULT 0"
+        )
     connection.execute(
         "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
         "ON CONFLICT(key) DO NOTHING",
@@ -467,10 +474,18 @@ class Repo:
             )
         return battle_id
 
-    def set_battle_message(self, battle_id: str, message_id: int) -> None:
+    def set_battle_message(self, battle_id: str, message_id: int, is_photo: bool = False) -> None:
         with self.db:
             self.db.execute(
-                "UPDATE battles SET message_id = ? WHERE id = ?", (message_id, battle_id)
+                "UPDATE battles SET message_id = ?, card_is_photo = ? WHERE id = ?",
+                (message_id, int(is_photo), battle_id),
+            )
+
+    def restart_battle_clock(self, battle_id: str, now: int, duration: int) -> None:
+        with self.db:
+            self.db.execute(
+                "UPDATE battles SET started_at = ?, ends_at = ? WHERE id = ? AND status = 'active'",
+                (now, now + duration, battle_id),
             )
 
     def drop_battle(self, battle_id: str) -> None:
@@ -508,6 +523,7 @@ class Repo:
             title=row["title"],
             winner_slot=row["winner_slot"],
             result_streak=row["result_streak"],
+            card_is_photo=bool(row["card_is_photo"]),
             pics=pics,
             votes=votes,
         )

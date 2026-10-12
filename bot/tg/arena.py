@@ -1,8 +1,14 @@
 """Duels and tournaments."""
 
+import asyncio
+import logging
+from io import BytesIO
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
+
+from bot import collage
 
 from bot.game import Game
 from bot.texts import arena as arena_texts
@@ -11,6 +17,7 @@ from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
+LOGGER = logging.getLogger(__name__)
 router = Router(name="arena")
 
 
@@ -47,22 +54,53 @@ async def start_battle(
         return result.status
 
     battle = result.battle
-    if not await send.send_album(bot, chat_id, [pic.file_id for pic in battle.pics]):
-        game.cancel_battle(battle.id)
-        await send.send_text(bot, chat_id, pick(ui.ERRORS))
-        return "failed"
-    card = await send.send_text(
-        bot,
-        chat_id,
-        views.battle_card(battle, battle.ends_at - game.now()),
-        keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
-    )
+    duration = battle.ends_at - battle.started_at
+    markup = keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts())
+    card = None
+    image = await build_collage(bot, battle.pics)
+    if image is not None:
+        # One message: the numbered collage with the vote card as its caption.
+        card = await send.send_photo(
+            bot,
+            chat_id,
+            BufferedInputFile(image, filename="arena.jpg"),
+            views.battle_card(battle, duration),
+            markup,
+        )
     if card is None:
-        game.cancel_battle(battle.id)
-        return "failed"
-    game.repo.set_battle_message(battle.id, card.message_id)
+        # Fallback: plain album + separate text card.
+        if not await send.send_album(bot, chat_id, [pic.file_id for pic in battle.pics]):
+            game.cancel_battle(battle.id)
+            await send.send_text(bot, chat_id, pick(ui.ERRORS))
+            return "failed"
+        card = await send.send_text(bot, chat_id, views.battle_card(battle, duration), markup)
+        if card is None:
+            game.cancel_battle(battle.id)
+            return "failed"
+    game.repo.set_battle_message(battle.id, card.message_id, is_photo=image is not None and card.photo is not None)
+    # Downloads and uploads took a few seconds: the vote starts now.
+    game.repo.restart_battle_clock(battle.id, game.now(), duration)
     live.watch_battle(battle.id)
     return "started"
+
+
+async def build_collage(bot: Bot, pics) -> bytes | None:
+    try:
+        images = []
+        for pic in pics:
+            telegram_file = await send.retry(lambda pic=pic: bot.get_file(pic.file_id), "collage get_file")
+            if not telegram_file.file_path:
+                return None
+            buffer = BytesIO()
+            await send.retry(
+                lambda path=telegram_file.file_path: bot.download_file(path, destination=buffer),
+                "collage download",
+            )
+            images.append(buffer.getvalue())
+        return await asyncio.to_thread(collage.build, images)
+    except Exception:  # any failure here just means "no collage", the album fallback still works
+        LOGGER.warning("Collage failed, falling back to album", exc_info=True)
+        return None
 
 
 @router.message(Command("duel"))

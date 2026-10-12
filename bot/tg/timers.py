@@ -94,13 +94,15 @@ class Live:
         battle = self.game.repo.get_battle(battle_id)
         if battle is None or battle.status != "active" or battle.message_id is None:
             return
-        await send.edit_text(
-            self.bot,
-            battle.chat_id,
-            battle.message_id,
+        await self.edit_card(
+            battle,
             views.battle_card(battle, battle.ends_at - self.game.now()),
             keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
         )
+
+    async def edit_card(self, battle, text: str, markup) -> bool:
+        edit = send.edit_caption if battle.card_is_photo else send.edit_text
+        return await edit(self.bot, battle.chat_id, battle.message_id, text, markup)
 
     async def finish_battle(self, battle_id: str) -> None:
         report = self.game.finish_battle(battle_id)
@@ -113,7 +115,7 @@ class Live:
             markup = keyboards.after_tournament()
         text = views.battle_result(report, self.uploaders(battle))
         card_id = battle.message_id
-        if card_id is None or not await send.edit_text(self.bot, battle.chat_id, card_id, text, markup):
+        if card_id is None or not await self.edit_card(battle, text, markup):
             sent = await send.send_text(self.bot, battle.chat_id, text, markup)
             card_id = sent.message_id if sent else None
         if report.counted and report.winner is not None:

@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS battles (
     streak INTEGER NOT NULL DEFAULT 0,
     title TEXT NOT NULL DEFAULT '',
     winner_slot INTEGER,
-    result_streak INTEGER
+    result_streak INTEGER,
+    card_is_photo INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_battles_active ON battles(status, chat_id, kind);
