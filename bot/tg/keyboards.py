@@ -24,7 +24,8 @@ SUCCESS = "success"
 DANGER = "danger"
 DUEL_LABELS = ("🅰️", "🅱️")
 TOURNAMENT_LABELS = ("1️⃣", "2️⃣", "3️⃣", "4️⃣")
-TOP_BOARDS = (("uploads", "📥 Загрузчики"), ("loved", "❤️ Любимцы"), ("killers", "🪓 Палачи"), ("streaks", "🔥 Серии"))
+TOP_BOARDS = (("uploads", "📥 Загрузки"), ("loved", "❤️ Любимцы"), ("killers", "🪓 Палачи"), ("streaks", "🔥 Серии"))
+# Telegram truncates long labels on phones: keep ≤ 8 chars with 3 buttons in a row, ≤ 12 with 2.
 
 
 def button(text: str, data: str, style: str | None = None) -> InlineKeyboardButton:
@@ -43,21 +44,11 @@ def back(to: str = "m:home") -> list[InlineKeyboardButton]:
 
 def home(is_admin: bool) -> InlineKeyboardMarkup:
     return markup(
-        [
-            button("🎲 Пикчу", "pic", PRIMARY),
-            button("⚔️ Дуэль", "d:new", PRIMARY),
-            button("🏟 Турнир", "t:new", PRIMARY),
-        ],
-        [
-            button("🏛 Зал славы", "m:hall"),
-            button("🕳 Дно склада", "m:bottom"),
-            button("⚰️ Кладбище", "m:grave"),
-        ],
-        [
-            button("🏆 Топы", "m:top:uploads"),
-            button("👤 Я", "m:me"),
-            button("📥 Загрузить", "m:up", SUCCESS),
-        ],
+        [button("🎲 Пикчу", "pic", PRIMARY), button("⚔️ Дуэль", "d:new", PRIMARY)],
+        [button("🏟 Турнир", "t:new", PRIMARY), button("🏆 Топы", "m:top:uploads")],
+        [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom")],
+        [button("⚰️ Кладбище", "m:grave"), button("👤 Я", "m:me")],
+        [button("📥 Загрузить пикчи", "m:up", SUCCESS)],
         [button("⚙️ Админка", "m:adm")] if is_admin else [],
     )
 
@@ -90,10 +81,10 @@ def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardM
 
 
 def after_duel(battle_id: str, has_champion: bool) -> InlineKeyboardMarkup:
-    row = [button("⚔️ Новая дуэль", "d:new", PRIMARY)]
+    rows = [[button("⚔️ Новая дуэль", "d:new", PRIMARY)]]
     if has_champion:
-        row.insert(0, button("👑 Чемпион дальше", f"d:ch:{battle_id}", SUCCESS))
-    return markup(row)
+        rows.insert(0, [button("👑 Чемпион дальше", f"d:ch:{battle_id}", SUCCESS)])
+    return markup(*rows)
 
 
 def after_tournament() -> InlineKeyboardMarkup:
@@ -103,8 +94,8 @@ def after_tournament() -> InlineKeyboardMarkup:
 def court_vote(court_id: str, kill: int, spare: int) -> InlineKeyboardMarkup:
     return markup(
         [
-            button(f"🪓 Казнить {kill}", f"c:k:{court_id}", DANGER),
-            button(f"🕊 Помиловать {spare}", f"c:s:{court_id}", SUCCESS),
+            button(f"🪓 Казнь {kill}", f"c:k:{court_id}", DANGER),
+            button(f"🕊 Жить {spare}", f"c:s:{court_id}", SUCCESS),
         ]
     )
 
@@ -150,7 +141,7 @@ def graveyard(pic_ids: list[str], is_admin: bool) -> InlineKeyboardMarkup:
 
 def tops(active: str) -> InlineKeyboardMarkup:
     tabs = [
-        button(("• " if board == active else "") + label, f"m:top:{board}")
+        button(("✅ " + label.split(" ", 1)[1]) if board == active else label, f"m:top:{board}")
         for board, label in TOP_BOARDS
     ]
     return markup(tabs[:2], tabs[2:], back())
@@ -169,12 +160,13 @@ def uploading() -> InlineKeyboardMarkup:
 def admin() -> InlineKeyboardMarkup:
     return markup(
         [button("🩺 Health", "adm:health"), button("💾 Бэкап", "adm:backup")],
-        [button("🧨 Сбросить стату", "adm:reset", DANGER)],
+        [button("🧨 Сбросить статистику", "adm:reset", DANGER)],
         back(),
     )
 
 
 def admin_reset_confirm() -> InlineKeyboardMarkup:
     return markup(
-        [button("💀 Да, всё стереть", "adm:reset!", DANGER), button("Отмена", "m:adm")]
+        [button("💀 Да, всё стереть", "adm:reset!", DANGER)],
+        [button("Отмена", "m:adm")],
     )
