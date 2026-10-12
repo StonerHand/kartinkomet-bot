@@ -23,6 +23,8 @@ PRIMARY = "primary"
 SUCCESS = "success"
 DANGER = "danger"
 DUEL_LABELS = ("🅰️", "🅱️")
+# Vote buttons match the collage badges: red, blue, green, then the app default for yellow.
+SLOT_STYLES = (DANGER, PRIMARY, SUCCESS, None)
 TOURNAMENT_LABELS = ("1️⃣", "2️⃣", "3️⃣", "4️⃣")
 TOP_BOARDS = (("uploads", "📥 Загрузки"), ("loved", "❤️ Любимцы"), ("killers", "🪓 Палачи"), ("streaks", "🔥 Серии"))
 # Telegram truncates long labels on phones: keep ≤ 8 chars with 3 buttons in a row, ≤ 12 with 2.
@@ -75,7 +77,7 @@ def more_only() -> InlineKeyboardMarkup:
 def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardMarkup:
     labels = DUEL_LABELS if kind == "duel" else TOURNAMENT_LABELS
     buttons = [
-        button(f"{labels[slot]} {count}", f"v:{battle_id}:{slot}", PRIMARY)
+        button(f"{labels[slot]} {count}", f"v:{battle_id}:{slot}", SLOT_STYLES[slot])
         for slot, count in enumerate(counts)
     ]
     return markup(buttons)

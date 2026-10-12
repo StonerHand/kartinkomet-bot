@@ -314,5 +314,22 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ИТОГ ДУЭЛИ", self.session.of("EditMessageCaption")[-1].caption)
 
 
+    async def test_profile_and_command_menus(self) -> None:
+        from bot.__main__ import set_up_profile
+
+        await set_up_profile(self.bot)
+        menus = {type(r.scope).__name__ if r.scope else "default": [c.command for c in r.commands] for r in self.session.of("SetMyCommands")}
+        self.assertIn("upload", menus["BotCommandScopeAllPrivateChats"])
+        self.assertNotIn("upload", menus["BotCommandScopeAllGroupChats"])
+        self.assertEqual(len(self.session.of("SetMyDescription")), 1)
+        self.assertEqual(len(self.session.of("SetMyShortDescription")), 1)
+
+    async def test_vote_buttons_match_badge_colours(self) -> None:
+        await self.send("/tournament")
+        card = [r for r in self.session.requests if getattr(r, "reply_markup", None) and "v:" in str(r.reply_markup)][-1]
+        styles = [b.model_extra.get("style") if b.model_extra else getattr(b, "style", None) for b in card.reply_markup.inline_keyboard[0]]
+        self.assertEqual(styles, ["danger", "primary", "success", None])
+
+
 if __name__ == "__main__":
     unittest.main()

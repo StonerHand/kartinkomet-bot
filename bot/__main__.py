@@ -2,7 +2,8 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import BotCommand
+from aiogram.exceptions import TelegramAPIError
+from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
 from bot.config import load_config
 from bot.db.migrate import migrate_if_needed
@@ -14,16 +15,40 @@ from bot.tg.timers import Live
 
 LOGGER = logging.getLogger("kartinkomet")
 
-BOT_COMMANDS = [
-    BotCommand(command="pic", description="рандомная пикча"),
-    BotCommand(command="duel", description="дуэль двух пикч"),
-    BotCommand(command="tournament", description="турнир четырёх"),
-    BotCommand(command="menu", description="пульт: зал славы, дно, кладбище"),
-    BotCommand(command="top", description="топы"),
-    BotCommand(command="me", description="моя карточка"),
-    BotCommand(command="upload", description="загрузка пикч в личке"),
-    BotCommand(command="help", description="как тут всё устроено"),
+GROUP_COMMANDS = [
+    BotCommand(command="pic", description="🎲 рандомная пикча"),
+    BotCommand(command="duel", description="⚔️ дуэль двух пикч"),
+    BotCommand(command="tournament", description="🏟 турнир четырёх"),
+    BotCommand(command="menu", description="🎛 пульт: слава, дно, кладбище, топы"),
+    BotCommand(command="top", description="🏆 топы"),
+    BotCommand(command="me", description="👤 моя карточка"),
+    BotCommand(command="help", description="❓ правила"),
 ]
+# Uploading works only in private chats, so only they get /upload in the menu.
+PRIVATE_COMMANDS = [
+    BotCommand(command="upload", description="📥 загрузить пикчи на склад"),
+    *GROUP_COMMANDS,
+]
+SHORT_DESCRIPTION = "Склад пикч для чата: дуэли с рейтингом, турниры, народный суд и зал славы"
+DESCRIPTION = (
+    "🎲 Общий склад пикч для твоей компании.\n\n"
+    "⚔️ Пикчи дерутся на арене и набирают рейтинг\n"
+    "⚖️ Неугодных судит народ\n"
+    "🏛 Лучшие попадают в зал славы, худшие — на кладбище\n\n"
+    "Добавь меня в групповой чат, а пикчи загружай здесь, в личке: /upload"
+)
+
+
+async def set_up_profile(bot: Bot) -> None:
+    """Command menus and profile texts. Cosmetic: a failure here must not stop the bot."""
+    try:
+        await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())
+        await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
+        await bot.set_my_commands(GROUP_COMMANDS)
+        await bot.set_my_short_description(SHORT_DESCRIPTION)
+        await bot.set_my_description(DESCRIPTION)
+    except TelegramAPIError:
+        LOGGER.warning("Could not update bot commands/description", exc_info=True)
 
 
 def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispatcher:
@@ -63,7 +88,7 @@ async def main() -> None:
     live = Live(bot, game)
     dispatcher = build_dispatcher(game, live, config.admin_user_ids)
     try:
-        await bot.set_my_commands(BOT_COMMANDS)
+        await set_up_profile(bot)
         restored = live.restore()
         if restored:
             LOGGER.info("Resumed %s live battles/courts", restored)

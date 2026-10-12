@@ -159,7 +159,8 @@ def battle_result(report: BattleReport, uploaders: list[str]) -> str:
 
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
     pool = {3: arena_texts.STREAK_3, 5: arena_texts.STREAK_5}.get(milestone, arena_texts.STREAK_10)
-    return f"<b>{escape(pick(pool, chat_id))}</b>\n\n👑 Серия: <b>{streak}</b> побед подряд"
+    wins = plural(streak, "победа", "победы", "побед")
+    return f"<b>{escape(pick(pool, chat_id))}</b>\n\n👑 Серия: <b>{streak}</b> {wins} подряд"
 
 
 # ── courts ─────────────────────────────────────────────────────────────
@@ -204,7 +205,7 @@ def court_result(report: CourtReport, uploader: str) -> str:
 
 
 def achievements_unlocked(granted: Granted, label: str) -> str:
-    lines = [f"🏅 <b>{escape(pick(UNLOCKED))}</b> · {who(label)}"]
+    lines = [f"<b>{escape(pick(UNLOCKED))}</b> · {who(label)}"]
     for code in granted.codes:
         name, description = ACHIEVEMENTS.get(code, (code, ""))
         lines.append(f"<b>{escape(name)}</b>\n<i>{escape(description)}</i>")
@@ -266,7 +267,7 @@ def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
 
 
 def top(board: str, rows: list[tuple[str, int]]) -> str:
-    lines = [f"🏆 <b>{escape(top_texts.BOARD_TITLES[board]).upper()}</b>", ""]
+    lines = [f"<b>{escape(top_texts.BOARD_TITLES[board]).upper()}</b>", ""]
     if not rows:
         lines.append(escape(pick(top_texts.BOARD_EMPTY)))
         return "\n".join(lines)
@@ -304,7 +305,7 @@ def profile(label: str, stats: UserStats, owned: set[str], place: int | None) ->
     lines += ["", f"🏅 Ачивки: <b>{len(owned)}</b> из {len(rules.RULES)}"]
     earned = [ACHIEVEMENTS[code][0] for code in rules.RULE_CODES if code in owned]
     if earned:
-        lines.append(f"<blockquote expandable>{escape(chr(10).join(earned))}</blockquote>")
+        lines.append(f"<blockquote expandable>{escape(chr(10).join(earned))}</blockquote>\n")
     lines.append(f"<i>{escape(pick(top_texts.PROFILE_ROASTS))}</i>")
     return "\n".join(lines)
 
