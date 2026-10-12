@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
 from bot.texts import arena as arena_texts
-from bot.texts import ui
+from bot.texts import toasts, ui
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
@@ -54,7 +54,7 @@ async def start_battle(
     card = await send.send_text(
         bot,
         chat_id,
-        views.battle_card(battle, battle.ends_at - game.now(), live.uploaders(battle)),
+        views.battle_card(battle, battle.ends_at - game.now()),
         keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
     )
     if card is None:
@@ -128,7 +128,7 @@ async def vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         await callback.answer("Бой уже окончен", show_alert=True)
         return
     if status == "same":
-        await callback.answer("Уже стоит")
+        await callback.answer(pick(toasts.ALREADY))
         return
-    await callback.answer("Голос принят")
+    await callback.answer(pick(toasts.DUEL_VOTE))
     live.request_refresh_battle(battle_id)

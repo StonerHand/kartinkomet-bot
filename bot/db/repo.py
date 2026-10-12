@@ -204,8 +204,9 @@ class Repo:
         ).fetchone()
         if row is None:
             return str(user_id)
+        # Never prefix "@": Telegram turns it into a mention and pings the person every time.
         if row["username"]:
-            return "@" + str(row["username"]).lstrip("@")
+            return str(row["username"]).lstrip("@")
         name = " ".join(part for part in (row["first_name"], row["last_name"]) if part).strip()
         return name or str(user_id)
 

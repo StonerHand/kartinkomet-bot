@@ -80,7 +80,7 @@ class MigrationTest(unittest.TestCase):
         scopes = dict(repo.db.execute("SELECT scope, COUNT(*) FROM deck_seen GROUP BY scope").fetchall())
         self.assertEqual(scopes, {"pic:-100": 1, "arena:-100": 2})
         self.assertEqual(repo.meta_int("v1_executions"), 3)
-        self.assertEqual(repo.user_label(1), "@stoner")
+        self.assertEqual(repo.user_label(1), "stoner")
 
     def test_no_legacy_means_fresh_start(self) -> None:
         self.assertFalse(migrate_if_needed(self.dir / "missing.sqlite", self.dir / "v2.sqlite"))

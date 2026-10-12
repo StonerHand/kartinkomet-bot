@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
 from bot.texts import court as court_texts
+from bot.texts import toasts
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
@@ -95,9 +96,9 @@ async def court_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         await callback.answer("Суд уже окончен", show_alert=True)
         return
     if status == "same":
-        await callback.answer("Ты уже так проголосовал")
+        await callback.answer(pick(toasts.ALREADY))
         return
-    await callback.answer("🪓 Голос за казнь принят" if vote == "kill" else "🕊 Голос за помилование принят")
+    await callback.answer(pick(toasts.KILL_VOTE if vote == "kill" else toasts.SPARE_VOTE))
     live.request_refresh_court(court_id)
 
 

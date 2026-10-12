@@ -13,7 +13,14 @@ from aiogram.exceptions import (
     TelegramRetryAfter,
     TelegramServerError,
 )
-from aiogram.types import InlineKeyboardMarkup, InputMediaPhoto, Message, ReplyParameters
+from aiogram.methods import TelegramMethod
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Message,
+    ReactionTypeEmoji,
+    ReplyParameters,
+)
 
 LOGGER = logging.getLogger(__name__)
 RETRIES = 3
@@ -203,5 +210,82 @@ async def send_album(bot: Bot, chat_id: int, file_ids: list[str]) -> bool:
 async def delete(bot: Bot, chat_id: int, message_id: int) -> None:
     try:
         await bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except TelegramAPIError:
+        pass
+
+
+async def react(bot: Bot, chat_id: int, message_id: int | None, emoji: str, big: bool = False) -> None:
+    """Bot reaction on a message. Chats may restrict reactions, so failures are ignored."""
+    if message_id is None:
+        return
+    try:
+        await bot.set_message_reaction(
+            chat_id=chat_id,
+            message_id=message_id,
+            reaction=[ReactionTypeEmoji(emoji=emoji)],
+            is_big=big,
+        )
+    except TelegramAPIError as error:
+        LOGGER.info("Reaction %s not allowed in %s: %s", emoji, chat_id, error)
+
+
+class SendEphemeralMessage(TelegramMethod[dict]):
+    """sendMessage with Bot API 10.3 ephemeral_message_parameters (newer than aiogram 3.20).
+
+    The result is read as a plain dict so a newer Message shape can't break parsing.
+    """
+
+    __returning__ = dict
+    __api_method__ = "sendMessage"
+
+    chat_id: int
+    text: str
+    parse_mode: str = "HTML"
+    ephemeral_message_parameters: dict
+    reply_markup: InlineKeyboardMarkup | None = None
+
+
+async def send_ephemeral(
+    bot: Bot,
+    chat_id: int,
+    user_id: int,
+    text: str,
+    callback_query_id: str | None = None,
+    markup: InlineKeyboardMarkup | None = None,
+) -> bool:
+    """A group message only `user_id` sees. False if Telegram refused, so callers can fall back."""
+    parameters: dict = {"receiver_user_id": user_id}
+    if callback_query_id:
+        parameters["callback_query_id"] = callback_query_id
+    try:
+        await bot(
+            SendEphemeralMessage(
+                chat_id=chat_id,
+                text=text,
+                ephemeral_message_parameters=parameters,
+                reply_markup=markup,
+            )
+        )
+        return True
+    except TelegramAPIError as error:
+        LOGGER.info("Ephemeral message refused in %s: %s", chat_id, error)
+        return False
+
+
+# Message effects work in private chats only. IDs are Telegram's public effect ids.
+EFFECT_PARTY = "5046509860389126442"
+
+
+async def send_with_effect(bot: Bot, chat_id: int, text: str, effect_id: str) -> None:
+    try:
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML", message_effect_id=effect_id)
+    except TelegramAPIError:
+        await send_text(bot, chat_id, text)
+
+
+async def answer_quietly(callback, text: str | None = None) -> None:
+    """Answer a callback that Telegram may already consider answered."""
+    try:
+        await callback.answer(text)
     except TelegramAPIError:
         pass

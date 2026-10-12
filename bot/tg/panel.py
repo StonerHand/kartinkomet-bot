@@ -35,7 +35,7 @@ def screen(
     if name == "grave":
         pics = repo.graveyard(5)
         labels = [repo.user_label(pic.added_by) for pic in pics]
-        text = views.graveyard(repo.count_pics("executed"), pics, labels)
+        text = views.graveyard(repo.count_pics("executed"), pics, labels, game.now())
         return text, keyboards.graveyard([pic.id for pic in pics], is_admin)
     if name == "top":
         board = arg if arg in BOARDS else "uploads"
@@ -63,10 +63,11 @@ def live_now(game: Game, chat_id: int) -> list[str]:
     for kind, label in (("duel", "⚔️ Дуэль"), ("tournament", "🏟 Турнир")):
         battle = game.repo.active_battle(chat_id, kind)
         if battle and battle.ends_at > now:
-            lines.append(f"{label} · {views.timer(battle.ends_at - now)}")
+            lines.append(f"{label} · ⏳ {views.timer(battle.ends_at - now)}")
     courts = game.repo.active_courts_in_chat(chat_id, now)
     if courts:
-        lines.append(f"⚖️ Суд · {views.timer(min(courts) - now)}" + (f" (ещё {len(courts) - 1})" if len(courts) > 1 else ""))
+        extra = f" · и ещё {len(courts) - 1}" if len(courts) > 1 else ""
+        lines.append(f"⚖️ Суд · ⏳ {views.timer(min(courts) - now)}{extra}")
     return lines
 
 
@@ -132,8 +133,12 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
     if name == "adm" and not is_admin:
         await callback.answer(ui.ADMIN_ONLY, show_alert=True)
         return
-    text, markup = screen(
-        game, name, arg, message.chat.id, callback.from_user.id, is_admin, message.chat.type == "private"
-    )
-    await callback.answer()
+    is_private = message.chat.type == "private"
+    text, markup = screen(game, name, arg, message.chat.id, callback.from_user.id, is_admin, is_private)
+    if name == "me" and not is_private:
+        # The profile is personal: in a group show it only to the person who asked.
+        if await send.send_ephemeral(bot, message.chat.id, callback.from_user.id, text, callback.id):
+            await send.answer_quietly(callback, "👤 Показал только тебе")
+            return
+    await callback.answer("🔄 Обновлено" if name == "home" and arg == "refresh" else None)
     await send.edit_text(bot, message.chat.id, message.message_id, text, markup)

@@ -54,6 +54,12 @@ class FakeSession(BaseSession):
     async def make_request(self, bot, method, timeout=None):
         self.requests.append(method)
         name = type(method).__name__
+        if name in getattr(self, "refuse", set()):
+            from aiogram.exceptions import TelegramBadRequest
+
+            raise TelegramBadRequest(method=method, message="Bad Request: not supported")
+        if name == "SendEphemeralMessage":
+            return {"message_id": 0}
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
             return self.message(int(method.chat_id))
         if name == "SendMediaGroup":
@@ -134,9 +140,21 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.session.of("SendMessage")), 2)
         self.assertEqual(len(self.session.of("DeleteMessage")), 1)
         self.assertNotIn("m:adm", self.buttons(self.session.of("SendMessage")[0]))
-        for screen in ("m:hall", "m:bottom", "m:grave", "m:top:loved", "m:me", "m:up", "m:home"):
+        for screen in ("m:hall", "m:bottom", "m:grave", "m:top:loved", "m:up", "m:help", "m:home:refresh"):
             await self.press(screen)
         self.assertEqual(len(self.session.of("EditMessageText")), 7)
+
+    async def test_profile_is_private_in_groups(self) -> None:
+        await self.press("m:me", sender=3)
+        ephemeral = self.session.of("SendEphemeralMessage")
+        self.assertEqual(len(ephemeral), 1)
+        self.assertEqual(ephemeral[0].ephemeral_message_parameters["receiver_user_id"], 3)
+        self.assertEqual(self.session.of("EditMessageText"), [])
+
+    async def test_profile_falls_back_to_panel_if_ephemeral_refused(self) -> None:
+        self.session.refuse = {"SendEphemeralMessage"}
+        await self.press("m:me", sender=3)
+        self.assertIn("USER3", self.session.of("EditMessageText")[-1].text)
 
     async def test_admin_sees_admin_and_reset_needs_confirmation(self) -> None:
         await self.send("/menu", sender=ADMIN)
@@ -164,7 +182,10 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         await self.press(f"c:k:{court_id}", sender=4)
         self.clock.advance(COURT_SECONDS + 1)
         await self.live.finish_court(court_id)
-        self.assertIn("Казнена", self.session.of("EditMessageCaption")[-1].caption)
+        self.assertIn("КАЗНЕНА", self.session.of("EditMessageCaption")[-1].caption)
+        emojis = [r.reaction[0].emoji for r in self.session.of("SetMessageReaction")]
+        self.assertIn("🤡", emojis)  # verdict
+        self.assertIn("🎉", emojis)  # voters got the "first blood" achievement
         self.assertEqual(self.game.repo.get_pic(pic_id).status, "executed")
 
     async def test_last_word_from_uploader(self) -> None:
@@ -191,7 +212,8 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(f"d:ch:{battle_id}", self.buttons(result))
         await self.press(f"d:ch:{battle_id}")
         self.assertEqual(len(self.session.of("SendMediaGroup")), 2)
-        self.assertIn("чемпионка, серия 1", self.session.of("SendMessage")[-1].text)
+        self.assertIn("чемпионка, серия <b>1</b>", self.session.of("SendMessage")[-1].text)
+        self.assertEqual(self.session.of("SetMessageReaction")[0].reaction[0].emoji, "🏆")
 
     async def test_tournament(self) -> None:
         await self.press("t:new")

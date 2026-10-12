@@ -98,7 +98,7 @@ class Live:
             self.bot,
             battle.chat_id,
             battle.message_id,
-            views.battle_card(battle, battle.ends_at - self.game.now(), self.uploaders(battle)),
+            views.battle_card(battle, battle.ends_at - self.game.now()),
             keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
         )
 
@@ -112,17 +112,21 @@ class Live:
         else:
             markup = keyboards.after_tournament()
         text = views.battle_result(report, self.uploaders(battle))
-        if battle.message_id is None or not await send.edit_text(
-            self.bot, battle.chat_id, battle.message_id, text, markup
-        ):
-            await send.send_text(self.bot, battle.chat_id, text, markup)
+        card_id = battle.message_id
+        if card_id is None or not await send.edit_text(self.bot, battle.chat_id, card_id, text, markup):
+            sent = await send.send_text(self.bot, battle.chat_id, text, markup)
+            card_id = sent.message_id if sent else None
+        if report.counted and report.winner is not None:
+            await send.react(self.bot, battle.chat_id, card_id, "🏆")
         if report.milestone:
-            await send.send_text(
+            streak_message = await send.send_text(
                 self.bot,
                 battle.chat_id,
                 views.streak_announcement(report.milestone, report.streak, battle.chat_id),
-                reply_to=battle.message_id,
+                reply_to=card_id,
             )
+            if streak_message:
+                await send.react(self.bot, battle.chat_id, streak_message.message_id, "🔥", big=True)
         await self.announce(battle.chat_id, report.granted)
 
     def uploaders(self, battle) -> list[str]:
@@ -166,10 +170,13 @@ class Live:
         trial = report.court
         uploader = self.game.repo.user_label(trial.pic.added_by)
         text = views.court_result(report, uploader)
-        if trial.message_id is None or not await send.edit_caption(
-            self.bot, trial.chat_id, trial.message_id, text, None
-        ):
-            await send.send_text(self.bot, trial.chat_id, text)
+        card_id = trial.message_id
+        if card_id is None or not await send.edit_caption(self.bot, trial.chat_id, card_id, text, None):
+            sent = await send.send_text(self.bot, trial.chat_id, text)
+            card_id = sent.message_id if sent else None
+        await send.react(
+            self.bot, trial.chat_id, card_id, "🤡" if report.verdict == "executed" else "🕊", big=True
+        )
         if trial.pic_message_id is not None:
             pic = self.game.repo.get_pic(trial.pic.id)
             if report.verdict == "executed" or pic is None:
@@ -183,8 +190,10 @@ class Live:
 
     async def announce(self, chat_id: int, granted: list[Granted]) -> None:
         for item in granted:
-            await send.send_text(
+            message = await send.send_text(
                 self.bot,
                 chat_id,
                 views.achievements_unlocked(item, self.game.repo.user_label(item.user_id)),
             )
+            if message:
+                await send.react(self.bot, chat_id, message.message_id, "🎉")

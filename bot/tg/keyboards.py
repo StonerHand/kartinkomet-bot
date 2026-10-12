@@ -49,7 +49,8 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
         [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom")],
         [button("⚰️ Кладбище", "m:grave"), button("👤 Я", "m:me")],
         [button("📥 Загрузить", "m:up", SUCCESS), button("❓ Правила", "m:help")],
-        [button("⚙️ Админка", "m:adm")] if is_admin else [],
+        [button("🔄 Обновить", "m:home:refresh")]
+        + ([button("⚙️ Админка", "m:adm")] if is_admin else []),
     )
 
 

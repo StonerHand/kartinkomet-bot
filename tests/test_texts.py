@@ -2,12 +2,12 @@ import unittest
 from html.parser import HTMLParser
 
 from bot.core.achievements import RULE_CODES
-from bot.texts import arena, captions, court, tops, ui
+from bot.texts import arena, captions, court, toasts, tops, ui
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick, reset
 
 EXPECTED_SIZES = {
-    (captions, "CAPTIONS"): 500,
+    (captions, "CAPTIONS"): 600,
     (captions, "FRESH"): 40,
     (captions, "LEGEND"): 40,
     (arena, "DUEL_START"): 60,
@@ -31,11 +31,13 @@ EXPECTED_SIZES = {
     (tops, "PODIUM"): 20,
     (tops, "MIDDLE"): 20,
     (tops, "LAST_PLACE"): 20,
+    (toasts, "LIKE"): 20,
+    (toasts, "DISLIKE"): 20,
 }
 
 
 def all_pools():
-    for module in (arena, captions, court, tops, ui):
+    for module in (arena, captions, court, toasts, tops, ui):
         for name, value in vars(module).items():
             if name.isupper() and isinstance(value, tuple) and value and isinstance(value[0], str):
                 yield f"{module.__name__}.{name}", value

@@ -136,6 +136,13 @@ async def end(bot: Bot, chat_id: int, user_id: int, cancelled: bool) -> None:
         bot, chat_id, session.panel_message_id, text, None
     ):
         await send.send_text(bot, chat_id, text)
+    if not cancelled and session.added:
+        await send.send_with_effect(
+            bot,
+            chat_id,
+            f"🎉 <b>+{session.added}</b> на склад. Они уже в рандоме",
+            send.EFFECT_PARTY,
+        )
 
 
 @router.message(Command("upload", "upload_pidor"))

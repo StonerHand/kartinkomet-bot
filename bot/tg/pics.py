@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
-from bot.texts import ui
+from bot.texts import toasts, ui
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
 from bot.tg.court import open_court
@@ -85,10 +85,10 @@ async def react(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> No
             await send.edit_markup(bot, message.chat.id, message.message_id, keyboards.more_only())
         return
     if not result.changed:
-        await callback.answer("Уже стоит")
+        await callback.answer(pick(toasts.ALREADY))
         return
 
-    await callback.answer("Засчитано")
+    await callback.answer(pick(toasts.LIKE if sign == "+" else toasts.DISLIKE))
     if message is None:
         return
     chat_id = message.chat.id
