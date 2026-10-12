@@ -1,11 +1,13 @@
 """Phrase picking without short-term repeats."""
 
 import random
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Sequence
 
 _RNG = random.SystemRandom()
-_recent: dict[tuple[object, int], deque[int]] = {}
+# Least-recently-used memory per (scope, pool); capped so per-battle scopes can't grow forever.
+MAX_SCOPES = 1024
+_recent: OrderedDict[tuple[object, int], deque[int]] = OrderedDict()
 
 
 def lines(block: str) -> tuple[str, ...]:
@@ -26,9 +28,12 @@ def pick(pool: Sequence[str], scope: object = None) -> str:
 
     key = (scope, id(pool))
     memory = _recent.get(key)
-    if memory is None or memory.maxlen != len(pool) // 2:
+    if memory is None or memory.maxlen != max(1, len(pool) // 2):
         memory = deque(maxlen=max(1, len(pool) // 2))
         _recent[key] = memory
+    _recent.move_to_end(key)
+    while len(_recent) > MAX_SCOPES:
+        _recent.popitem(last=False)
 
     used = set(memory)
     choices = [index for index in range(len(pool)) if index not in used]

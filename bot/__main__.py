@@ -8,7 +8,7 @@ from bot.config import load_config
 from bot.db.migrate import migrate_if_needed
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import admin, arena, court, panel, pics, upload
+from bot.tg import admin, arena, court, fallback, panel, pics, upload
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
 
@@ -30,9 +30,16 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
     dispatcher = Dispatcher(game=game, live=live, admins=admin_ids)
     dispatcher.message.outer_middleware(RememberUser(game))
     dispatcher.callback_query.outer_middleware(RememberUser(game))
-    # Order matters: the court router catches plain replies to the bot, so it goes last.
+    dispatcher.errors.register(fallback.on_error)
+    # Order matters: court catches plain replies to the bot, fallback catches every leftover button.
     dispatcher.include_routers(
-        panel.router, pics.router, arena.router, upload.router, admin.router, court.router
+        panel.router,
+        pics.router,
+        arena.router,
+        upload.router,
+        admin.router,
+        court.router,
+        fallback.router,
     )
     return dispatcher
 

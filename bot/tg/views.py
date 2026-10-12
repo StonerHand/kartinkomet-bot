@@ -57,7 +57,7 @@ def pic_caption(pic: Pic, bucket: str, chat_id: int, uploader: str | None) -> st
 # ── battles ────────────────────────────────────────────────────────────
 
 
-def battle_card(battle: Battle, remaining: int) -> str:
+def battle_card(battle: Battle, remaining: int, uploaders: list[str]) -> str:
     counts = battle.vote_counts()
     total = sum(counts)
     labels = DUEL_LABELS if battle.kind == "duel" else TOURNAMENT_LABELS
@@ -69,12 +69,13 @@ def battle_card(battle: Battle, remaining: int) -> str:
     if battle.kind == "duel" and battle.streak > 0:
         lines.append(f"👑 {labels[0]} — чемпионка, серия {battle.streak}")
     for slot, pic in enumerate(battle.pics):
-        lines.append(f"{labels[slot]} {bar(counts[slot], total)} <b>{counts[slot]}</b> · ⭐ {rating(pic.rating)}")
-    lines += ["", f"<i>{escape(pick(status_pool, battle.id))}</i>", timer(remaining)]
+        lines.append(f"{labels[slot]} {bar(counts[slot], total)} <b>{counts[slot]}</b>")
+        lines.append(f"     ⭐ {rating(pic.rating)} · {who(uploaders[slot])}")
+    lines += ["", f"<i>{escape(pick(status_pool, battle.chat_id))}</i>", timer(remaining)]
     return "\n".join(lines)
 
 
-def battle_result(report: BattleReport) -> str:
+def battle_result(report: BattleReport, uploaders: list[str]) -> str:
     battle = report.battle
     labels = DUEL_LABELS if battle.kind == "duel" else TOURNAMENT_LABELS
     counts = battle.vote_counts()
@@ -91,6 +92,7 @@ def battle_result(report: BattleReport) -> str:
         lines.append(
             f"{labels[slot]} <b>{counts[slot]}</b> · ⭐ {rating(report.rating_after[slot])} "
             f"({delta(report.rating_before[slot], report.rating_after[slot])}){crown}{dead}"
+            f" · {who(uploaders[slot])}"
         )
     lines.append("")
 
@@ -131,11 +133,11 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
         f"🪓 {bar(kill, total)} <b>{kill}</b>",
         f"🕊 {bar(spare, total)} <b>{spare}</b>",
         "",
-        f"<i>{escape(pick(court_texts.STATUS, trial.id))}</i>",
+        f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>",
         timer(remaining),
     ]
     if trial.last_word:
-        lines += ["", escape(pick(court_texts.LAST_WORD_INTRO, trial.id)), f"«{escape(trial.last_word)}»"]
+        lines += ["", escape(pick(court_texts.LAST_WORD_INTRO, trial.chat_id)), f"«{escape(trial.last_word)}»"]
     else:
         lines += ["", "<i>Загрузчик может ответить на это сообщение — это будет последнее слово</i>"]
     return "\n".join(lines)
@@ -179,13 +181,16 @@ def achievements_unlocked(granted: Granted, label: str) -> str:
 # ── panel screens ──────────────────────────────────────────────────────
 
 
-def home(totals: dict[str, int], chat_id: int) -> str:
-    return (
-        f"<b>🎛 {escape(pick(ui.MENU_HEADERS, chat_id))}</b>\n\n"
-        f"📦 Живых пикч: <b>{totals['alive']}</b>\n"
-        f"⚰️ На кладбище: <b>{totals['executed']}</b>\n"
-        f"👀 Показов: <b>{totals['shows']}</b> · 🤙🏻 {totals['likes']} · 🖕🏻 {totals['dislikes']}"
-    )
+def home(totals: dict[str, int], chat_id: int, live_now: list[str]) -> str:
+    lines = [
+        f"<b>🎛 {escape(pick(ui.MENU_HEADERS, chat_id))}</b>",
+        "",
+        f"📦 Живых пикч: <b>{totals['alive']}</b> · ⚰️ казнено: <b>{totals['executed']}</b>",
+        f"👀 Показов: <b>{totals['shows']}</b> · 🤙🏻 {totals['likes']} · 🖕🏻 {totals['dislikes']}",
+    ]
+    if live_now:
+        lines += ["", "<b>Сейчас идёт:</b>", *live_now]
+    return "\n".join(lines)
 
 
 def hall(pics: list[Pic], labels: list[str], record: int) -> str:
@@ -247,7 +252,7 @@ def top(board: str, rows: list[tuple[str, int]]) -> str:
     return "\n".join(lines)
 
 
-def profile(label: str, stats: UserStats, owned: set[str]) -> str:
+def profile(label: str, stats: UserStats, owned: set[str], place: int | None) -> str:
     title_code = rules.upload_title_code(stats.uploads)
     title = ACHIEVEMENTS[title_code][0] if title_code else "🥚 Никто"
     goal = rules.next_upload_goal(stats.uploads)
@@ -255,7 +260,8 @@ def profile(label: str, stats: UserStats, owned: set[str]) -> str:
         f"<b>👤 {who(label)}</b>",
         f"Титул: <b>{escape(title)}</b>",
         "",
-        f"📥 Загружено: <b>{stats.uploads}</b> (живых {stats.pics_alive})",
+        f"📥 Загружено: <b>{stats.uploads}</b> (живых {stats.pics_alive})"
+        + (f" · {place}-е место в топе" if place else ""),
         f"🤙🏻 Лайков на твоих: <b>{stats.likes_received}</b> · 🖕🏻 {stats.dislikes_received}",
         f"⚰️ Казнено твоих: <b>{stats.pics_executed}</b>",
         f"🔥 Лучшая серия твоей пикчи: <b>{stats.best_streak}</b>",

@@ -23,14 +23,21 @@ async def open_court(
     pic_message_id: int | None = None,
 ) -> str:
     """Returns 'started' | 'active' | 'immune' | 'gone' | 'failed'."""
-    result = game.start_court(
-        chat_id,
-        pic_id,
-        reason,
-        started_by,
-        title=pick(court_texts.SUMMONS, chat_id),
-        pic_message_id=pic_message_id,
-    )
+
+    def attempt():
+        return game.start_court(
+            chat_id,
+            pic_id,
+            reason,
+            started_by,
+            title=pick(court_texts.SUMMONS, chat_id),
+            pic_message_id=pic_message_id,
+        )
+
+    result = attempt()
+    if result.status == "active" and result.court and result.court.ends_at <= game.now():
+        await live.finish_court(result.court.id)
+        result = attempt()
     if result.status != "started" or result.court is None:
         return result.status
 
@@ -91,7 +98,7 @@ async def court_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         await callback.answer("Ты уже так проголосовал")
         return
     await callback.answer("🪓 Голос за казнь принят" if vote == "kill" else "🕊 Голос за помилование принят")
-    await live.refresh_court(court_id)
+    live.request_refresh_court(court_id)
 
 
 @router.callback_query(F.data == "trial")

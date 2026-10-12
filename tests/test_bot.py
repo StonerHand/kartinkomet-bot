@@ -221,5 +221,51 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("только в личке", self.session.of("SendMessage")[-1].text)
 
 
+    async def test_v1_reaction_buttons_still_work(self) -> None:
+        pic = self.game.draw_pic(-100)[0]
+        await self.press(f"react:like:{pic.id}", message_id=60, sender=3)
+        self.assertEqual(self.game.repo.get_pic(pic.id).likes, 1)
+        self.assertEqual(self.buttons(self.session.of("EditMessageReplyMarkup")[-1])[0], f"r:+:{pic.id}")
+
+    async def test_unknown_buttons_are_answered(self) -> None:
+        await self.press("menu_random")
+        answer = self.session.of("AnswerCallbackQuery")[-1]
+        self.assertIn("/menu", answer.text)
+
+    async def test_dead_timer_does_not_block_the_arena(self) -> None:
+        stuck = self.game.start_duel(-100).battle
+        self.clock.advance(DUEL_SECONDS + 100)
+        await self.send("/duel")
+        self.assertEqual(self.game.repo.get_battle(stuck.id).status, "done")
+        self.assertIsNotNone(self.game.repo.active_battle(-100, "duel"))
+
+    async def test_votes_are_batched_into_one_edit(self) -> None:
+        import bot.tg.timers as timers
+
+        timers.REFRESH_DELAY = 0.05
+        self.addCleanup(setattr, timers, "REFRESH_DELAY", 1.5)
+        battle = self.game.start_duel(-100).battle
+        self.game.repo.set_battle_message(battle.id, 70)
+        for voter in range(3, 8):
+            await self.press(f"v:{battle.id}:0", sender=voter)
+        import asyncio
+
+        await asyncio.sleep(0.2)
+        edits = [r for r in self.session.of("EditMessageText") if r.message_id == 70]
+        self.assertEqual(len(edits), 1)
+        self.assertIn("<b>5</b>", edits[0].text)
+
+    async def test_rules_and_live_line_on_panel(self) -> None:
+        self.game.start_duel(-100)
+        await self.send("/menu")
+        self.assertIn("Сейчас идёт", self.session.of("SendMessage")[-1].text)
+        await self.press("m:help")
+        self.assertIn("Народный суд", self.session.of("EditMessageText")[-1].text)
+
+    async def test_same_photo_twice_in_parallel_is_one_pic(self) -> None:
+        self.assertIsNotNone(self.game.add_pic("same", "same-uniq", 5, None))
+        self.assertIsNone(self.game.add_pic("same", "same-uniq", 5, None))
+
+
 if __name__ == "__main__":
     unittest.main()

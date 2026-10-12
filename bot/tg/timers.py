@@ -10,6 +10,8 @@ from bot.tg import keyboards, send, views
 
 LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 15
+# Votes are batched into one card edit per this many seconds: Telegram rate-limits edits per chat.
+REFRESH_DELAY = 1.5
 
 
 class Live:
@@ -17,6 +19,7 @@ class Live:
         self.bot = bot
         self.game = game
         self._tasks: dict[str, asyncio.Task] = {}
+        self._pending_refresh: set[str] = set()
 
     # ── scheduling ─────────────────────────────────────────────────────
 
@@ -25,6 +28,24 @@ class Live:
 
     def watch_court(self, court_id: str) -> None:
         self._spawn(f"c:{court_id}", self._court_loop(court_id))
+
+    def request_refresh_battle(self, battle_id: str) -> None:
+        self._debounce(f"rb:{battle_id}", lambda: self.refresh_battle(battle_id))
+
+    def request_refresh_court(self, court_id: str) -> None:
+        self._debounce(f"rc:{court_id}", lambda: self.refresh_court(court_id))
+
+    def _debounce(self, key: str, refresh) -> None:
+        if key in self._pending_refresh:
+            return
+        self._pending_refresh.add(key)
+
+        async def run() -> None:
+            await asyncio.sleep(REFRESH_DELAY)
+            self._pending_refresh.discard(key)
+            await refresh()
+
+        self._spawn(f"{key}:{id(run)}", run())
 
     def restore(self) -> int:
         battle_ids = self.game.repo.active_battle_ids()
@@ -77,7 +98,7 @@ class Live:
             self.bot,
             battle.chat_id,
             battle.message_id,
-            views.battle_card(battle, battle.ends_at - self.game.now()),
+            views.battle_card(battle, battle.ends_at - self.game.now(), self.uploaders(battle)),
             keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
         )
 
@@ -90,7 +111,7 @@ class Live:
             markup = keyboards.after_duel(battle.id, battle.winner_slot is not None)
         else:
             markup = keyboards.after_tournament()
-        text = views.battle_result(report)
+        text = views.battle_result(report, self.uploaders(battle))
         if battle.message_id is None or not await send.edit_text(
             self.bot, battle.chat_id, battle.message_id, text, markup
         ):
@@ -103,6 +124,9 @@ class Live:
                 reply_to=battle.message_id,
             )
         await self.announce(battle.chat_id, report.granted)
+
+    def uploaders(self, battle) -> list[str]:
+        return [self.game.repo.user_label(pic.added_by) for pic in battle.pics]
 
     # ── courts ─────────────────────────────────────────────────────────
 

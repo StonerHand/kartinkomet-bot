@@ -23,12 +23,19 @@ async def start_battle(
     champion_of: str | None = None,
 ) -> str:
     """Returns 'started' | 'active' | 'shortage' | 'stale' | 'failed'."""
-    if kind == "duel":
-        result = game.start_duel(
-            chat_id, champion_of=champion_of, title=pick(arena_texts.DUEL_START, chat_id)
-        )
-    else:
-        result = game.start_tournament(chat_id, title=pick(arena_texts.TOURNAMENT_START, chat_id))
+
+    def attempt():
+        if kind == "duel":
+            return game.start_duel(
+                chat_id, champion_of=champion_of, title=pick(arena_texts.DUEL_START, chat_id)
+            )
+        return game.start_tournament(chat_id, title=pick(arena_texts.TOURNAMENT_START, chat_id))
+
+    result = attempt()
+    if result.status == "active" and result.battle and result.battle.ends_at <= game.now():
+        # Its timer died (crash, lost task): settle it now instead of blocking the arena.
+        await live.finish_battle(result.battle.id)
+        result = attempt()
 
     if result.status == "active" and result.battle is not None:
         await live.refresh_battle(result.battle.id)
@@ -47,7 +54,7 @@ async def start_battle(
     card = await send.send_text(
         bot,
         chat_id,
-        views.battle_card(battle, battle.ends_at - game.now()),
+        views.battle_card(battle, battle.ends_at - game.now(), live.uploaders(battle)),
         keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
     )
     if card is None:
@@ -124,4 +131,4 @@ async def vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         await callback.answer("Уже стоит")
         return
     await callback.answer("Голос принят")
-    await live.refresh_battle(battle_id)
+    live.request_refresh_battle(battle_id)

@@ -200,7 +200,12 @@ async def receive(message: Message, bot: Bot, game: Game, live: Live) -> None:
         await redraw(bot, message.chat.id, session)
         return
 
-    _, granted = game.add_pic(file_id, file_unique_id, user_id, visual_hash)
+    added = game.add_pic(file_id, file_unique_id, user_id, visual_hash)
+    if added is None:
+        session.duplicates += 1
+        await redraw(bot, message.chat.id, session)
+        return
+    _, granted = added
     if visual_hash:
         known_hashes(game).append(int(visual_hash, 16))
     session.added += 1

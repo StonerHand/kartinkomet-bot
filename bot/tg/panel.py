@@ -43,14 +43,31 @@ def screen(
         return views.top(board, rows), keyboards.tops(board)
     if name == "me":
         stats = repo.user_stats(user_id, game.night_hours_utc)
-        text = views.profile(repo.user_label(user_id), stats, repo.achievements_of(user_id))
+        ranking = [uid for uid, _ in repo.top_users("uploads", limit=1000)]
+        place = ranking.index(user_id) + 1 if user_id in ranking else None
+        text = views.profile(repo.user_label(user_id), stats, repo.achievements_of(user_id), place)
         return text, keyboards.markup(keyboards.back())
+    if name == "help":
+        return ui.HELP, keyboards.markup(keyboards.back())
     if name == "up":
         return views.upload_hub(is_private), keyboards.upload_hub(is_private)
     if name == "adm" and is_admin:
         text = views.admin(repo.totals(), repo.count_users(), str(repo.database_path))
         return text, keyboards.admin()
-    return views.home(repo.totals(), chat_id), keyboards.home(is_admin)
+    return views.home(repo.totals(), chat_id, live_now(game, chat_id)), keyboards.home(is_admin)
+
+
+def live_now(game: Game, chat_id: int) -> list[str]:
+    now = game.now()
+    lines = []
+    for kind, label in (("duel", "⚔️ Дуэль"), ("tournament", "🏟 Турнир")):
+        battle = game.repo.active_battle(chat_id, kind)
+        if battle and battle.ends_at > now:
+            lines.append(f"{label} · {views.timer(battle.ends_at - now)}")
+    courts = game.repo.active_courts_in_chat(chat_id, now)
+    if courts:
+        lines.append(f"⚖️ Суд · {views.timer(min(courts) - now)}" + (f" (ещё {len(courts) - 1})" if len(courts) > 1 else ""))
+    return lines
 
 
 async def open_panel(

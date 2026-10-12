@@ -641,6 +641,16 @@ class Repo:
         ).fetchone()
         return self.get_court(row["id"]) if row else None
 
+    def active_courts_in_chat(self, chat_id: int, now: int) -> list[int]:
+        """End times of courts still running in a chat."""
+        return [
+            row[0]
+            for row in self.db.execute(
+                "SELECT ends_at FROM courts WHERE status = 'active' AND chat_id = ? AND ends_at > ?",
+                (chat_id, now),
+            )
+        ]
+
     def active_court_ids(self) -> list[str]:
         return [
             row[0] for row in self.db.execute("SELECT id FROM courts WHERE status = 'active'")

@@ -1,6 +1,7 @@
 """Game service: glues Repo and core rules. Knows nothing about Telegram."""
 
 import random
+import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -334,8 +335,12 @@ class Game:
 
     def add_pic(
         self, file_id: str, file_unique_id: str, user_id: int, visual_hash: str | None
-    ) -> tuple[Pic, list[Granted]]:
-        pic = self.repo.add_pic(file_id, file_unique_id, user_id, visual_hash, self.now())
+    ) -> tuple[Pic, list[Granted]] | None:
+        """None if the same file slipped in concurrently (album messages run in parallel)."""
+        try:
+            pic = self.repo.add_pic(file_id, file_unique_id, user_id, visual_hash, self.now())
+        except sqlite3.IntegrityError:
+            return None
         return pic, self.check_achievements([user_id])
 
     # ── achievements ───────────────────────────────────────────────────
