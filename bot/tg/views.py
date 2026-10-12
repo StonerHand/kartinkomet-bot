@@ -1,8 +1,9 @@
 """Message texts for cards and screens. Pure formatting, no I/O.
 
 Visual language: bold caps header with the key number (timer, verdict), flavour phrase in a
-blockquote, emoji bars scaled to the leader (no empty cells: they render badly on phones),
-names without "@" (an @mention pings the person every time).
+blockquote followed by an empty line (Telegram glues the next line to a quote otherwise),
+vote counts first and short emoji bars after them so numbers line up, no empty cells
+(they render badly on phones), names without "@" (an @mention pings the person every time).
 """
 
 from html import escape
@@ -17,7 +18,7 @@ from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick
 from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
 
-BAR_CELLS = 8
+BAR_CELLS = 5
 SLOT_COLORS = ("🟥", "🟦", "🟩", "🟨")
 MEDALS = ("🥇", "🥈", "🥉")
 
@@ -30,7 +31,7 @@ def timer(seconds: int) -> str:
 def bar(count: int, leader: int, color: str) -> str:
     if count <= 0 or leader <= 0:
         return ""
-    return color * max(1, round(BAR_CELLS * count / leader)) + " "
+    return "  " + color * max(1, round(BAR_CELLS * count / leader))
 
 
 def rating(value: float) -> str:
@@ -47,7 +48,8 @@ def who(label: str) -> str:
 
 
 def quote(text: str) -> str:
-    return f"<blockquote>{escape(text)}</blockquote>"
+    """Blockquote plus a blank line after it, so the next line doesn't stick to the quote."""
+    return f"<blockquote>{escape(text)}</blockquote>\n"
 
 
 def plural(value: int, one: str, few: str, many: str) -> str:
@@ -86,7 +88,7 @@ def pic_caption(pic: Pic, bucket: str, chat_id: int, uploader: str | None) -> st
 def vote_lines(counts: list[int], labels: tuple[str, ...]) -> list[str]:
     leader = max(counts) if counts else 0
     return [
-        f"{labels[slot]} {bar(count, leader, SLOT_COLORS[slot])}<b>{count}</b>"
+        f"{labels[slot]} <b>{count}</b>{bar(count, leader, SLOT_COLORS[slot])}"
         for slot, count in enumerate(counts)
     ]
 
@@ -118,17 +120,18 @@ def battle_result(report: BattleReport, uploaders: list[str]) -> str:
 
     counts = battle.vote_counts()
     leader = max(counts)
-    lines = [head]
+    lines = [head, ""]
     for slot, pic in enumerate(battle.pics):
         mark = " 👑" if slot == report.winner else ""
         if report.executed and report.executed.id == pic.id:
             mark = " ⚰️"
-        lines.append(f"{labels[slot]} {bar(counts[slot], leader, SLOT_COLORS[slot])}<b>{counts[slot]}</b>{mark}")
+        lines.append(f"{labels[slot]} <b>{counts[slot]}</b>{bar(counts[slot], leader, SLOT_COLORS[slot])}{mark}")
         lines.append(
             f"<i>      ⭐ {rating(report.rating_after[slot])} "
             f"({delta(report.rating_before[slot], report.rating_after[slot])}) · {who(uploaders[slot])}</i>"
         )
 
+    lines.append("")
     if is_duel:
         pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
         lines.append(quote(pick(pool, battle.chat_id)))
@@ -159,8 +162,8 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
     lines = [
         f"⚖️ <b>НАРОДНЫЙ СУД</b> · ⏳ <b>{timer(remaining)}</b>",
         quote(trial.title),
-        f"🪓 {bar(kill, leader, '🟥')}<b>{kill}</b>  казнить",
-        f"🕊 {bar(spare, leader, '🟩')}<b>{spare}</b>  помиловать",
+        f"🪓 <b>{kill}</b>{bar(kill, leader, '🟥')}",
+        f"🕊 <b>{spare}</b>{bar(spare, leader, '🟩')}",
         "",
         f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>",
     ]
@@ -181,7 +184,7 @@ def court_result(report: CourtReport, uploader: str) -> str:
     executed = report.verdict == "executed"
     head = "⚰️ <b>ПРИГОВОР: КАЗНЕНА</b>" if executed else "🕊 <b>ПРИГОВОР: ПОМИЛОВАНА</b>"
     pool = court_texts.EXECUTED if executed else court_texts.PARDONED
-    lines = [head, f"🪓 <b>{kill}</b> · 🕊 <b>{spare}</b>", quote(pick(pool, trial.chat_id))]
+    lines = [head, f"🪓 <b>{kill}</b> · 🕊 <b>{spare}</b>", "", quote(pick(pool, trial.chat_id))]
     if trial.last_word:
         lines.append(f"<i>Последнее слово: «{escape(trial.last_word)}»</i>")
     lines.append(f"<i>📥 {who(uploader)}" + ("" if executed else " · иммунитет на неделю") + "</i>")
@@ -308,7 +311,7 @@ def upload_hub(is_private: bool) -> str:
 
 def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str:
     return (
-        f"📥 <b>ЗАГРУЗКА</b>\n{quote(intro)}"
+        f"📥 <b>ЗАГРУЗКА</b>\n{quote(intro)}\n"
         f"✅ Добавлено: <b>{added}</b>\n"
         f"♻️ Дубли: <b>{duplicates}</b>\n"
         f"⚠️ Не взял: <b>{failed}</b>"
