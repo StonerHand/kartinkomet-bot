@@ -12,6 +12,9 @@ BACKGROUND = (24, 24, 28)
 BADGE_COLORS = ((229, 57, 53), (30, 136, 229), (67, 160, 71), (253, 216, 53))
 BADGE_TEXT = ((255, 255, 255), (255, 255, 255), (255, 255, 255), (33, 33, 33))
 DUEL_BADGES = ("A", "B")
+BADGE_SIZE = 64  # px on a 640 px cell: readable on a phone without covering the pic
+BADGE_MARGIN = 12
+BADGE_FONT = 40
 TOURNAMENT_BADGES = ("1", "2", "3", "4")
 
 
@@ -28,20 +31,20 @@ def _cell(image_bytes: bytes) -> Image.Image:
 
 def _badge(canvas: Image.Image, x: int, y: int, slot: int, label: str) -> None:
     draw = ImageDraw.Draw(canvas)
-    size = 120
-    left, top = x + 18, y + 18
+    size = BADGE_SIZE
+    left, top = x + BADGE_MARGIN, y + BADGE_MARGIN
     draw.ellipse(
-        (left - 4, top - 4, left + size + 4, top + size + 4), fill=(255, 255, 255)
+        (left - 3, top - 3, left + size + 3, top + size + 3), fill=(255, 255, 255)
     )
     draw.ellipse((left, top, left + size, top + size), fill=BADGE_COLORS[slot])
-    font = ImageFont.load_default(size=78)
+    font = ImageFont.load_default(size=BADGE_FONT)
     draw.text(
         (left + size / 2, top + size / 2),
         label,
         font=font,
         fill=BADGE_TEXT[slot],
         anchor="mm",
-        stroke_width=3,
+        stroke_width=1,
         stroke_fill=BADGE_TEXT[slot],
     )
 

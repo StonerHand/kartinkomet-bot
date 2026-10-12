@@ -3,7 +3,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from bot.collage import CELL, GAP, build
+from bot.collage import BADGE_MARGIN, CELL, GAP, build
 
 
 def jpeg(size: tuple[int, int], color=(10, 120, 200)) -> bytes:
@@ -21,8 +21,9 @@ class CollageTest(unittest.TestCase):
 
     def test_badges_are_drawn_in_slot_colours(self) -> None:
         image = Image.open(BytesIO(build([jpeg((640, 640), (0, 0, 0))] * 2)))
-        red = image.getpixel((40, 78))
-        blue = image.getpixel((CELL + GAP + 40, 78))
+        # Just inside the badge circle, left of the letter.
+        red = image.getpixel((BADGE_MARGIN + 8, BADGE_MARGIN + 32))
+        blue = image.getpixel((CELL + GAP + BADGE_MARGIN + 8, BADGE_MARGIN + 32))
         self.assertGreater(red[0], 180)
         self.assertGreater(blue[2], 180)
 
