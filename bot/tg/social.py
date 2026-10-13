@@ -161,12 +161,12 @@ async def challenge(message: Message, command: CommandObject, bot: Bot, game: Ga
     if stake is None:
         await message.reply(
             f"Укажи ставку: /challenge 200 — открытый вызов, или ответь так на сообщение человека. "
-            f"Минимум {shop.CHALLENGE_MIN} 🪙"
+            f"Минимум {shop.CHALLENGE_MIN} монет"
         )
         return
     status, created = game.create_challenge(message.chat.id, message.from_user.id, target, stake)
     refusals = {
-        "small": f"Минимальная ставка — {shop.CHALLENGE_MIN} 🪙",
+        "small": f"Минимальная ставка — {shop.CHALLENGE_MIN} монет",
         "self": "Вызвать самого себя? Шизофрения не входит в правила",
         "pending": "У тебя уже висит вызов. Дождись ответа",
         "broke": "Столько у тебя нет",

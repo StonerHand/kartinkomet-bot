@@ -532,7 +532,7 @@ class BotTest(BotHarness):
         await self.live.advance_game(contest["id"])
         result = self.session.of("EditMessageCaption")[-1].caption
         self.assertIn("ИТОГИ", result)
-        self.assertIn("👑 «рейтинг 1090 не трогай» — user4", result)
+        self.assertIn("👑 «рейтинг 1090 не трогай»\n<i>user4 · 1 голос</i>", result)
 
     async def test_wheel_shows_slot_machine_then_prize(self) -> None:
         await self.send("/wheel", sender=3)
@@ -587,8 +587,7 @@ class BotTest(BotHarness):
         self.assertEqual(len(digest), 1)
         await self.press("m:top:uploads")
         top = self.session.of("EditMessageText")[-1].text
-        self.assertIn("uploader 👑", top)  # 10 uploads this week
-        self.assertIn("user3 💰", top)  # most coins earned this week
+        self.assertIn("uploader", top)  # crowns show in the profile and the digest, not in tops
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=ADMIN)
         self.assertIn("👑 Король загрузок", self.session.of("EditMessageText")[-1].text)

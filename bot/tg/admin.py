@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, FSInputFile, Message
 
 from bot.game import Game
 from bot.texts import ui
-from bot.tg import keyboards, send
+from bot.tg import keyboards, send, views
 from bot.tg.panel import open_panel, screen
 
 router = Router(name="admin")
@@ -27,13 +27,21 @@ def health_text(game: Game) -> str:
     repo = game.repo
     totals = repo.totals()
     size = repo.database_path.stat().st_size / 1024 / 1024 if repo.database_path.exists() else 0
-    return (
-        "🩺 <b>HEALTH</b>\n<i>Состояние бота</i>\n\n"
-        f"📦 Живых: {totals['alive']} · ⚰️ Казнено: {totals['executed']}\n"
-        f"👥 Юзеров: {repo.count_users()}\n"
-        f"⚔️ Активных боёв: {len(repo.active_battle_ids())} · ⚖️ судов: {len(repo.active_court_ids())}\n"
-        f"🗄 База: {size:.1f} МБ · <code>{escape(str(repo.database_path))}</code>\n"
-        f"🧠 Пик памяти: {memory_mb():.0f} МБ"
+    return views.card(
+        "🩺 <b>HEALTH</b>",
+        "Состояние бота",
+        [
+            f"📦 Живых: <b>{totals['alive']}</b>",
+            f"⚰️ Казнено: <b>{totals['executed']}</b>",
+            f"👥 Юзеров: <b>{repo.count_users()}</b>",
+            f"⚔️ Боёв идёт: <b>{len(repo.active_battle_ids())}</b>",
+            f"⚖️ Судов идёт: <b>{len(repo.active_court_ids())}</b>",
+            f"👹 Боссов: <b>{len(repo.active_boss_ids())}</b>",
+        ],
+        [
+            f"🗄 База: <b>{size:.1f}</b> МБ · <code>{escape(repo.database_path.name)}</code>",
+            f"🧠 Пик памяти: <b>{memory_mb():.0f}</b> МБ",
+        ],
     )
 
 
@@ -95,7 +103,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             message.message_id,
             "🧨 <b>СБРОСИТЬ СТАТИСТИКУ?</b>\n<i>Отменить будет нельзя</i>\n\n"
             "Обнулятся рейтинги, реакции, показы, серии и рекорды. "
-            "Пикчи, кладбище и ачивки останутся. Отменить нельзя.",
+            "Пикчи, кладбище и ачивки останутся.",
             keyboards.admin_reset_confirm(),
         )
     elif action == "reset!":

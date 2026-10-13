@@ -99,7 +99,7 @@ def card(head: str, flavour: str | None = None, *blocks) -> str:
 
     A block is a string or a list of lines; empty lines inside a block and empty blocks are
     dropped, so callers never glue or double the spacing by hand."""
-    top = head + (f"\n<i>{escape(flavour)}</i>" if flavour else "")
+    top = head + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
     parts = [top]
     for block in blocks:
         if isinstance(block, (list, tuple)):
@@ -404,7 +404,7 @@ def hall(pics: list[Pic], labels: list[str], record: int) -> str:
 
 
 def bottom(pics: list[Pic], labels: list[str]) -> str:
-    lines = ["🕳 <b>ДНО СКЛАДА</b>", "<i>Рейтинг · автор · 🖕🏻. ⚖️ — отправить под суд</i>", ""]
+    lines = ["🕳 <b>ДНО СКЛАДА</b>", "<i>Рейтинг · автор · дизлайки. Кнопка с номером — под суд</i>", ""]
     if not pics:
         lines.append("Дно пустое. Подозрительно")
     for index, (pic, label) in enumerate(zip(pics, labels), start=1):
@@ -429,7 +429,8 @@ def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
 
 def top(board: str, rows: list[tuple[str, int]]) -> str:
     title, subtitle = top_texts.BOARD_TITLES[board].split(": ", 1)
-    lines = [f"<b>{escape(title).upper()}</b>", f"<i>{escape(subtitle.capitalize())}</i>", ""]
+    emoji, _, name = title.partition(" ")
+    lines = [f"{emoji} <b>{escape(name).upper()}</b>", f"<i>{escape(subtitle.capitalize())}</i>", ""]
     if not rows:
         lines.append(escape(pick(top_texts.BOARD_EMPTY)))
         return "\n".join(lines)
@@ -481,29 +482,31 @@ def profile(
             f"<i>дальше — {escape(bare(upcoming.name))}</i>",
             "",
         ]
-    wealth = f"🪙 {money(wallet.coins)}"
+    lines.append(f"🪙 {money(wallet.coins)}")
     if wallet.streak > 1:
-        wealth += f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд"
-    lines.append(wealth)
-    for kind in wallet.crowns:
-        badge, crown = economy.CROWNS[kind]
-        lines.append(f"{badge} {escape(crown)}")
-    if wallet.spouse:
-        name, days_married = wallet.spouse
-        lines.append(f"💍 В браке с <b>{who(name)}</b> · {days_married} {plural(days_married, 'день', 'дня', 'дней')}")
+        lines.append(f"🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд на складе")
     owned_chests = [(tier, count) for tier, count in (wallet.chests or {}).items() if count]
     if owned_chests:
-        marks = {"wood": "🟫", "rare": "🟪", "legend": "🟨"}
-        lines.append("🎒 Сундуки: " + " · ".join(f"{marks[tier]} {count}" for tier, count in owned_chests))
+        names = {"wood": "деревянных", "rare": "редких", "legend": "легендарных"}
+        lines.append("🎁 Сундуки: " + " · ".join(f"{names[tier]} {count}" for tier, count in owned_chests))
+    statuses = []
+    for kind in wallet.crowns:
+        badge, crown = economy.CROWNS[kind]
+        statuses.append(f"{badge} {escape(crown)}")
+    if wallet.spouse:
+        name, days_married = wallet.spouse
+        statuses.append(f"💍 В браке с <b>{who(name)}</b> · {days_married} {plural(days_married, 'день', 'дня', 'дней')}")
     if wallet.jailed:
-        lines.append(f"🚔 В обезьяннике ещё {wallet.jailed // 60 + 1} мин")
+        statuses.append(f"🚔 В обезьяннике ещё {wallet.jailed // 60 + 1} мин")
+    if statuses:
+        lines += ["", *statuses]
 
     rank = f" · {place}-е место" if place else ""
     lines += ["", f"📦 <b>Склад</b>{rank}"]
     alive = "все живы" if stats.pics_alive == stats.uploads else f"живых {stats.pics_alive}"
     lines.append(
         f"<b>{stats.uploads}</b> {plural(stats.uploads, 'пикча', 'пикчи', 'пикч')} · {alive}"
-        + (f" · ⚰️ {stats.pics_executed}" if stats.pics_executed else "")
+        + (f" · казнено {stats.pics_executed}" if stats.pics_executed else "")
     )
     lines.append(
         f"🤙🏻 <b>{stats.likes_received}</b> {plural(stats.likes_received, 'лайк', 'лайка', 'лайков')}"
@@ -528,7 +531,7 @@ def profile(
         if stats.kill_votes or stats.spare_votes:
             lines.append(f"🪓 казнил <b>{stats.kill_votes}</b> · 🕊 спас <b>{stats.spare_votes}</b>")
         if voice:
-            lines.append(f"🎯 угадываешь победителя в <b>{voice[0]}%</b> · {escape(voice[1])}")
+            lines.append(f"🎯 Угадываешь в <b>{voice[0]}%</b> боёв · {escape(bare(voice[1]))}")
         if wallet.nemesis:
             name, defeats = wallet.nemesis
             lines.append(
@@ -571,17 +574,24 @@ def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str
 
 
 def admin(totals: dict[str, int], users: int, database: str) -> str:
-    return (
-        "⚙️ <b>АДМИНКА</b>\n"
-        "<i>Только для админов</i>\n\n"
-        f"📦 <b>{totals['alive']}</b> живых · ⚰️ <b>{totals['executed']}</b> казнено\n"
-        f"👥 <b>{users}</b> юзеров\n"
-        f"🗄 <code>{escape(database)}</code>\n\n"
-        "🕒 <b>Расписание</b>\n"
-        "04:00 — 💾 бэкап админам\n"
-        "12:00 — 🌅 пикча дня\n"
-        "19:00 — ⚖️ суд над худшей\n"
-        "Вс 18:00 — 📅 итоги недели и короны"
+    return card(
+        "⚙️ <b>АДМИНКА</b>",
+        "Только для админов",
+        [
+            f"📦 Живых: <b>{num(totals['alive'])}</b>",
+            f"⚰️ Казнено: <b>{num(totals['executed'])}</b>",
+            f"👥 Юзеров: <b>{users}</b>",
+            f"🗄 <code>{escape(database.rsplit('/', 1)[-1])}</code>",
+        ],
+        [
+            "🕒 <b>Расписание</b>",
+            "💾 04:00 — бэкап админам",
+            "📰 10:00 — событие дня",
+            "🌅 12:00 — пикча дня",
+            "👹 16:00 — босс",
+            "⚖️ 19:00 — суд над худшей",
+            "📅 Вс 18:00 — итоги недели",
+        ],
     )
 
 
@@ -622,12 +632,15 @@ def caption_card(game: dict, remaining: int, chat_id: int) -> str:
     tally: dict[int, int] = {}
     for author in game["votes"].values():
         tally[author] = tally.get(author, 0) + 1
-    listing = [
-        f"<b>{index}.</b> {escape(entry['text'])}" + (f"  <i>· {tally.get(entry['user_id'])}</i>" if tally.get(entry["user_id"]) else "")
-        for index, entry in enumerate(entries, start=1)
-    ]
+    listing = []
+    for index, entry in enumerate(entries, start=1):
+        votes = tally.get(entry["user_id"], 0)
+        listing.append(
+            f"<b>{index}.</b> {escape(entry['text'])}"
+            + (f"\n<i>{votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>" if votes else "")
+        )
     return card(
-        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · <b>{timer(remaining)}</b>", pick(game_texts.CAPTION_VOTE, chat_id), listing
+        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · <b>{timer(remaining)}</b>", pick(game_texts.CAPTION_VOTE, chat_id), *listing
     )
 
 
@@ -641,9 +654,12 @@ def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
     for entry in sorted(game["entries"], key=lambda entry: -tally.get(entry["user_id"], 0)):
         mark = "👑" if entry["user_id"] == winner else "▫️"
         votes = tally.get(entry["user_id"], 0)
-        listing.append(f"{mark} «{escape(entry['text'])}» — {who(labels.get(entry['user_id'], '?'))} · {votes}")
+        listing.append(
+            f"{mark} «{escape(entry['text'])}»\n"
+            f"<i>{who(labels.get(entry['user_id'], '?'))} · {votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>"
+        )
     prize = f"🏆 <b>{who(labels.get(winner, '?'))}</b> +{money(economy.CAPTION_WIN)}" if winner is not None else None
-    return card("🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>", pick(pool, chat_id), listing, prize)
+    return card("🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>", pick(pool, chat_id), *listing, prize)
 
 
 def caption_cancelled(chat_id: int) -> str:
@@ -654,7 +670,7 @@ def gold_caption() -> str:
     return card(
         "⚡ <b>ЗОЛОТАЯ ПИКЧА</b>",
         pick(game_texts.GOLD),
-        f"Кто первый нажмёт «Забрать» — тому +{money(economy.GOLD)} и ачивка",
+        f"<i>Первому — +{money(economy.GOLD)} и ачивка</i>",
     )
 
 
@@ -672,7 +688,7 @@ def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int
         else:
             change = -shop.CURSE_RATING if spin.kind == "curse" else game_rules.BLESS_RATING
             sign = "+" if change > 0 else "−"
-            facts.append(f"⭐ Случайная твоя пикча: {sign}{abs(change)} рейтинга, теперь {rating(pic.rating + change)}")
+            facts.append(f"⭐ Твоя пикча: {sign}{abs(change)} рейтинга\n<i>теперь {rating(pic.rating + change)}</i>")
             if spin.kind == "curse":
                 hint = "<i>Порчу можно снять за сутки — в лавке под пикчей</i>"
     return card(f"🎡 <b>КОЛЕСО: {title}</b> · {who(label)}", flavour, facts, hint)

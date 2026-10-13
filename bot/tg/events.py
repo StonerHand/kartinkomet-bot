@@ -184,7 +184,7 @@ class Events:
             f"{views.MEDALS[index]} {views.who(repo.user_label(user_id))} — <b>{count}</b>"
             for index, (user_id, count) in enumerate(summary["uploads"])
         ] if summary["uploads"] else []
-        crown_lines = ["<b>👑 Короны недели</b> <i>(висят у имени до следующего воскресенья)</i>"] + [
+        crown_lines = ["👑 <b>Короны недели</b>", "<i>Носятся до следующего воскресенья</i>"] + [
             f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])} — <b>{views.who(repo.user_label(user_id))}</b>"
             for kind, (user_id, _) in crowns.items()
         ] if crowns else []

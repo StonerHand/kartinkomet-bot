@@ -54,10 +54,10 @@ def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) 
     facts = [f"<b>Что меняется:</b> {escape(rule[0].lower() + rule[1:])}."]
     if code == "tax" and tax:
         total, share, people = tax
-        facts.append(
-            f"🧾 Собрано {coins(total)}, по {coins(share)} получили {people} "
-            f"{plural(people, 'бедняк', 'бедняка', 'бедняков')}"
-        )
+        facts += [
+            f"🧾 Собрано с богачей: {coins(total)}",
+            f"🤲 По {coins(share)} получили {people} {plural(people, 'бедняк', 'бедняка', 'бедняков')}",
+        ]
     return card(
         f"📰 <b>СОБЫТИЕ ДНЯ: {escape(bare(name)).upper()}</b>",
         pick(day_texts.FLAVOUR[code], chat_id),
@@ -295,14 +295,14 @@ def quests_screen(
     daily_streak: int,
     chat_id: int,
 ) -> str:
-    bonus = "Можно забрать — жми 🎁" if daily_ready else (
+    bonus = "Можно забрать — кнопка ниже" if daily_ready else (
         f"Забран. Серия: <b>{daily_streak}</b> {plural(daily_streak, 'день', 'дня', 'дней')}"
     )
     owned = [(tier, count) for tier, count in chests.items() if count]
     backpack = (
-        "🎒 <b>Сундуки:</b> " + " · ".join(f"{progress_texts.CHESTS[tier][0]} {count}" for tier, count in owned)
+        "🎁 <b>Сундуки:</b> " + " · ".join(f"{progress_texts.CHESTS[tier][1].lower()} — {count}" for tier, count in owned)
         if owned
-        else "<i>🎒 Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
+        else "🎁 <i>Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
     )
     return card(
         f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
@@ -384,7 +384,10 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
         return card(
             f"👹 <b>БОСС СБЕЖАЛ · {title}</b>",
             pick(boss_texts.ESCAPE, chat_id),
-            f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']} · пикча-босс +{boss_rules.ESCAPE_RATING_BONUS} рейтинга",
+            [
+                f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']}",
+                f"⭐ Пикча-босс: +{boss_rules.ESCAPE_RATING_BONUS} рейтинга",
+            ],
         )
     loot = [f"💰 <b>Добыча</b> · {money(boss['loot'])} по урону"]
     for index, (user, amount) in enumerate(sorted(report.payouts.items(), key=lambda item: -item[1])[:8]):

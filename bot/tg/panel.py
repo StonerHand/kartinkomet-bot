@@ -39,11 +39,11 @@ def screen(
         labels = [repo.user_label(pic.added_by) for pic in pics]
         text = views.graveyard(repo.count_pics("executed"), pics, labels, game.now())
         if pics:
-            text += f"\n\n<i>🧟 — воскресить за {game.price('resurrect')} 🪙 (два нажатия)</i>"
+            text += f"\n\n<i>Кнопка с номером — воскресить за {views.num(game.price('resurrect'))} монет, нажать дважды</i>"
         return text, keyboards.graveyard([pic.id for pic in pics], is_admin)
     if name == "top":
         board = arg if arg in BOARDS else "uploads"
-        rows = [(repo.user_label(user) + game.badges(user), value) for user, value in repo.top_users(board)]
+        rows = [(repo.user_label(user), value) for user, value in repo.top_users(board)]
         return views.top(board, rows), keyboards.tops(board)
     if name == "me":
         stats = repo.user_stats(user_id, game.night_hours_utc, game.tz_offset_hours, game.now())
