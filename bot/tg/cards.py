@@ -5,7 +5,7 @@ from html import escape
 
 from bot.core import boss as boss_rules
 from bot.core import casino, court, progress, shop
-from bot.db.repo import Battle, Pic
+from bot.db.repo import Pic
 from bot.services.casino import CasinoResult
 from bot.services.progress import Daily, TaskState
 from bot.texts import boss as boss_texts
@@ -118,23 +118,7 @@ def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], cha
 # ── arena bets, evolution, bounties ────────────────────────────────────
 
 
-def bets_line(battle: Battle) -> str | None:
-    pool = battle.bet_pool()
-    total = sum(pool)
-    if not total:
-        return None
-    labels = DUEL_LABELS if battle.kind == "duel" else TOURNAMENT_LABELS
-    odds = casino.odds(pool)
-    parts = [f"{labels[slot]} ×{value:g}" for slot, value in enumerate(odds) if value]
-    return f"💰 Банк ставок <b>{total}</b> · " + " · ".join(parts)
 
-
-def bets_hint(battle: Battle) -> str:
-    return f"<i>💰 — поставить {casino.BET_STEP} {COIN} на пикчу, банк делят угадавшие</i>"
-
-
-def stage_mark(pic: Pic) -> str:
-    return shop.stage(pic.wins).emoji
 
 
 def bets_result(report, labels: dict[int, str]) -> list[str]:

@@ -118,7 +118,6 @@ ACHIEVEMENTS: dict[str, tuple[str, str]] = {
 }
 
 RARITY_MARKS = {"common": "", "rare": "✨ ", "legendary": "🌟 "}
-RARITY_NAMES = {"common": "обычная", "rare": "редкая", "legendary": "легендарная"}
 
 LEVEL_UP = (
     "Новый уровень! Склад признаёт твои заслуги",

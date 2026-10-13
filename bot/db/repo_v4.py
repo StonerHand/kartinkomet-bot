@@ -51,12 +51,6 @@ class V4Repo:
     def pending_challenge_ids(self) -> list[str]:
         return [row[0] for row in self.db.execute("SELECT id FROM challenges WHERE status = 'pending'")]
 
-    def expired_challenges(self, now: int) -> list[dict]:
-        rows = self.db.execute(
-            "SELECT * FROM challenges WHERE status = 'pending' AND expires_at <= ?", (now,)
-        ).fetchall()
-        return [dict(row) for row in rows]
-
     def set_challenge_message(self, challenge_id: str, message_id: int) -> None:
         with self.db:
             self.db.execute("UPDATE challenges SET message_id = ? WHERE id = ?", (message_id, challenge_id))
@@ -113,25 +107,6 @@ class V4Repo:
             ).fetchone()[0]
             self.db.execute("DELETE FROM bounties WHERE pic_id = ?", (pic_id,))
         return total
-
-    def bounties_on(self, pic_ids: list[str]) -> dict[str, int]:
-        if not pic_ids:
-            return {}
-        marks = ",".join("?" for _ in pic_ids)
-        return {
-            row[0]: row[1]
-            for row in self.db.execute(
-                f"SELECT pic_id, SUM(amount) FROM bounties WHERE pic_id IN ({marks}) GROUP BY pic_id", pic_ids
-            )
-        }
-
-    def most_wanted(self, limit: int = 5) -> list[tuple[str, int]]:
-        rows = self.db.execute(
-            "SELECT b.pic_id, SUM(b.amount) FROM bounties b JOIN pics p ON p.id = b.pic_id "
-            "WHERE p.status = 'alive' GROUP BY b.pic_id ORDER BY 2 DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-        return [(row[0], row[1]) for row in rows]
 
     # ── bosses ─────────────────────────────────────────────────────────
 
@@ -234,12 +209,6 @@ class V4Repo:
             self.db.execute("DELETE FROM marriages WHERE user_id IN (?, ?)", (user_id, spouse[0]))
         return spouse[0]
 
-    def couples(self) -> list[tuple[int, int, int]]:
-        return [
-            (row[0], row[1], row[2])
-            for row in self.db.execute("SELECT user_id, spouse_id, since FROM marriages WHERE user_id < spouse_id")
-        ]
-
     def create_proposal(self, chat_id: int, from_user: int, to_user: int, now: int) -> str:
         proposal_id = uuid4().hex[:12]
         with self.db:
@@ -291,6 +260,10 @@ class V4Repo:
             self.db.execute(
                 "DELETE FROM counters WHERE key LIKE ? AND key NOT LIKE ?", (f"{prefix}%", f"{keep_prefix}%")
             )
+
+    def forget_meta(self, prefix: str) -> None:
+        with self.db:
+            self.db.execute("DELETE FROM meta WHERE key LIKE ?", (f"{prefix}%",))
 
     def balances(self) -> list[tuple[int, int]]:
         return [(row[0], row[1]) for row in self.db.execute("SELECT user_id, coins FROM players")]

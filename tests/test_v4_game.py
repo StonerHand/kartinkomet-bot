@@ -61,8 +61,10 @@ class CasinoGameTest(V4Case):
         self.assertIn("triple_seven", result.granted[0].codes)
 
     def test_refusals(self) -> None:
-        self.assertEqual(self.game.place_casino_bet(5, 5), "small")
+        self.assertEqual(self.game.place_casino_bet(5, 5), "broke")  # all-in with nothing left
         self.assertEqual(self.game.place_casino_bet(5, 50), "broke")
+        self.fund(5, 100)
+        self.assertEqual(self.game.place_casino_bet(5, 5), "small")
 
     def test_all_in_and_bankrupt(self) -> None:
         self.fund(5, 300)

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from bot.core import achievements as rules
 from bot.core import casino, economy, shop
-from bot.core.arena import DEATH_LOSS_STREAK, DEATH_RATING
+from bot.core.arena import DEATH_LOSS_STREAK
 from bot.db.repo import Battle, Court, Pic, UserStats
 from bot.game import BattleReport, CourtReport, Granted
 from bot.texts import arena as arena_texts
@@ -208,7 +208,11 @@ def battle_result(
         lines += ["", block] if block else []
     lines.append("")
 
-    if is_duel:
+    if battle.mode == "challenge":
+        from bot.texts.social import CHALLENGE_WIN  # local: only challenges speak this voice
+
+        lines.append(quote(pick(CHALLENGE_WIN if report.winner is not None else arena_texts.DUEL_DRAW, battle.chat_id)))
+    elif is_duel:
         pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
         lines.append(quote(pick(pool, battle.chat_id)))
         if report.winner is not None and report.streak > 1:
@@ -216,7 +220,7 @@ def battle_result(
         if report.executed:
             lines.append(f"⚰️ <b>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</b>")
             lines.append(
-                f"<i>Рейтинг ниже {DEATH_RATING:.0f} или {DEATH_LOSS_STREAK}-е поражение подряд — арена не прощает</i>"
+                f"<i>Рейтинг ниже {report.death_rating:.0f} или {DEATH_LOSS_STREAK}-е поражение подряд — арена не прощает</i>"
             )
     else:
         pool = arena_texts.TOURNAMENT_DRAW if report.winner is None else arena_texts.TOURNAMENT_WIN

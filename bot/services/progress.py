@@ -88,6 +88,8 @@ class ProgressMixin:
         # Old quest progress is useless after the day ends.
         self.repo.forget_counters("q:", f"q:{today}:")
         self.repo.forget_counters("w:", f"w:{self.local_week()}:")
+        self.repo.forget_meta("pm:")  # 🛒 menus and title prompts don't outlive a day
+        self.repo.forget_meta("title_prompt:")
         return code, True
 
     def tax_report(self) -> tuple[int, int, int] | None:

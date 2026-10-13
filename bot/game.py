@@ -56,6 +56,7 @@ class BattleReport:
     evolved: list[tuple[int, int, int]] = field(default_factory=list)  # (slot, old stage, new stage)
     challenge: dict | None = None
     champion: int | None = None  # the player who won a challenge
+    death_rating: float = arena.DEATH_RATING  # 1000 on a blood-moon day
 
 
 @dataclass(frozen=True)
@@ -390,6 +391,7 @@ class Game(ProgressMixin, CasinoMixin, ShopMixin, SocialMixin, BossMixin):
             evolved=evolved,
             challenge=challenge,
             champion=champion,
+            death_rating=days.BLOOD_MOON_DEATH_RATING if self.day_is("blood_moon") else arena.DEATH_RATING,
         )
 
     def _settle_battle_votes(

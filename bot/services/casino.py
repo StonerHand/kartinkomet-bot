@@ -41,9 +41,9 @@ class CasinoMixin:
 
     def place_casino_bet(self, user_id: int, stake: int) -> str:
         """'ok' | 'small' | 'broke'. Takes the stake up front."""
-        if stake < casino.STAKE_MIN:
-            return "small"
         balance = self.repo.player(user_id)[0]
+        if stake < casino.STAKE_MIN:
+            return "broke" if balance < casino.STAKE_MIN else "small"
         if not self.repo.spend(user_id, stake, "casino_bet", self.now()):
             return "broke"
         self.repo.set_counter(user_id, "casino_all_in", int(stake == balance and stake >= ALL_IN_MIN))

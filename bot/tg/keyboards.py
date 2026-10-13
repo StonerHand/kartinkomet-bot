@@ -263,7 +263,7 @@ def hall(pic_ids: list[str]) -> InlineKeyboardMarkup:
             rows.append(row)
             row = []
     rows.append(row)
-    rows.append(back())
+    rows.append(back("m:top:uploads"))
     return markup(*rows)
 
 
@@ -276,7 +276,7 @@ def bottom(pic_ids: list[str]) -> InlineKeyboardMarkup:
             rows.append(row)
             row = []
     rows.append(row)
-    rows.append(back())
+    rows.append(back("m:top:uploads"))
     return markup(*rows)
 
 
@@ -289,7 +289,7 @@ def graveyard(pic_ids: list[str], is_admin: bool) -> InlineKeyboardMarkup:
                 for index, pic_id in enumerate(pic_ids, start=1)
             ]
         )
-    rows.append(back())
+    rows.append(back("m:top:uploads"))
     return markup(*rows)
 
 

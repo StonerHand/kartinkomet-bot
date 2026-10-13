@@ -134,7 +134,7 @@ Telegram ──▶ aiogram (long polling) ──▶ bot/tg   карточки, �
                                  bot/db ──▶ SQLite (WAL) на volume
 ```
 
-Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт. CI гоняет линтер и 193 теста, включая сквозные сценарии с фейковым Telegram. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
+Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт. CI гоняет линтер и 193 тестов, включая сквозные сценарии с фейковым Telegram. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
 
 ## 📄 Лицензия
 

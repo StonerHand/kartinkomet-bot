@@ -95,6 +95,8 @@ class BossMixin:
             return None
         boss = self.repo.get_boss(boss_id)
         damage = boss["damage"]
+        for key in [key for key in self._boss_hit_at if key[0] == boss_id]:
+            del self._boss_hit_at[key]
         if not won:
             self.repo.shift_rating(boss["pic_id"], rules.ESCAPE_RATING_BONUS)
             return BossReport(boss, False, granted=self.check_achievements(list(damage)))

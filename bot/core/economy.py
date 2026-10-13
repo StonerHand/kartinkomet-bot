@@ -10,7 +10,6 @@ LIKE_RECEIVED = 2  # someone liked your pic for the first time
 UPLOAD = 1
 CAPTION_WIN = 15
 GOLD = 25
-SPIN_PRICE = 20
 
 COIN = "🪙"
 

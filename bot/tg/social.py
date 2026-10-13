@@ -7,7 +7,6 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.core import shop
 from bot.game import Game
-from bot.texts import arena as arena_texts
 from bot.texts import social as texts
 from bot.texts.pick import pick
 from bot.tg import cards, keyboards, send
@@ -194,7 +193,7 @@ async def challenge(message: Message, command: CommandObject, bot: Bot, game: Ga
 async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     _, answer, challenge_id = callback.data.split(":", 2)
     result = game.answer_challenge(
-        challenge_id, callback.from_user.id, answer == "y", title=pick(arena_texts.DUEL_START, challenge_id)
+        challenge_id, callback.from_user.id, answer == "y", title=pick(texts.CHALLENGE_DUEL, challenge_id)
     )
     refusals = {
         "gone": "Вызов уже не актуален",

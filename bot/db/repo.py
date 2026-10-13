@@ -447,14 +447,6 @@ class Repo(V4Repo):
         ).fetchall()
         return [_pic(row) for row in rows]
 
-    def is_legend(self, pic_id: str) -> bool:
-        row = self.db.execute(
-            "SELECT 1 FROM (SELECT id FROM pics WHERE status = 'alive' AND (games + likes + dislikes) >= ? "
-            "ORDER BY rating DESC LIMIT ?) WHERE id = ?",
-            (MIN_EXPERIENCE, LEGEND_POOL_SIZE, pic_id),
-        ).fetchone()
-        return row is not None
-
     def remove_pic(self, pic_id: str, status: str, reason: str, now: int) -> bool:
         with self.db:
             cursor = self.db.execute(
@@ -966,17 +958,6 @@ class Repo(V4Repo):
                 (user_id, level),
             )
 
-    def ledger_totals(self, since: int, reason: str | None = None, limit: int = 3) -> list[tuple[int, int]]:
-        """Top users by summed ledger amounts since a time, optionally for one reason."""
-        where = "at >= ?" + (" AND reason = ?" if reason else "")
-        params = (since, reason) if reason else (since,)
-        rows = self.db.execute(
-            f"SELECT user_id, SUM(amount) FROM ledger WHERE {where} GROUP BY user_id "
-            "HAVING SUM(amount) > 0 ORDER BY 2 DESC, 1 LIMIT ?",
-            (*params, limit),
-        ).fetchall()
-        return [(row[0], row[1]) for row in rows]
-
     def counter(self, user_id: int, key: str) -> int:
         row = self.db.execute(
             "SELECT value FROM counters WHERE user_id = ? AND key = ?", (user_id, key)
@@ -1187,10 +1168,6 @@ class Repo(V4Repo):
                 "UPDATE gold SET claimed_by = ? WHERE token = ? AND claimed_by IS NULL", (user_id, token)
             )
         return cursor.rowcount == 1
-
-    def gold_owner(self, token: str) -> int | None:
-        row = self.db.execute("SELECT claimed_by FROM gold WHERE token = ?", (token,)).fetchone()
-        return row[0] if row else None
 
     def last_gold_at(self, chat_id: int) -> int:
         row = self.db.execute("SELECT MAX(created_at) FROM gold WHERE chat_id = ?", (chat_id,)).fetchone()

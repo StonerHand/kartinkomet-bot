@@ -10,6 +10,7 @@ Every code has a rarity; secret ones stay hidden in profiles until earned.
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from bot.core.shop import GOLDEN_WEDDING_DAYS
 from bot.db.repo import UserStats
 
 COMMON, RARE, LEGENDARY = "common", "rare", "legendary"
@@ -84,7 +85,7 @@ RULES: list[Rule] = [
     Rule("patron", 1000, _counter("given")),
     Rule("robin_hood", 5, _counter("robberies")),
     Rule("easy_prey", 5, _counter("times_robbed")),
-    Rule("golden_wedding", 30, lambda s: s.married_days),
+    Rule("golden_wedding", GOLDEN_WEDDING_DAYS, lambda s: s.married_days),
 ]
 
 # Granted directly by the game when the moment happens.

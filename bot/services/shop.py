@@ -107,7 +107,3 @@ class ShopMixin:
                 paid[user_id] = share
                 self._pending_events.setdefault(user_id, []).append("bounty_hunter")
         return paid
-
-    def resurrection_price(self) -> int:
-        return self.price("resurrect")
-

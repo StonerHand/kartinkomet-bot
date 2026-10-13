@@ -53,7 +53,7 @@ async def drop_pic(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int 
         bot,
         chat_id,
         pic.file_id,
-        views.pic_caption(pic, bucket, chat_id, uploader),
+        views.pic_caption(pic, bucket, chat_id, uploader, game.repo.bounty_on(pic.id)),
         pic_markup(game, pic.id, pic.likes, pic.dislikes),
     )
     if message is None:
@@ -96,7 +96,7 @@ async def show_pic(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         bot,
         chat_id,
         pic.file_id,
-        views.pic_caption(pic, "legend", chat_id, uploader),
+        views.pic_caption(pic, "legend", chat_id, uploader, game.repo.bounty_on(pic.id)),
         pic_markup(game, pic.id, pic.likes, pic.dislikes),
     )
 
