@@ -36,12 +36,12 @@ def cooling_down(chat_id: int) -> bool:
     return False
 
 
-async def drop_pic(bot: Bot, game: Game, chat_id: int) -> None:
-    drawn = game.draw_pic(chat_id)
+async def drop_pic(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int | None) -> None:
+    drawn = game.draw_for(chat_id, user_id)
     if drawn is None:
         await send.send_text(bot, chat_id, f"<b>📦 {pick(ui.EMPTY_POOL, chat_id)}</b>")
         return
-    pic, bucket = drawn
+    pic, bucket, granted = drawn
     uploader = game.repo.user_label(pic.added_by) if pic.added_by else None
     message = await send.send_photo(
         bot,
@@ -52,16 +52,18 @@ async def drop_pic(bot: Bot, game: Game, chat_id: int) -> None:
     )
     if message is None:
         await send.send_text(bot, chat_id, pick(ui.ERRORS), keyboards.more_only())
+        return
+    await live.announce(chat_id, granted)
 
 
 @router.message(Command("pic"))
-async def pic_command(message: Message, bot: Bot, game: Game) -> None:
+async def pic_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     if not cooling_down(message.chat.id):
-        await drop_pic(bot, game, message.chat.id)
+        await drop_pic(bot, game, live, message.chat.id, message.from_user.id if message.from_user else None)
 
 
 @router.callback_query(F.data == "pic")
-async def pic_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
+async def pic_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     if callback.message is None:
         await callback.answer()
         return
@@ -69,7 +71,7 @@ async def pic_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         await callback.answer(pick(event_texts.COOLDOWN))
         return
     await callback.answer()
-    await drop_pic(bot, game, callback.message.chat.id)
+    await drop_pic(bot, game, live, callback.message.chat.id, callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("show:"))

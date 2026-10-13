@@ -26,7 +26,13 @@ DUEL_LABELS = ("🅰️", "🅱️")
 # Vote buttons match the collage badges: red, blue, green, then the app default for yellow.
 SLOT_STYLES = (DANGER, PRIMARY, SUCCESS, None)
 TOURNAMENT_LABELS = ("1️⃣", "2️⃣", "3️⃣", "4️⃣")
-TOP_BOARDS = (("uploads", "📥 Загрузки"), ("loved", "❤️ Любимцы"), ("killers", "🪓 Палачи"), ("streaks", "🔥 Серии"))
+TOP_BOARDS = (
+    ("uploads", "📥 Загрузки"),
+    ("loved", "❤️ Любимцы"),
+    ("killers", "🪓 Палачи"),
+    ("streaks", "🔥 Серии"),
+    ("rich", "💰 Богачи"),
+)
 # Telegram truncates long labels on phones: keep ≤ 8 chars with 3 buttons in a row, ≤ 12 with 2.
 
 
@@ -147,7 +153,7 @@ def tops(active: str) -> InlineKeyboardMarkup:
         button(("✅ " + label.split(" ", 1)[1]) if board == active else label, f"m:top:{board}")
         for board, label in TOP_BOARDS
     ]
-    return markup(tabs[:2], tabs[2:], back())
+    return markup(tabs[:2], tabs[2:4], tabs[4:], back())
 
 
 def upload_hub(is_private: bool) -> InlineKeyboardMarkup:

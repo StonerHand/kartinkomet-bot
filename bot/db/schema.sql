@@ -121,6 +121,31 @@ CREATE TABLE IF NOT EXISTS achievements (
     PRIMARY KEY (user_id, code)
 ) WITHOUT ROWID;
 
+-- Economy: coins balance and lifetime earnings (level), plus a ledger for weekly crowns.
+CREATE TABLE IF NOT EXISTS players (
+    user_id INTEGER PRIMARY KEY,
+    coins INTEGER NOT NULL DEFAULT 0,
+    earned INTEGER NOT NULL DEFAULT 0,
+    level_seen INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS ledger (
+    user_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ledger_at ON ledger(at, reason);
+
+-- Per-user counters for achievements and statuses (guess streaks, spins, activity days…).
+CREATE TABLE IF NOT EXISTS counters (
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, key)
+) WITHOUT ROWID;
+
 -- Group chats the bot lives in, for scheduled events (pic of the day, auto court, weekly digest).
 CREATE TABLE IF NOT EXISTS chats (
     chat_id INTEGER PRIMARY KEY,

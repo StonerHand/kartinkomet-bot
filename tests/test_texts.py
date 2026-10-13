@@ -1,7 +1,7 @@
 import unittest
 from html.parser import HTMLParser
 
-from bot.core.achievements import RULE_CODES
+from bot.core.achievements import ALL_CODES
 from bot.texts import arena, captions, court, toasts, tops, ui
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick, reset
@@ -72,7 +72,7 @@ class TextsTest(unittest.TestCase):
                     self.assertNotIn(fragment.casefold(), phrase.casefold(), pool_name)
 
     def test_every_achievement_has_text(self) -> None:
-        self.assertEqual(set(ACHIEVEMENTS), set(RULE_CODES))
+        self.assertEqual(set(ACHIEVEMENTS), set(ALL_CODES))
 
     def test_pick_does_not_repeat_within_half_pool(self) -> None:
         reset()

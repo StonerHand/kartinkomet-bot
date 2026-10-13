@@ -118,7 +118,8 @@ class Live:
             markup = keyboards.after_duel(battle.id, battle.winner_slot is not None)
         else:
             markup = keyboards.after_tournament()
-        text = views.battle_result(report, self.uploaders(battle))
+        guessers = [self.game.repo.user_label(user_id) for user_id in report.guessers]
+        text = views.battle_result(report, self.uploaders(battle), guessers)
         card_id = battle.message_id
         if card_id is None or not await self.edit_card(battle, text, markup):
             sent = await send.send_text(self.bot, battle.chat_id, text, markup)
@@ -196,11 +197,11 @@ class Live:
     # ── achievements ───────────────────────────────────────────────────
 
     async def announce(self, chat_id: int, granted: list[Granted]) -> None:
-        for item in granted:
-            message = await send.send_text(
-                self.bot,
-                chat_id,
-                views.achievements_unlocked(item, self.game.repo.user_label(item.user_id)),
-            )
-            if message:
-                await send.react(self.bot, chat_id, message.message_id, "🎉")
+        """One message per event, however many people got something."""
+        if not granted:
+            return
+        items = [(self.game.repo.user_label(item.user_id), item) for item in granted]
+        message = await send.send_text(self.bot, chat_id, views.announcement(items))
+        if message:
+            legendary = views.has_legendary(granted)
+            await send.react(self.bot, chat_id, message.message_id, "🔥" if legendary else "🎉", big=legendary)

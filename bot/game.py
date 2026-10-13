@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from bot.core import achievements, arena, court, deck
+from bot.core import achievements, arena, court, deck, economy
 from bot.db.repo import Battle, Court, Pic, Repo
 
 UPLOAD_LIMIT_PER_HOUR = 1000
@@ -16,6 +16,7 @@ UPLOAD_LIMIT_PER_HOUR = 1000
 class Granted:
     user_id: int
     codes: list[str]
+    level_up: str | None = None  # name of the new level, if the player just reached one
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class BattleReport:
     streak: int  # winner's streak after a duel (0 for tournaments / draws without champion)
     milestone: int | None
     granted: list[Granted]
+    guessers: list[int] = field(default_factory=list)  # voters who picked the winner
 
 
 @dataclass(frozen=True)
@@ -69,16 +71,60 @@ class Game:
         self.repo = repo
         self.rng = rng or random.SystemRandom()
         self.clock = clock
+        self.tz_offset_hours = tz_offset_hours
+        # Event achievements earned by actions that don't announce themselves (votes):
+        # delivered with the next announcement for that user.
+        self._pending_events: dict[int, list[str]] = {}
         # Local 00:00–04:59 expressed in UTC hours, for night-upload achievements.
         self.night_hours_utc = [(hour - tz_offset_hours) % 24 for hour in range(0, 5)]
 
     def now(self) -> int:
         return int(self.clock())
 
+    def local_day(self) -> int:
+        return (self.now() + self.tz_offset_hours * 3600) // 86400
+
+    def local_hour(self) -> int:
+        return (self.now() + self.tz_offset_hours * 3600) % 86400 // 3600
+
     # ── random ─────────────────────────────────────────────────────────
 
     def draw_pic(self, chat_id: int) -> tuple[Pic, str] | None:
         return deck.draw_one(self.repo, f"pic:{chat_id}", self.now(), self.rng)
+
+    def draw_for(self, chat_id: int, user_id: int | None) -> tuple[Pic, str, list[Granted]] | None:
+        """A random pic requested by a person: also checks 'lucky' and 'déjà vu'."""
+        drawn = self.draw_pic(chat_id)
+        if drawn is None:
+            return None
+        pic, bucket = drawn
+        events: list[str] = []
+        if user_id is not None:
+            if pic.added_by == user_id:
+                events.append("deja_vu")
+            if bucket == "legend" and self.repo.incr_counter(user_id, f"legends_day:{self.local_day()}") >= 3:
+                events.append("lucky")
+        granted = self.check_achievements([], {user_id: events}) if events else []
+        return pic, bucket, granted
+
+    # ── activity & coins ───────────────────────────────────────────────
+
+    def touch_activity(self, user_id: int) -> list[str]:
+        """Daily activity streak. Returns event achievements (coming back after a week = ghost)."""
+        today = self.local_day()
+        last_day = self.repo.counter(user_id, "last_active_day")
+        if last_day == today:
+            return []
+        events = ["ghost"] if last_day and today - last_day >= 7 else []
+        streak = self.repo.counter(user_id, "active_streak") + 1 if last_day == today - 1 else 1
+        self.repo.set_counter(user_id, "active_streak", streak)
+        self.repo.raise_counter(user_id, "best_active_streak", streak)
+        self.repo.set_counter(user_id, "last_active_day", today)
+        return events
+
+    def pay(self, user_id: int | None, amount: int, reason: str) -> None:
+        if isinstance(user_id, int) and amount:
+            self.repo.add_coins(user_id, amount, reason, self.now())
 
     # ── reactions ──────────────────────────────────────────────────────
 
@@ -88,7 +134,19 @@ class Game:
             return None
         if before.status != "alive":
             return ReactResult(pic=before, changed=False, court_due=False)
-        changed = self.repo.react(pic_id, user_id, value, self.now())
+        first_on_pic = self.repo.reaction_count(pic_id) == 0
+        previous = self.repo.react(pic_id, user_id, value, self.now())
+        changed = previous is not None
+        events: list[str] = []
+        if changed:
+            events = self.touch_activity(user_id)
+            if previous:
+                self.repo.incr_counter(user_id, "reaction_switches")
+            elif first_on_pic:
+                self.repo.incr_counter(user_id, "first_reacts")
+            # Coins only for a first-ever like: switching back and forth can't farm them.
+            if previous == 0 and value == 1 and before.added_by not in (None, user_id):
+                self.pay(before.added_by, economy.LIKE_RECEIVED, "like")
         pic = self.repo.get_pic(pic_id)
         assert pic is not None
         court_due = (
@@ -97,7 +155,7 @@ class Game:
             and court.can_be_tried(pic.status, pic.immune_until, self.now())
             and self.repo.active_court_for_pic(pic_id) is None
         )
-        granted = self.check_achievements([pic.added_by]) if changed else []
+        granted = self.check_achievements([pic.added_by, user_id], {user_id: events}) if changed else []
         return ReactResult(pic=pic, changed=changed, court_due=court_due, granted=granted)
 
     # ── battles ────────────────────────────────────────────────────────
@@ -174,6 +232,7 @@ class Game:
             return "gone", battle
         if not self.repo.vote_battle(battle_id, user_id, slot):
             return "same", battle
+        self._pending_events.setdefault(user_id, []).extend(self.touch_activity(user_id))
         return "ok", self.repo.get_battle(battle_id)
 
     def finish_battle(self, battle_id: str) -> BattleReport | None:
@@ -232,6 +291,7 @@ class Game:
             if battle.kind == "duel" and winner is not None and counted
             else None
         )
+        guessers, events = self._settle_battle_votes(battle, votes, winner, executed, before, counted)
         owners = [pic.added_by for pic in battle.pics] if counted else []
         return BattleReport(
             battle=self.repo.get_battle(battle_id) or battle,
@@ -242,8 +302,70 @@ class Game:
             rating_after=after,
             streak=streak if battle.kind == "duel" else 0,
             milestone=milestone,
-            granted=self.check_achievements(owners),
+            granted=self.check_achievements(owners + list(battle.votes), events),
+            guessers=guessers,
         )
+
+    def _settle_battle_votes(
+        self,
+        battle: Battle,
+        votes: list[int],
+        winner: int | None,
+        executed: Pic | None,
+        before: list[float],
+        counted: bool,
+    ) -> tuple[list[int], dict[int, list[str]]]:
+        """Coins and guess streaks for voters, plus arena event achievements."""
+        events: dict[int, list[str]] = {}
+
+        def grant(user_id: int | None, code: str) -> None:
+            if isinstance(user_id, int):
+                events.setdefault(user_id, []).append(code)
+
+        guessers = []
+        for user_id, slot in battle.votes.items():
+            self.pay(user_id, economy.VOTE, "vote")
+            if winner is None:
+                continue
+            if slot == winner:
+                guessers.append(user_id)
+                self.pay(user_id, economy.GUESS, "guess")
+                streak = self.repo.incr_counter(user_id, "guess_streak")
+                self.repo.raise_counter(user_id, "best_guess_streak", streak)
+            else:
+                self.repo.set_counter(user_id, "guess_streak", 0)
+                self.repo.incr_counter(user_id, "wrong_guesses")
+        if not counted:
+            return guessers, events
+
+        total = sum(votes)
+        if winner is None:
+            if max(votes) >= 5:
+                for user_id in battle.votes:
+                    grant(user_id, "draw_of_century")
+            return guessers, events
+
+        winner_pic = battle.pics[winner]
+        if total == 1:
+            grant(guessers[0] if guessers else None, "lone_warrior")
+        if battle.kind != "duel":
+            return guessers, events
+
+        loser = 1 - winner
+        loser_pic = battle.pics[loser]
+        if executed is not None and votes[winner] - votes[loser] == 1:
+            for user_id in guessers:
+                grant(user_id, "ice_heart")
+        if self.repo.lost_before(winner_pic.id, loser_pic.id, battle.id):
+            grant(winner_pic.added_by, "revenge")
+        if before[winner] < 950 and before[loser] >= 1050:
+            grant(winner_pic.added_by, "underdog")
+        if winner == 1 and battle.streak >= 3:
+            grant(winner_pic.added_by, "regicide")
+        potd = self.repo.meta_str(f"potd_day:{winner_pic.id}")
+        if potd and int(potd) == self.local_day():
+            grant(winner_pic.added_by, "jackpot")
+        return guessers, events
 
     # ── courts ─────────────────────────────────────────────────────────
 
@@ -289,6 +411,10 @@ class Game:
             return "expired", trial
         if not self.repo.vote_court(court_id, user_id, vote):
             return "same", trial
+        pending = self._pending_events.setdefault(user_id, [])
+        pending.extend(self.touch_activity(user_id))
+        if 3 <= self.local_hour() < 5:
+            pending.append("night_court")
         return "ok", self.repo.get_court(court_id)
 
     def last_word(self, chat_id: int, message_id: int, user_id: int, text: str) -> Court | None:
@@ -312,21 +438,42 @@ class Game:
         if not self.repo.close_court(court_id, result):
             return None
         now = self.now()
+        owner = trial.pic.added_by
+        events: dict[int, list[str]] = {}
+
+        def grant(user_id: int | None, code: str) -> None:
+            if isinstance(user_id, int):
+                events.setdefault(user_id, []).append(code)
+
         if result == "executed":
             self.repo.remove_pic(trial.pic.id, "executed", "court", now)
             self.repo.incr_meta("court_executions")
+            if isinstance(owner, int) and self.repo.executed_since(owner, now - 86400) >= 3:
+                grant(owner, "black_streak")
         else:
             self.repo.set_immunity(trial.pic.id, now + court.IMMUNITY_SECONDS)
             self.repo.incr_meta("court_pardons")
-        users = [trial.pic.added_by, *trial.votes.keys()]
+            if trial.last_word:
+                grant(owner, "last_word_saved")
+        for user_id, vote in trial.votes.items():
+            self.pay(user_id, economy.COURT_VOTE, "court_vote")
+            if vote == "kill" and user_id == owner:
+                grant(user_id, "self_executioner")
+        if spare == 1 and kill >= 2:
+            grant(next(u for u, v in trial.votes.items() if v == "spare"), "devils_advocate")
+        users = [owner, *trial.votes.keys()]
         return CourtReport(
             court=self.repo.get_court(court_id) or trial,
             verdict=result,
-            granted=self.check_achievements(users),
+            granted=self.check_achievements(users, events),
         )
 
     def pardon(self, pic_id: str) -> bool:
-        return self.repo.revive_pic(pic_id, self.now() + court.IMMUNITY_SECONDS)
+        revived = self.repo.revive_pic(pic_id, self.now() + court.IMMUNITY_SECONDS)
+        pic = self.repo.get_pic(pic_id) if revived else None
+        if pic is not None and isinstance(pic.added_by, int):
+            self._pending_events.setdefault(pic.added_by, []).append("necromancer")
+        return revived
 
     # ── uploads ────────────────────────────────────────────────────────
 
@@ -341,28 +488,52 @@ class Game:
             pic = self.repo.add_pic(file_id, file_unique_id, user_id, visual_hash, self.now())
         except sqlite3.IntegrityError:
             return None
+        self.pay(user_id, economy.UPLOAD, "upload")
+        self.repo.set_counter(user_id, "dup_streak", 0)
         return pic, self.check_achievements([user_id])
+
+    def note_duplicate(self, user_id: int) -> None:
+        streak = self.repo.incr_counter(user_id, "dup_streak")
+        self.repo.raise_counter(user_id, "best_dup_streak", streak)
 
     # ── achievements ───────────────────────────────────────────────────
 
+    BACKFILL_KEY = "achievements_backfilled_v2"  # bump when new metric achievements are added
+
     def backfill_achievements(self) -> int:
-        """Silently grant everything already earned (first start after migration)."""
-        if self.repo.meta_str("achievements_backfilled"):
+        """Silently grant everything already earned, so old progress doesn't flood the chat."""
+        if self.repo.meta_str(self.BACKFILL_KEY):
             return 0
         granted = self.check_achievements(self.repo.all_user_ids())
-        self.repo.set_meta("achievements_backfilled", self.now())
+        self.repo.set_meta(self.BACKFILL_KEY, self.now())
         return sum(len(item.codes) for item in granted)
 
-    def check_achievements(self, user_ids: list[int | None]) -> list[Granted]:
+    def check_achievements(
+        self,
+        user_ids: list[int | None],
+        events: dict[int | None, list[str]] | None = None,
+    ) -> list[Granted]:
+        """Metric achievements, event achievements and level-ups for these users."""
         granted = []
         now = self.now()
-        for user_id in dict.fromkeys(uid for uid in user_ids if isinstance(uid, int)):
-            stats = self.repo.user_stats(user_id, self.night_hours_utc)
+        events = {uid: codes for uid, codes in (events or {}).items() if isinstance(uid, int)}
+        candidates = [uid for uid in user_ids if isinstance(uid, int)] + list(events)
+        for user_id in dict.fromkeys(candidates):
+            owned = self.repo.achievements_of(user_id)
+            stats = self.repo.user_stats(user_id, self.night_hours_utc, self.tz_offset_hours, now)
+            wanted = achievements.earned(stats, owned)
+            wanted += events.get(user_id, []) + self._pending_events.pop(user_id, [])
             fresh = [
                 code
-                for code in achievements.earned(stats, self.repo.achievements_of(user_id))
-                if self.repo.grant_achievement(user_id, code, now)
+                for code in dict.fromkeys(wanted)
+                if code not in owned and self.repo.grant_achievement(user_id, code, now)
             ]
-            if fresh:
-                granted.append(Granted(user_id, fresh))
+            coins, earned, level_seen = self.repo.player(user_id)
+            level = economy.level_for(earned)
+            level_up = None
+            if level.index > level_seen:
+                self.repo.set_level_seen(user_id, level.index)
+                level_up = level.name
+            if fresh or level_up:
+                granted.append(Granted(user_id, fresh, level_up))
         return granted

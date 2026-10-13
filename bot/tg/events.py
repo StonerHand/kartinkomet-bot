@@ -125,6 +125,7 @@ class Events:
         if message is None:
             return False
         repo.set_meta(f"potd_last:{chat_id}", pic.id)
+        repo.set_meta(f"potd_day:{pic.id}", self.game.local_day())  # for the "jackpot" achievement
         await send.react(self.bot, chat_id, message.message_id, "❤", big=True)
         return True
 

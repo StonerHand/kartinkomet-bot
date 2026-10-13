@@ -10,7 +10,7 @@ from bot.tg import keyboards, send, views
 
 router = Router(name="panel")
 
-BOARDS = {"uploads", "loved", "killers", "streaks"}
+BOARDS = {"uploads", "loved", "killers", "streaks", "rich"}
 
 
 def screen(
@@ -42,10 +42,22 @@ def screen(
         rows = [(repo.user_label(user), value) for user, value in repo.top_users(board)]
         return views.top(board, rows), keyboards.tops(board)
     if name == "me":
-        stats = repo.user_stats(user_id, game.night_hours_utc)
+        stats = repo.user_stats(user_id, game.night_hours_utc, game.tz_offset_hours, game.now())
         ranking = [uid for uid, _ in repo.top_users("uploads", limit=1000)]
         place = ranking.index(user_id) + 1 if user_id in ranking else None
-        text = views.profile(repo.user_label(user_id), stats, repo.achievements_of(user_id), place)
+        coins, earned, _ = repo.player(user_id)
+        streak = repo.counter(user_id, "active_streak")
+        if repo.counter(user_id, "last_active_day") < game.local_day() - 1:
+            streak = 0  # the streak burnt out
+        text = views.profile(
+            repo.user_label(user_id),
+            stats,
+            repo.achievements_of(user_id),
+            place,
+            views.Wallet(coins=coins, earned=earned, streak=streak),
+            repo.achievement_owners(),
+            max(1, repo.count_users()),
+        )
         return text, keyboards.markup(keyboards.back())
     if name == "help":
         return ui.HELP, keyboards.markup(keyboards.back())

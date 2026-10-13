@@ -8,14 +8,17 @@ vote counts first and short emoji bars after them so numbers line up, no empty c
 
 from html import escape
 
+from dataclasses import dataclass
+
 from bot.core import achievements as rules
+from bot.core import economy
 from bot.core.arena import DEATH_LOSS_STREAK, DEATH_RATING
 from bot.db.repo import Battle, Court, Pic, UserStats
 from bot.game import BattleReport, CourtReport, Granted
 from bot.texts import arena as arena_texts
 from bot.texts import captions, court as court_texts, tops as top_texts, ui
 from bot.texts import events as event_texts
-from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
+from bot.texts.achievements import ACHIEVEMENTS, LEVEL_UP, RARITY_MARKS, UNLOCKED
 from bot.texts.pick import pick
 from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
 
@@ -118,7 +121,7 @@ def battle_card(battle: Battle, remaining: int) -> str:
     return "\n".join(lines)
 
 
-def battle_result(report: BattleReport, uploaders: list[str]) -> str:
+def battle_result(report: BattleReport, uploaders: list[str], guessers: list[str] | None = None) -> str:
     """One line per pic, best first: marker, slot, uploader, rating change."""
     battle = report.battle
     is_duel = battle.kind == "duel"
@@ -148,6 +151,11 @@ def battle_result(report: BattleReport, uploaders: list[str]) -> str:
         name = f"<b>{who(uploaders[slot])}</b>" if slot == report.winner else who(uploaders[slot])
         change = delta(report.rating_before[slot], report.rating_after[slot])
         lines.append(f"{marker} {labels[slot]} {name}{votes} · ⭐ {rating(report.rating_after[slot])} <i>({change})</i>")
+    if guessers:
+        lines.append(
+            f"🪙 Угадали: {', '.join(who(name) for name in guessers)} "
+            f"<i>(+{economy.GUESS + economy.VOTE})</i>"
+        )
     lines.append("")
 
     if is_duel:
@@ -213,12 +221,28 @@ def court_result(report: CourtReport, uploader: str) -> str:
 # ── achievements ───────────────────────────────────────────────────────
 
 
-def achievements_unlocked(granted: Granted, label: str) -> str:
-    lines = [f"<b>{escape(pick(UNLOCKED))}</b> · {who(label)}"]
-    for code in granted.codes:
+def announcement(items: list[tuple[str, Granted]]) -> str:
+    """All achievements and level-ups of one event in a single message; the same achievement
+    for several people becomes one line."""
+    lines = [f"<b>{escape(pick(UNLOCKED))}</b>"]
+    for label, granted in items:
+        if granted.level_up:
+            lines.append(f"\n⬆️ <b>{who(label)}</b> → {escape(granted.level_up)}\n<i>{escape(pick(LEVEL_UP))}</i>")
+    by_code: dict[str, list[str]] = {}
+    for label, granted in items:
+        for code in granted.codes:
+            by_code.setdefault(code, []).append(label)
+    ordered = sorted(by_code, key=lambda code: (rules.RARITY_ORDER[rules.rarity(code)], code))
+    for code in ordered:
         name, description = ACHIEVEMENTS.get(code, (code, ""))
-        lines.append(f"<b>{escape(name)}</b>\n<i>{escape(description)}</i>")
-    return "\n\n".join(lines)
+        mark = RARITY_MARKS[rules.rarity(code)]
+        people = ", ".join(who(label) for label in by_code[code])
+        lines.append(f"\n{mark}<b>{escape(name)}</b> — {people}\n<i>{escape(description)}</i>")
+    return "\n".join(lines)
+
+
+def has_legendary(granted: list[Granted]) -> bool:
+    return any(rules.rarity(code) == rules.LEGENDARY for item in granted for code in item.codes)
 
 
 # ── panel screens ──────────────────────────────────────────────────────
@@ -293,28 +317,63 @@ def top(board: str, rows: list[tuple[str, int]]) -> str:
     return "\n".join(lines)
 
 
-def profile(label: str, stats: UserStats, owned: set[str], place: int | None) -> str:
+@dataclass(frozen=True)
+class Wallet:
+    coins: int
+    earned: int
+    streak: int  # days in a row with any vote or reaction
+
+
+def profile(
+    label: str,
+    stats: UserStats,
+    owned: set[str],
+    place: int | None,
+    wallet: Wallet,
+    owners: dict[str, int],
+    players: int,
+) -> str:
     title_code = rules.upload_title_code(stats.uploads)
     title = ACHIEVEMENTS[title_code][0] if title_code else "🥚 Никто"
-    goal = rules.next_upload_goal(stats.uploads)
-    rank = f" · {place}-е место" if place else ""
+    level = economy.level_for(wallet.earned)
+    upcoming = economy.next_level(wallet.earned)
+    rank = f" · {place}-е место в загрузках" if place else ""
     lines = [
         f"👤 <b>{who(label).upper()}</b>",
-        f"<b>{escape(title)}</b>{rank}",
+        f"<b>{escape(level.name)}</b> · ур. {level.index + 1}{rank}",
+    ]
+    if upcoming:
+        lines.append(
+            f"<code>{economy.progress(wallet.earned)}</code> {wallet.earned}/{upcoming.threshold} "
+            f"до «{escape(upcoming.name)}»"
+        )
+    streak = f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд" if wallet.streak > 1 else ""
+    lines += [
+        f"🪙 Пикчекоины: <b>{wallet.coins}</b>{streak}",
+        f"🏷 Титул загрузчика: {escape(title)}",
         "",
         f"📥 Загружено: <b>{stats.uploads}</b> · живых {stats.pics_alive}",
         f"🤙🏻 <b>{stats.likes_received}</b> · 🖕🏻 <b>{stats.dislikes_received}</b> на твоих пикчах",
         f"⚰️ Казнено твоих: <b>{stats.pics_executed}</b>",
-        f"🔥 Лучшая серия: <b>{stats.best_streak}</b> · 🏛 в зале славы: <b>{stats.legends}</b>",
+        f"⚔️ Лучшая серия пикчи: <b>{stats.best_streak}</b> · 🏛 в зале славы: <b>{stats.legends}</b>",
         f"🪓 Казнил: <b>{stats.kill_votes}</b> · 🕊 спас: <b>{stats.spare_votes}</b>",
     ]
+    goal = rules.next_upload_goal(stats.uploads)
     if goal:
         left = goal.threshold - stats.uploads
         lines.append(f"🎯 До «{escape(ACHIEVEMENTS[goal.code][0])}»: ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}")
-    lines += ["", f"🏅 Ачивки: <b>{len(owned)}</b> из {len(rules.RULES)}"]
-    earned = [ACHIEVEMENTS[code][0] for code in rules.RULE_CODES if code in owned]
-    if earned:
-        lines.append(f"<blockquote expandable>{escape(chr(10).join(earned))}</blockquote>\n")
+
+    hidden = len(rules.SECRET - owned)
+    secret = f" · 🔒 секретных не найдено: {hidden}" if hidden else ""
+    lines += ["", f"🏅 Ачивки: <b>{len(owned)}</b> из {len(rules.ALL_CODES)}{secret}"]
+    if owned:
+        best = rules.showcase(owned, owners)
+        lines.append("Витрина: " + " · ".join(escape(ACHIEVEMENTS[code][0]) for code in best))
+        listing = []
+        for code in sorted(owned, key=lambda c: (rules.RARITY_ORDER[rules.rarity(c)], c)):
+            share = round(100 * owners.get(code, 1) / players)
+            listing.append(f"{RARITY_MARKS[rules.rarity(code)]}{ACHIEVEMENTS[code][0]} — у {share}%")
+        lines.append(f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>\n")
     lines.append(f"<i>{escape(pick(top_texts.PROFILE_ROASTS))}</i>")
     return "\n".join(lines)
 

@@ -89,12 +89,25 @@ class CourtTest(unittest.TestCase):
 class AchievementsTest(unittest.TestCase):
     def stats(self, **values: int) -> UserStats:
         base = dict.fromkeys(UserStats.__dataclass_fields__, 0)
+        base["counters"] = {}
         base.update(values)
         return UserStats(**base)
 
-    def test_thirty_rules_with_unique_codes(self) -> None:
-        self.assertEqual(len(achievements.RULE_CODES), 30)
-        self.assertEqual(len(set(achievements.RULE_CODES)), 30)
+    def test_catalog_codes_are_unique_and_rated(self) -> None:
+        self.assertEqual(len(achievements.ALL_CODES), 64)
+        self.assertEqual(len(set(achievements.ALL_CODES)), 64)
+        self.assertEqual(set(achievements.RARITY), set(achievements.ALL_CODES))
+        self.assertTrue(achievements.SECRET <= set(achievements.ALL_CODES))
+
+    def test_counter_rules(self) -> None:
+        stats = self.stats(counters={"best_guess_streak": 5, "spins": 9})
+        earned = achievements.earned(stats, set())
+        self.assertIn("oracle", earned)
+        self.assertNotIn("croupier", earned)
+
+    def test_showcase_prefers_rare(self) -> None:
+        owned = {"up_1", "oracle", "generous"}
+        self.assertEqual(achievements.showcase(owned, {"oracle": 1}, limit=2), ["oracle", "generous"])
 
     def test_earned_skips_owned(self) -> None:
         earned = achievements.earned(self.stats(uploads=12), {"up_1"})

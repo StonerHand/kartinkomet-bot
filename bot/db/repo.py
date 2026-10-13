@@ -2,7 +2,7 @@
 
 import sqlite3
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
@@ -100,6 +100,16 @@ class UserStats:
     best_streak: int
     legends: int
     pics_alive: int
+    morning_uploads: int = 0
+    days_since_first_upload: int = 0
+    hall_top10: int = 0
+    likes_given: int = 0
+    dislikes_given: int = 0
+    earned: int = 0
+    counters: dict[str, int] = field(default_factory=dict)
+
+    def counter(self, key: str) -> int:
+        return self.counters.get(key, 0)
 
 
 def connect(database_path: Path | str) -> sqlite3.Connection:
@@ -362,15 +372,15 @@ class Repo:
                 [(now, pic_id) for pic_id in pic_ids],
             )
 
-    def react(self, pic_id: str, user_id: int, value: int, now: int) -> bool:
-        """Set a user's reaction. Returns False if it was already the same."""
+    def react(self, pic_id: str, user_id: int, value: int, now: int) -> int | None:
+        """Set a user's reaction. Returns the previous value (0 = none), or None if unchanged."""
         row = self.db.execute(
             "SELECT value FROM reactions WHERE pic_id = ? AND user_id = ?",
             (pic_id, user_id),
         ).fetchone()
         previous = row["value"] if row else 0
         if previous == value:
-            return False
+            return None
         likes_delta = (value == 1) - (previous == 1)
         dislikes_delta = (value == -1) - (previous == -1)
         with self.db:
@@ -385,7 +395,10 @@ class Repo:
                 "UPDATE pics SET likes = likes + ?, dislikes = dislikes + ? WHERE id = ?",
                 (likes_delta, dislikes_delta, pic_id),
             )
-        return True
+        return previous
+
+    def reaction_count(self, pic_id: str) -> int:
+        return self.db.execute("SELECT COUNT(*) FROM reactions WHERE pic_id = ?", (pic_id,)).fetchone()[0]
 
     def top_rated(self, limit: int = 10) -> list[Pic]:
         rows = self.db.execute(
@@ -753,7 +766,13 @@ class Repo:
             )
         return cursor.rowcount == 1
 
-    def user_stats(self, user_id: int, night_hours_utc: Sequence[int]) -> UserStats:
+    def user_stats(
+        self,
+        user_id: int,
+        night_hours_utc: Sequence[int],
+        tz_offset_hours: int = 3,
+        now: int = 0,
+    ) -> UserStats:
         pics = self.db.execute(
             """
             SELECT COUNT(*) AS uploads,
@@ -787,7 +806,34 @@ class Repo:
             "AND (games + likes + dislikes) >= ? ORDER BY rating DESC LIMIT ?) WHERE added_by = ?",
             (MIN_EXPERIENCE, LEGEND_POOL_SIZE, user_id),
         ).fetchone()[0]
+        local_hour = f"(CAST(strftime('%H', added_at, 'unixepoch') AS INTEGER) + {tz_offset_hours}) % 24"
+        extra = self.db.execute(
+            f"""
+            SELECT COALESCE(SUM({local_hour} BETWEEN 6 AND 7), 0) AS morning,
+                   MIN(added_at) AS first_upload
+            FROM pics WHERE added_by = ? AND added_at IS NOT NULL
+            """,
+            (user_id,),
+        ).fetchone()
+        hall_top10 = self.db.execute(
+            "SELECT COUNT(*) FROM (SELECT added_by FROM pics WHERE status = 'alive' "
+            "AND (games + likes + dislikes) >= ? ORDER BY rating DESC LIMIT 10) WHERE added_by = ?",
+            (MIN_EXPERIENCE, user_id),
+        ).fetchone()[0]
+        given = self.db.execute(
+            "SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0) FROM reactions WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        player = self.player(user_id)
+        first_upload = extra["first_upload"]
         return UserStats(
+            morning_uploads=extra["morning"],
+            days_since_first_upload=(now - first_upload) // 86400 if first_upload and now else 0,
+            hall_top10=hall_top10,
+            likes_given=given[0],
+            dislikes_given=given[1],
+            earned=player[1],
+            counters=self.counters_of(user_id),
             uploads=pics["uploads"],
             night_uploads=night,
             likes_received=pics["likes"],
@@ -810,6 +856,7 @@ class Repo:
             "GROUP BY user_id",
             "streaks": "SELECT added_by, MAX(best_streak) FROM pics WHERE added_by IS NOT NULL "
             "GROUP BY added_by HAVING MAX(best_streak) > 0",
+            "rich": "SELECT user_id, coins FROM players WHERE coins > 0",
         }
         rows = self.db.execute(
             f"SELECT * FROM ({queries[board]}) ORDER BY 2 DESC, 1 LIMIT ?", (limit,)
@@ -828,6 +875,110 @@ class Repo:
             """
         ).fetchone()
         return {key: row[key] for key in row.keys()}
+
+    # ── economy & counters ─────────────────────────────────────────────
+
+    def player(self, user_id: int) -> tuple[int, int, int]:
+        """(coins, earned, level_seen)."""
+        row = self.db.execute(
+            "SELECT coins, earned, level_seen FROM players WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return (row[0], row[1], row[2]) if row else (0, 0, 0)
+
+    def add_coins(self, user_id: int, amount: int, reason: str, now: int) -> int:
+        """Change the balance (never below zero); earnings count only gains. Returns new balance."""
+        with self.db:
+            self.db.execute(
+                "INSERT INTO players (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING", (user_id,)
+            )
+            self.db.execute(
+                "UPDATE players SET coins = MAX(0, coins + ?), earned = earned + MAX(0, ?) WHERE user_id = ?",
+                (amount, amount, user_id),
+            )
+            self.db.execute(
+                "INSERT INTO ledger (user_id, amount, reason, at) VALUES (?, ?, ?, ?)",
+                (user_id, amount, reason, now),
+            )
+        return self.player(user_id)[0]
+
+    def set_level_seen(self, user_id: int, level: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO players (user_id, level_seen) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET level_seen = excluded.level_seen",
+                (user_id, level),
+            )
+
+    def ledger_totals(self, since: int, reason: str | None = None, limit: int = 3) -> list[tuple[int, int]]:
+        """Top users by summed ledger amounts since a time, optionally for one reason."""
+        where = "at >= ?" + (" AND reason = ?" if reason else "")
+        params = (since, reason) if reason else (since,)
+        rows = self.db.execute(
+            f"SELECT user_id, SUM(amount) FROM ledger WHERE {where} GROUP BY user_id "
+            "HAVING SUM(amount) > 0 ORDER BY 2 DESC, 1 LIMIT ?",
+            (*params, limit),
+        ).fetchall()
+        return [(row[0], row[1]) for row in rows]
+
+    def counter(self, user_id: int, key: str) -> int:
+        row = self.db.execute(
+            "SELECT value FROM counters WHERE user_id = ? AND key = ?", (user_id, key)
+        ).fetchone()
+        return row[0] if row else 0
+
+    def counters_of(self, user_id: int) -> dict[str, int]:
+        return {
+            row[0]: row[1]
+            for row in self.db.execute("SELECT key, value FROM counters WHERE user_id = ?", (user_id,))
+        }
+
+    def set_counter(self, user_id: int, key: str, value: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO counters (user_id, key, value) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
+                (user_id, key, value),
+            )
+
+    def incr_counter(self, user_id: int, key: str, by: int = 1) -> int:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO counters (user_id, key, value) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id, key) DO UPDATE SET value = value + excluded.value",
+                (user_id, key, by),
+            )
+        return self.counter(user_id, key)
+
+    def raise_counter(self, user_id: int, key: str, value: int) -> None:
+        """Keep the maximum (for 'best ever' counters)."""
+        if value > self.counter(user_id, key):
+            self.set_counter(user_id, key, value)
+
+    def executed_since(self, owner_id: int, since: int) -> int:
+        return self.db.execute(
+            "SELECT COUNT(*) FROM pics WHERE added_by = ? AND status = 'executed' AND removed_at >= ?",
+            (owner_id, since),
+        ).fetchone()[0]
+
+    def lost_before(self, winner_pic: str, loser_pic: str, before_battle: str) -> bool:
+        """Did loser_pic beat winner_pic in an earlier finished duel? (for the revenge achievement)"""
+        row = self.db.execute(
+            """
+            SELECT 1 FROM battles b
+            JOIN battle_entries w ON w.battle_id = b.id AND w.pic_id = ?
+            JOIN battle_entries l ON l.battle_id = b.id AND l.pic_id = ?
+            WHERE b.kind = 'duel' AND b.status = 'done' AND b.id != ? AND b.winner_slot = l.slot
+            LIMIT 1
+            """,
+            (winner_pic, loser_pic, before_battle),
+        ).fetchone()
+        return row is not None
+
+    def achievement_owners(self) -> dict[str, int]:
+        return {
+            row[0]: row[1]
+            for row in self.db.execute("SELECT code, COUNT(*) FROM achievements GROUP BY code")
+        }
 
     # ── chats & scheduled events ───────────────────────────────────────
 

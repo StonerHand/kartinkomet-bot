@@ -198,18 +198,21 @@ async def receive(message: Message, bot: Bot, game: Game, live: Live) -> None:
     file_id, file_unique_id, size = image
     if game.repo.pic_known(file_unique_id):
         session.duplicates += 1
+        game.note_duplicate(user_id)
         await redraw(bot, message.chat.id, session)
         return
 
     visual_hash = await visual_hash_of(bot, file_id, size)
     if is_visual_duplicate(game, visual_hash) or game.repo.pic_known(file_unique_id):
         session.duplicates += 1
+        game.note_duplicate(user_id)
         await redraw(bot, message.chat.id, session)
         return
 
     added = game.add_pic(file_id, file_unique_id, user_id, visual_hash)
     if added is None:
         session.duplicates += 1
+        game.note_duplicate(user_id)
         await redraw(bot, message.chat.id, session)
         return
     _, granted = added

@@ -463,5 +463,35 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(top_answer.results, [])  # no pic has enough history yet
 
 
+    async def test_achievements_of_one_event_come_in_one_message(self) -> None:
+        pic = self.game.draw_pic(-100)[0]
+        trial = self.game.start_court(-100, pic.id, "bottom", None).court
+        self.game.repo.set_court_message(trial.id, 80)
+        await self.press(f"c:k:{trial.id}", sender=3)
+        await self.press(f"c:k:{trial.id}", sender=4)
+        self.clock.advance(COURT_SECONDS + 1)
+        await self.live.finish_court(trial.id)
+        announcements = [r for r in self.session.of("SendMessage") if "Первая кровь" in (r.text or "")]
+        self.assertEqual(len(announcements), 1)
+        self.assertIn("user3", announcements[0].text)
+        self.assertIn("user4", announcements[0].text)
+
+    async def test_profile_shows_coins_level_and_showcase(self) -> None:
+        self.game.pay(3, 70, "test")
+        self.game.repo.grant_achievement(3, "oracle", self.game.now())
+        self.session.refuse = {"SendEphemeralMessage"}
+        await self.press("m:me", sender=3)
+        text = self.session.of("EditMessageText")[-1].text
+        self.assertIn("🪙 Пикчекоины: <b>70</b>", text)
+        self.assertIn("🙂 Свой", text)
+        self.assertIn("Витрина: 🎯 Оракул", text)
+
+    async def test_rich_top(self) -> None:
+        self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())
+        self.game.pay(3, 50, "test")
+        await self.press("m:top:rich")
+        self.assertIn("user3 — <b>50</b> 🪙", self.session.of("EditMessageText")[-1].text)
+
+
 if __name__ == "__main__":
     unittest.main()

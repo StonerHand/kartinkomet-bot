@@ -196,3 +196,106 @@ class AchievementFlowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EconomyTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.game, self.clock, temp = make_game(pics=6, uploader=1)
+        self.addCleanup(temp.cleanup)
+
+    def codes(self, granted, user_id) -> list[str]:
+        return [code for item in granted if item.user_id == user_id for code in item.codes]
+
+    def test_first_like_pays_owner_once(self) -> None:
+        pic = self.game.draw_pic(-1)[0]
+        self.game.react(pic.id, 5, 1)
+        self.game.react(pic.id, 5, -1)
+        self.game.react(pic.id, 5, 1)
+        self.assertEqual(self.game.repo.player(1)[0], 2)
+
+    def test_own_like_pays_nothing(self) -> None:
+        pic = self.game.draw_pic(-1)[0]
+        self.game.react(pic.id, 1, 1)
+        self.assertEqual(self.game.repo.player(1)[0], 0)
+
+    def test_battle_pays_voters_and_guessers(self) -> None:
+        battle = self.game.start_duel(-1).battle
+        self.game.vote_battle(battle.id, 5, 0)
+        self.game.vote_battle(battle.id, 6, 0)
+        self.game.vote_battle(battle.id, 7, 1)
+        self.clock.advance(61)
+        report = self.game.finish_battle(battle.id)
+        self.assertEqual(sorted(report.guessers), [5, 6])
+        self.assertEqual(self.game.repo.player(5)[0], 4)
+        self.assertEqual(self.game.repo.player(7)[0], 1)
+        self.assertEqual(self.game.repo.counter(7, "wrong_guesses"), 1)
+
+    def test_oracle_after_five_right_guesses(self) -> None:
+        granted = []
+        for _ in range(5):
+            battle = self.game.start_duel(-1).battle
+            self.game.vote_battle(battle.id, 5, 0)
+            self.clock.advance(61)
+            granted = self.game.finish_battle(battle.id).granted
+            self.game.repo.db.execute("UPDATE pics SET status = 'alive', loss_streak = 0, rating = 1000")
+            self.game.repo.db.commit()
+        self.assertIn("oracle", self.codes(granted, 5))
+
+    def test_level_up_is_reported_once(self) -> None:
+        self.game.pay(5, 25, "test")
+        first = self.game.check_achievements([5])
+        second = self.game.check_achievements([5])
+        self.assertEqual(first[0].level_up, "🐣 Зритель")
+        self.assertEqual(second, [])
+
+    def test_lone_warrior_and_regicide(self) -> None:
+        champion = self.game.start_duel(-1).battle
+        self.game.vote_battle(champion.id, 5, 0)
+        self.clock.advance(61)
+        self.game.finish_battle(champion.id)
+        self.game.repo.db.execute("UPDATE battles SET result_streak = 3 WHERE id = ?", (champion.id,))
+        self.game.repo.db.commit()
+        duel = self.game.start_duel(-1, champion_of=champion.id).battle
+        self.game.vote_battle(duel.id, 6, 1)
+        self.clock.advance(61)
+        granted = self.game.finish_battle(duel.id).granted
+        self.assertIn("lone_warrior", self.codes(granted, 6))
+        self.assertIn("regicide", self.codes(granted, 1))
+
+    def test_court_events(self) -> None:
+        pic = self.game.draw_pic(-1)[0]
+        trial = self.game.start_court(-1, pic.id, "bottom", None).court
+        self.game.vote_court(trial.id, 1, "kill")  # the uploader votes against their own pic
+        self.game.vote_court(trial.id, 5, "kill")
+        self.game.vote_court(trial.id, 6, "spare")
+        self.clock.advance(61)
+        report = self.game.finish_court(trial.id)
+        self.assertIn("self_executioner", self.codes(report.granted, 1))
+        self.assertIn("devils_advocate", self.codes(report.granted, 6))
+        self.assertEqual(self.game.repo.player(5)[0], 1)
+
+    def test_deja_vu_and_lucky(self) -> None:
+        pic, _, granted = self.game.draw_for(-1, 1)
+        self.assertIn("deja_vu", self.codes(granted, 1))
+
+    def test_ghost_after_a_silent_week(self) -> None:
+        pic = self.game.draw_pic(-1)[0]
+        self.game.react(pic.id, 5, 1)
+        self.clock.advance(8 * 86400)
+        other = self.game.draw_pic(-1)[0]
+        result = self.game.react(other.id, 5, 1)
+        self.assertIn("ghost", self.codes(result.granted, 5))
+
+    def test_activity_streak(self) -> None:
+        for day in range(3):
+            pic = self.game.draw_pic(-1)[0]
+            self.game.react(pic.id, 5, 1)
+            self.clock.advance(86400)
+        self.assertEqual(self.game.repo.counter(5, "active_streak"), 3)
+
+    def test_duplicate_streak(self) -> None:
+        for _ in range(10):
+            self.game.note_duplicate(5)
+        self.game.add_pic("x", "x-uniq", 5, None)
+        self.assertEqual(self.game.repo.counter(5, "dup_streak"), 0)
+        self.assertIn("garbage_chute", self.game.repo.achievements_of(5))
