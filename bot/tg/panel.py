@@ -115,14 +115,14 @@ def live_now(game: Game, chat_id: int) -> list[str]:
     for kind, label in (("duel", "⚔️ Дуэль"), ("tournament", "🏟 Турнир")):
         battle = game.repo.active_battle(chat_id, kind)
         if battle and battle.ends_at > now:
-            lines.append(f"{label} · ⏳ {views.timer(battle.ends_at - now)}")
+            lines.append(f"{label} · ещё {views.timer(battle.ends_at - now)}")
     courts = game.repo.active_courts_in_chat(chat_id, now)
     if courts:
         extra = f" · и ещё {len(courts) - 1}" if len(courts) > 1 else ""
-        lines.append(f"⚖️ Суд · ⏳ {views.timer(min(courts) - now)}{extra}")
+        lines.append(f"⚖️ Суд · ещё {views.timer(min(courts) - now)}{extra}")
     boss = game.repo.active_boss(chat_id)
     if boss and boss["ends_at"] > now:
-        lines.append(f"👹 Босс · ❤️ {boss['hp']}/{boss['max_hp']} · ⏳ {views.timer(boss['ends_at'] - now)}")
+        lines.append(f"👹 Босс · здоровье {boss['hp']}/{boss['max_hp']} · ещё {views.timer(boss['ends_at'] - now)}")
     if game.repo.active_challenge_battle(chat_id):
         lines.append("🤺 Идёт вызов")
     return lines

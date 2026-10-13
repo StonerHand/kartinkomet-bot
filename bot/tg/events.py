@@ -176,8 +176,8 @@ class Events:
         if not summary["battles"] and not summary["likes"] and not summary["uploads"] and not crowns:
             return False
         numbers = [
-            f"⚔️ Боёв: <b>{summary['battles']}</b> · ⚰️ казнено: <b>{summary['executed']}</b>",
-            f"🤙🏻 <b>{summary['likes']}</b> · 🖕🏻 <b>{summary['dislikes']}</b> за неделю",
+            f"⚔️ Боёв: <b>{summary['battles']}</b> · казнено: <b>{summary['executed']}</b>",
+            f"🤙🏻 Лайков: <b>{summary['likes']}</b> · дизлайков: <b>{summary['dislikes']}</b>",
             f"🔥 Лучшая серия недели: <b>{summary['best_streak']}</b>" if summary["best_streak"] > 1 else "",
         ]
         uploaders = ["<b>📥 Грузили больше всех</b>"] + [

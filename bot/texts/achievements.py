@@ -117,7 +117,6 @@ ACHIEVEMENTS: dict[str, tuple[str, str]] = {
     "dragon": ("🐉 Повелитель драконов", "Твоя пикча стала Драконом"),
 }
 
-RARITY_MARKS = {"common": "", "rare": "✨ ", "legendary": "🌟 "}
 
 LEVEL_UP = (
     "Новый уровень! Склад признаёт твои заслуги",

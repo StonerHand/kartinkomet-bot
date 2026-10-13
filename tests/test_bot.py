@@ -500,7 +500,7 @@ class BotTest(BotHarness):
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=3)
         text = self.session.of("EditMessageText")[-1].text
-        self.assertIn("🪙 <b>70</b> коинов", text)
+        self.assertIn("🪙 <b>70</b> монет", text)
         self.assertIn("🙂 Свой", text)
         self.assertIn("\n🎯 Оракул\n", text)
 
@@ -508,7 +508,7 @@ class BotTest(BotHarness):
         self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())
         self.game.pay(3, 50, "test")
         await self.press("m:top:rich")
-        self.assertIn("user3 — <b>50</b> 🪙", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("user3 — <b>50</b> монет", self.session.of("EditMessageText")[-1].text)
 
 
     # ── mini-games ─────────────────────────────────────────────────────

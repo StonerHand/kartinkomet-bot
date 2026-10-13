@@ -102,12 +102,13 @@ BOARD_TITLES = {
     "rich": "💰 Богачи: у кого больше пикчекоинов",
 }
 
+# Word forms (one, few, many) for the number on each board.
 BOARD_UNITS = {
-    "uploads": "пикч",
-    "loved": "🤙🏻",
-    "killers": "🪓",
-    "streaks": "🔥 подряд",
-    "rich": "🪙",
+    "uploads": ("пикча", "пикчи", "пикч"),
+    "loved": ("лайк", "лайка", "лайков"),
+    "killers": ("казнь", "казни", "казней"),
+    "streaks": ("победа подряд", "победы подряд", "побед подряд"),
+    "rich": ("монета", "монеты", "монет"),
 }
 
 BOARD_EMPTY = lines("""

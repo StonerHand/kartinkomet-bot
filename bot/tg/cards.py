@@ -15,14 +15,10 @@ from bot.texts import progress as progress_texts
 from bot.texts import shop as shop_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
-from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
-from bot.tg.views import MEDALS, card, num, plural, rating, timer, who
-
-COIN = "🪙"
-
+from bot.tg.views import MEDALS, bare, card, money, num, plural, rating, slot_names, timer, who
 
 def coins(amount: int) -> str:
-    return f"<b>{num(amount)}</b> {COIN}"
+    return money(amount)
 
 
 def duration(seconds: int) -> str:
@@ -50,7 +46,7 @@ def day_event_line(code: str | None) -> str | None:
     if not code:
         return None
     name, rule = day_texts.NAMES[code], day_texts.RULES[code]
-    return f"📰 Сегодня: <b>{escape(name)}</b> — {escape(rule[0].lower() + rule[1:])}"
+    return f"📰 Сегодня {escape(bare(name)).lower()}: {escape(rule[0].lower() + rule[1:])}"
 
 
 def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) -> str:
@@ -63,7 +59,7 @@ def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) 
             f"{plural(people, 'бедняк', 'бедняка', 'бедняков')}"
         )
     return card(
-        f"📰 <b>СОБЫТИЕ ДНЯ · {escape(name).upper()}</b>",
+        f"📰 <b>СОБЫТИЕ ДНЯ: {escape(bare(name)).upper()}</b>",
         pick(day_texts.FLAVOUR[code], chat_id),
         facts,
         "<i>Действует до полуночи</i>",
@@ -98,13 +94,13 @@ def casino_title(game: str, kind: str) -> str:
 def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], chat_id: int) -> str:
     if result.profit > 0:
         pool = casino_texts.BIG_WIN if result.profit >= result.stake * 5 else casino_texts.WIN
-        verdict = f"➕ <b>+{num(result.profit)}</b> {COIN}"
+        verdict = f"➕ +{money(result.profit)}"
     elif result.payout == result.stake:
         pool, verdict = casino_texts.DRAW, "↩️ Ставка вернулась"
     elif result.payout > 0:
         pool, verdict = casino_texts.REFUND, f"↩️ Вернулось <b>{num(result.payout)}</b> из {num(result.stake)}"
     else:
-        pool, verdict = casino_texts.LOSE, f"➖ <b>−{num(result.stake)}</b> {COIN}"
+        pool, verdict = casino_texts.LOSE, f"➖ −{money(result.stake)}"
     return card(
         f"<b>{casino_title(result.game, result.roll.kind)}</b> · {who(label)}",
         pick(pool, chat_id),
@@ -133,16 +129,16 @@ def bets_result(report, labels: dict[int, str]) -> list[str]:
         winners.sort(key=lambda item: -item[1])
         lines.append(", ".join(f"{who(labels.get(user, '?'))} <b>+{profit}</b>" for user, profit in winners))
     else:
-        lines.append(f"<i>На победителя никто не ставил — {report.bets_burned} {COIN} сгорели</i>")
+        lines.append(f"<i>На победителя никто не ставил — {num(report.bets_burned)} монет сгорели</i>")
     return lines
 
 
 def evolution_lines(report) -> list[str]:
-    labels = DUEL_LABELS if report.battle.kind == "duel" else TOURNAMENT_LABELS
+    labels = slot_names(report.battle.kind)
     lines = []
     for slot, old, new in report.evolved:
         before, after = shop.STAGES[old], shop.STAGES[new]
-        lines.append(f"🧬 {labels[slot]} эволюционировала: {before.emoji} → {after.emoji} <b>{after.name}</b>")
+        lines.append(f"🧬 Пикча <b>{labels[slot]}</b> эволюционировала: {before.name} → <b>{after.name}</b>")
     return lines
 
 
@@ -161,11 +157,11 @@ def challenge_card(challenge: dict, labels: dict[int, str], chat_id: int, remain
     target = challenge["to_user"]
     opponent = f"<b>{who(labels.get(target, '?'))}</b>" if target else "любого смельчака"
     return card(
-        f"🤺 <b>ВЫЗОВ НА ДУЭЛЬ</b> · ⏳ <b>{timer(remaining)}</b>",
+        f"🤺 <b>ВЫЗОВ НА ДУЭЛЬ</b> · <b>{timer(remaining)}</b>",
         pick(social_texts.CHALLENGE_CALL, chat_id),
         f"<b>{challenger}</b> ставит {coins(challenge['stake'])} и ждёт {opponent}",
         "<i>Каждый выставит свою пикчу, чат проголосует. Победитель заберёт "
-        f"{num(challenge['stake'] * 2)} {COIN}. Нет своих пикч — склад выдаст наёмника</i>",
+        f"{num(challenge['stake'] * 2)} монет. Нет своих пикч — склад выдаст наёмника</i>",
     )
 
 
@@ -183,7 +179,7 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
 def challenge_names(report, labels: dict[int, str]) -> str:
     challenge = report.challenge
     first, second = (who(labels.get(challenge[key], "?")) for key in ("from_user", "to_user"))
-    return f"🅰️ <b>{first}</b> против 🅱️ <b>{second}</b> · на кону {coins(challenge['stake'] * 2)}"
+    return f"🤺 A — <b>{first}</b>, B — <b>{second}</b> · на кону {coins(challenge['stake'] * 2)}"
 
 
 def challenge_result(report, labels: dict[int, str], chat_id: int) -> list[str]:
@@ -197,7 +193,7 @@ def challenge_result(report, labels: dict[int, str], chat_id: int) -> list[str]:
 
 def appeal_hint(uploader: str) -> str:
     return (
-        f"<i>📜 {who(uploader)} может подать апелляцию за {court.APPEAL_BAIL} {COIN} в течение "
+        f"<i>{who(uploader)} может подать апелляцию за {court.APPEAL_BAIL} монет в течение "
         f"{court.APPEAL_WINDOW // 60} минут. На повторном суде для казни нужно 3 голоса</i>"
     )
 
@@ -211,7 +207,7 @@ def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, 
         for code, (emoji, name, about) in shop_texts.ITEMS.items()
     ]
     bounty = (
-        f"🎯 <b>Награда за голову</b> — {' или '.join(str(a) for a in shop.BOUNTY_AMOUNTS)} {COIN}\n"
+        f"🎯 <b>Награда за голову</b> — {' или '.join(str(a) for a in shop.BOUNTY_AMOUNTS)} монет\n"
         "<i>получат те, кто казнит пикчу</i>"
     )
     return card(
@@ -225,17 +221,17 @@ def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, 
         bounty,
         [
             "<b>Как купить</b>",
-            "Под каждой пикчей есть кнопка 🛒 — там всё, что можно сделать именно с ней. "
-            "Воскрешение — на экране ⚰️ Кладбище, титул — кнопкой ниже.",
+            "Под каждой пикчей есть кнопка с тележкой — там всё, что можно сделать именно с ней. "
+            "Воскрешение — на экране «Кладбище», титул — кнопкой ниже.",
         ],
     )
 
 
 def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: int, now: int) -> str:
     stage = shop.stage(pic.wins)
-    facts = [f"{stage.emoji} {stage.name}", f"⭐ {rating(pic.rating)}"]
+    facts = [stage.name, f"рейтинг {rating(pic.rating)}"]
     if uploader:
-        facts.append(f"📥 {uploader}")  # card() escapes the flavour line itself
+        facts.append(f"от {uploader}")  # card() escapes the flavour line itself
     status = [
         f"🛡 Под щитом ещё {duration(pic.immune_until - now)}" if pic.immune_until and pic.immune_until > now else "",
         f"🧿 Проклята ещё {duration(cursed - now)}" if cursed else "",
@@ -255,8 +251,8 @@ def bought(item: str, chat_id: int) -> str:
 
 PURCHASE_FACTS = {
     "shield": "пикчу нельзя судить 3 дня",
-    "boost": f"+{shop.BOOST_RATING} ⭐ рейтинга",
-    "uncurse": f"порча снята, +{shop.CURSE_RATING} ⭐ вернулись",
+    "boost": f"+{shop.BOOST_RATING} рейтинга",
+    "uncurse": f"порча снята, +{shop.CURSE_RATING} рейтинга вернулись",
 }
 
 
@@ -267,7 +263,7 @@ def purchase_notice(item: str, buyer: str, pic: Pic, chat_id: int) -> str:
     return card(
         f"{emoji} <b>{name.upper()}</b> · {PURCHASE_FACTS[item]}",
         phrase,
-        f"За счёт <b>{who(buyer)}</b> · теперь ⭐ {rating(pic.rating)}",
+        f"За счёт <b>{who(buyer)}</b> · рейтинг теперь {rating(pic.rating)}",
     )
 
 
@@ -287,7 +283,7 @@ def task_line(task: TaskState) -> str:
     name = progress_texts.quest_name(task.kind, task.target)
     if task.finished:
         return f"✅ <s>{escape(name)}</s>"
-    return f"▫️ {escape(name)} · <b>{min(task.done, task.target)}/{task.target}</b> · +{task.reward}"
+    return f"▫️ {escape(name)} · <b>{min(task.done, task.target)}/{task.target}</b> · +{task.reward} монет"
 
 
 def quests_screen(
@@ -312,8 +308,8 @@ def quests_screen(
         f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
         pick(progress_texts.QUEST_HEADERS, chat_id),
         ["🎁 <b>Бонус дня</b>", bonus],
-        ["📋 <b>Квесты дня</b> <i>(все три — 🟫 сундук)</i>", *[task_line(task) for task in daily]],
-        ["🏆 <b>Челленджи недели</b> <i>(каждый — 🟪 сундук)</i>", *[task_line(task) for task in weekly]],
+        ["📋 <b>Квесты дня</b> <i>· все три — деревянный сундук</i>", *[task_line(task) for task in daily]],
+        ["🏆 <b>Челленджи недели</b> <i>· каждый — редкий сундук</i>", *[task_line(task) for task in weekly]],
         backpack,
     )
 
@@ -327,7 +323,7 @@ def daily_result(label: str, daily: Daily, chat_id: int) -> str:
         [
             f"➕ {coins(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
             f"💍 Семейная надбавка: +{daily.family_bonus} тебе и супругу" if daily.family_bonus else "",
-            f"🟪 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest else "",
+            f"🎁 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest else "",
         ],
         None if daily.chest else f"<i>До редкого сундука: {left} {plural(left, 'день', 'дня', 'дней')}</i>",
     )
@@ -343,10 +339,10 @@ def chest_opened(label: str, opened, chat_id: int) -> str:
     loot = opened.loot
     facts = [
         f"➕ {coins(loot.coins)}" if loot.coins else "",
-        f"⚡ +{progress.CHEST_BOOST_RATING} ⭐ одной из твоих пикч" if loot.kind == "boost" and opened.pic else "",
+        f"⚡ +{progress.CHEST_BOOST_RATING} рейтинга одной из твоих пикч" if loot.kind == "boost" and opened.pic else "",
         f"🛡 Щит на {progress.CHEST_SHIELD_SECONDS // 86400} дня самой слабой твоей пикче"
         if loot.kind == "shield" and opened.pic else "",
-        "🟫 +1 деревянный сундук" if loot.kind == "chest" else "",
+        "🎁 +1 деревянный сундук" if loot.kind == "chest" else "",
     ]
     return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.LOOT[loot.kind], chat_id), facts)
 
@@ -367,12 +363,15 @@ def boss_card(boss: dict, labels: dict[int, str], remaining: int, chat_id: int) 
             place = MEDALS[index] if index < 3 else f"{index + 1}."
             damage.append(f"{place} {who(labels.get(user, '?'))} — <b>{dealt}</b>")
     return card(
-        f"👹 <b>БОСС: {escape(boss['title']).upper()}</b> · ⏳ <b>{timer(remaining)}</b>",
+        f"👹 <b>БОСС: {escape(boss['title']).upper()}</b> · <b>{timer(remaining)}</b>",
         pick(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, chat_id),
         health,
         damage,
-        f"<i>🗡 Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек. "
-        f"🔥 Супер — {boss_rules.SUPER_PRICE} {COIN}, бьёт сильнее. Добычу делят по урону</i>",
+        [
+            f"🗡 <i>Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
+            f"🔥 <i>Супер-удар — {boss_rules.SUPER_PRICE} монет, бьёт сильнее</i>",
+            "💰 <i>Добычу делят по нанесённому урону</i>",
+        ],
     )
 
 
@@ -383,9 +382,9 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
         return card(
             f"👹 <b>БОСС СБЕЖАЛ · {title}</b>",
             pick(boss_texts.ESCAPE, chat_id),
-            f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']} · пикча-босс +{boss_rules.ESCAPE_RATING_BONUS} ⭐",
+            f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']} · пикча-босс +{boss_rules.ESCAPE_RATING_BONUS} рейтинга",
         )
-    loot = [f"💰 <b>Добыча</b> · {num(boss['loot'])} {COIN} по урону"]
+    loot = [f"💰 <b>Добыча</b> · {money(boss['loot'])} по урону"]
     for index, (user, amount) in enumerate(sorted(report.payouts.items(), key=lambda item: -item[1])[:8]):
         place = MEDALS[index] if index < 3 else f"{index + 1}."
         dealt = boss["damage"].get(user, 0)
@@ -393,7 +392,7 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
     honours = [
         f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})"
         if report.last_hit is not None else "",
-        f"🟪 Редкий сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
+        f"🎁 Редкий сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
     ]
     return card(f"🏆 <b>БОСС ПОВЕРЖЕН · {title}</b>", pick(boss_texts.WIN, chat_id), loot, honours)
 
@@ -424,7 +423,7 @@ def robbery(robber: str, victim: str, result, chat_id: int) -> str:
 
 
 def proposal(suitor: str, beloved: str, price: int, chat_id: int) -> str:
-    cost = f"Свадьба стоит {num(price)} {COIN} с каждого" if price else "Сегодня свадьба бесплатно"
+    cost = f"Свадьба стоит {num(price)} монет с каждого" if price else "Сегодня свадьба бесплатно"
     return card(
         "💍 <b>ПРЕДЛОЖЕНИЕ</b>",
         pick(social_texts.PROPOSAL, chat_id),
@@ -455,7 +454,7 @@ def divorce(first: str, second: str, result, chat_id: int) -> str:
     return card(
         "💔 <b>РАЗВОД</b>",
         pick(social_texts.DIVORCE, chat_id),
-        f"{who(first)}: {coins(result.mine)} · {who(second)}: {coins(result.theirs)}",
+        [f"{who(first)}: {coins(result.mine)}", f"{who(second)}: {coins(result.theirs)}"],
     )
 
 

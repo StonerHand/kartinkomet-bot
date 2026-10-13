@@ -93,7 +93,7 @@ class V4BotTest(BotHarness):
         await self.press(f"cl:y:{challenge_id}", sender=4)
         battle_id = self.game.repo.active_challenge_battle(-100)
         self.assertIsNotNone(battle_id)
-        self.assertTrue(any("против" in text for text in self.texts()))
+        self.assertTrue(any("на кону" in text for text in self.texts()))
 
     # ── shop ───────────────────────────────────────────────────────────
 

@@ -132,8 +132,7 @@ class Live:
                 labels = self.labels([challenge["from_user"], challenge["to_user"]])
                 first, second = (views.who(labels[challenge[key]]) for key in ("from_user", "to_user"))
                 fighters = (
-                    f"🅰️ <b>{first}</b> против 🅱️ <b>{second}</b> · на кону "
-                    f"<b>{challenge['stake'] * 2}</b> 🪙"
+                    f"🤺 A — <b>{first}</b>, B — <b>{second}</b> · на кону {views.money(challenge['stake'] * 2)}"
                 )
         flipped = battle.kind == "duel" and battle.mode == "" and self.game.day_is("upside_down")
         return views.battle_card(battle, remaining, fighters, flipped)
