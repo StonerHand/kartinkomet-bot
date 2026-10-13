@@ -94,8 +94,8 @@ class AchievementsTest(unittest.TestCase):
         return UserStats(**base)
 
     def test_catalog_codes_are_unique_and_rated(self) -> None:
-        self.assertEqual(len(achievements.ALL_CODES), 64)
-        self.assertEqual(len(set(achievements.ALL_CODES)), 64)
+        self.assertEqual(len(achievements.ALL_CODES), 100)
+        self.assertEqual(len(set(achievements.ALL_CODES)), 100)
         self.assertEqual(set(achievements.RARITY), set(achievements.ALL_CODES))
         self.assertTrue(achievements.SECRET <= set(achievements.ALL_CODES))
 

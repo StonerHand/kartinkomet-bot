@@ -43,6 +43,7 @@ class FakeSession(BaseSession):
 
     image: bytes | None = None  # served by downloads when a test enables collages
     dice_value = 64
+    dice_values: list[int] = []  # served first, one per SendDice
 
     async def stream_content(self, *args, **kwargs):
         yield self.image or b""
@@ -71,7 +72,8 @@ class FakeSession(BaseSession):
             from aiogram.types import Dice
 
             message = self.message(int(method.chat_id))
-            return message.model_copy(update={"dice": Dice(emoji="🎰", value=self.dice_value)})
+            value = self.dice_values.pop(0) if self.dice_values else self.dice_value
+            return message.model_copy(update={"dice": Dice(emoji=method.emoji or "🎲", value=value)})
         if name == "SendMediaGroup":
             return [self.message(int(method.chat_id)) for _ in method.media]
         if name == "GetMe":
@@ -88,7 +90,9 @@ def user(user_id: int) -> User:
     return User(id=user_id, is_bot=False, first_name=f"user{user_id}", username=f"user{user_id}")
 
 
-class BotTest(unittest.IsolatedAsyncioTestCase):
+class BotHarness(unittest.IsolatedAsyncioTestCase):
+    """Fake Telegram plus helpers; test classes inherit it."""
+
     async def asyncSetUp(self) -> None:
         self.game, self.clock, temp = make_game(pics=10, uploader=ADMIN)
         self.addCleanup(temp.cleanup)
@@ -101,6 +105,8 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         upload._visual_hashes = None
         pics._last_drop.clear()
         games.DICE_ANIMATION_SECONDS = 0
+        self.session.dice_values = []
+        self.game.repo.set_meta("release_note_v4", 1)  # tested separately
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()
@@ -146,6 +152,8 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
     def buttons(self, request) -> list[str]:
         return [button.callback_data for row in request.reply_markup.inline_keyboard for button in row]
 
+
+class BotTest(BotHarness):
     async def test_menu_replaces_old_panel_and_navigates(self) -> None:
         await self.send("/menu")
         await self.send("/menu")
@@ -180,7 +188,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         await self.send("/pic")
         photo = self.session.of("SendPhoto")[0]
         buttons = self.buttons(photo)
-        self.assertEqual(buttons[2], "pic")
+        self.assertEqual(buttons[3], "pic")
         pic_id = buttons[0].split(":")[2]
 
         await self.press(f"r:-:{pic_id}", message_id=50, sender=3)
@@ -294,7 +302,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         await self.send("/menu")
         self.assertIn("Сейчас идёт", self.session.of("SendMessage")[-1].text)
         await self.press("m:help")
-        self.assertIn("Народный суд", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("Суд", self.session.of("EditMessageText")[-1].text)
 
     async def test_same_photo_twice_in_parallel_is_one_pic(self) -> None:
         self.assertIsNotNone(self.game.add_pic("same", "same-uniq", 5, None))
@@ -420,7 +428,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_nothing_fires_outside_the_window(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
-        self.at_hour(16)
+        self.at_hour(15)
         await self.events().tick()
         self.assertEqual(self.session.requests, [])
 
@@ -440,7 +448,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.game.add_pic("week", "week-uniq", ADMIN, None)
         self.at_hour(18, weekday=6)
         await self.events().tick()
-        texts = [r.text or r.caption or "" for r in self.session.requests if hasattr(r, "text") or hasattr(r, "caption")]
+        texts = [getattr(r, "text", None) or getattr(r, "caption", None) or "" for r in self.session.requests]
         self.assertTrue(any("ИТОГИ НЕДЕЛИ" in text for text in texts))
 
     async def test_events_can_be_switched_off_by_admin(self) -> None:
@@ -523,17 +531,17 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ИТОГИ", result)
         self.assertIn("👑 «рейтинг 1090 не трогай» — user4", result)
 
-    async def test_spin_shows_slot_machine_then_prize(self) -> None:
-        await self.send("/spin", sender=3)
+    async def test_wheel_shows_slot_machine_then_prize(self) -> None:
+        await self.send("/wheel", sender=3)
         self.assertEqual(self.session.of("SendDice")[0].emoji, "🎰")
         prize = self.session.of("SendMessage")[0]
         self.assertIn("ДЖЕКПОТ", prize.text)
         self.assertEqual(self.game.repo.player(3)[0], 100)
-        self.assertIn("gm:spin", self.buttons(prize))
+        self.assertIn("m:casino", self.buttons(prize))
 
-    async def test_second_spin_without_coins_is_refused(self) -> None:
-        self.game.pay_for_spin(3)
-        await self.send("/spin", sender=3)
+    async def test_wheel_is_once_a_day(self) -> None:
+        self.game.take_free_spin(3)
+        await self.send("/wheel", sender=3)
         self.assertEqual(self.session.of("SendDice"), [])
 
     async def test_horoscope_from_panel(self) -> None:

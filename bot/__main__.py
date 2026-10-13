@@ -9,7 +9,7 @@ from bot.config import load_config
 from bot.db.migrate import migrate_if_needed
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import admin, arena, court, fallback, games, inline, panel, pics, upload
+from bot.tg import admin, arena, boss, casino, court, fallback, games, inline, panel, pics, progress, shop, social, upload
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
@@ -17,14 +17,25 @@ from bot.tg.timers import Live
 LOGGER = logging.getLogger("kartinkomet")
 
 GROUP_COMMANDS = [
+    BotCommand(command="menu", description="🎛 пульт: всё в одном месте"),
     BotCommand(command="pic", description="🎲 рандомная пикча"),
     BotCommand(command="duel", description="⚔️ дуэль двух пикч"),
     BotCommand(command="tournament", description="🏟 турнир четырёх"),
-    BotCommand(command="menu", description="🎛 пульт: слава, дно, кладбище, топы"),
+    BotCommand(command="daily", description="🎁 бонус дня"),
+    BotCommand(command="quests", description="📜 квесты и сундуки"),
+    BotCommand(command="casino", description="🎰 казино"),
+    BotCommand(command="spin", description="🎰 слоты: /spin 100"),
+    BotCommand(command="dice", description="🎲 кости против бота: /dice 100"),
+    BotCommand(command="shop", description="🛒 лавка"),
+    BotCommand(command="boss", description="👹 призвать босса"),
+    BotCommand(command="challenge", description="🤺 вызов на дуэль за монеты"),
+    BotCommand(command="give", description="🎁 подарить монеты"),
+    BotCommand(command="rob", description="🕵️ ограбить"),
+    BotCommand(command="marry", description="💍 сделать предложение"),
     BotCommand(command="caption", description="🖋 подпиши пикчу"),
-    BotCommand(command="spin", description="🎰 колесо фортуны"),
+    BotCommand(command="wheel", description="🎡 колесо фортуны раз в день"),
     BotCommand(command="horoscope", description="🔮 гороскоп на сегодня"),
-    BotCommand(command="top", description="🏆 топы"),
+    BotCommand(command="top", description="🏆 рейтинги"),
     BotCommand(command="me", description="👤 моя карточка"),
     BotCommand(command="help", description="❓ правила"),
 ]
@@ -33,11 +44,12 @@ PRIVATE_COMMANDS = [
     BotCommand(command="upload", description="📥 загрузить пикчи на склад"),
     *GROUP_COMMANDS,
 ]
-SHORT_DESCRIPTION = "Склад пикч для чата: дуэли с рейтингом, турниры, народный суд и зал славы"
+SHORT_DESCRIPTION = "Склад пикч для чата: дуэли, суды, казино, боссы, свадьбы и ограбления"
 DESCRIPTION = (
     "🎲 Общий склад пикч для твоей компании.\n\n"
     "⚔️ Пикчи дерутся на арене и набирают рейтинг\n"
     "⚖️ Неугодных судит народ\n"
+    "🎰 Монеты, казино, лавка, боссы и квесты\n"
     "🏛 Лучшие попадают в зал славы, худшие — на кладбище\n\n"
     "Добавь меня в групповой чат, а пикчи загружай здесь, в личке: /upload"
 )
@@ -68,6 +80,11 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         upload.router,
         admin.router,
         games.router,
+        casino.router,
+        shop.router,
+        social.router,
+        progress.router,
+        boss.router,
         inline.router,
         court.router,
         fallback.router,
@@ -86,6 +103,9 @@ async def main() -> None:
 
     repo = Repo(config.database_path)
     game = Game(repo, tz_offset_hours=config.tz_offset_hours)
+    starters = game.give_starters()
+    if starters:
+        LOGGER.info("Gave the v4 starter bonus to %s players", starters)
     backfilled = game.backfill_achievements()
     if backfilled:
         LOGGER.info("Silently granted %s already-earned achievements", backfilled)

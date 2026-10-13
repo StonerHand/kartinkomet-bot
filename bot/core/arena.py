@@ -39,8 +39,15 @@ class TournamentOutcome:
     outcomes: list[str]
 
 
-def resolve_duel(fighters: Sequence[Fighter], votes: Sequence[int], streak: int) -> DuelOutcome:
-    """streak: champion streak of slot 0 before the duel (0 if no champion)."""
+def resolve_duel(
+    fighters: Sequence[Fighter],
+    votes: Sequence[int],
+    streak: int,
+    death_rating: float = DEATH_RATING,
+    deadly: bool = True,
+) -> DuelOutcome:
+    """streak: champion streak of slot 0 before the duel (0 if no champion).
+    deadly=False for player challenges: nobody dies there."""
     left, right = fighters
     if sum(votes) == 0:
         return DuelOutcome(
@@ -71,7 +78,7 @@ def resolve_duel(fighters: Sequence[Fighter], votes: Sequence[int], streak: int)
         1.0 if winner == 0 else 0.0,
     )
     loser_fighter = fighters[loser]
-    dies = ratings[loser] < DEATH_RATING or loser_fighter.loss_streak + 1 >= DEATH_LOSS_STREAK
+    dies = deadly and (ratings[loser] < death_rating or loser_fighter.loss_streak + 1 >= DEATH_LOSS_STREAK)
     # Champion sits in slot 0. If it wins, the streak grows; a new winner starts at 1.
     new_streak = streak + 1 if winner == 0 and streak > 0 else 1
     outcomes = ("win", "loss") if winner == 0 else ("loss", "win")

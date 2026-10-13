@@ -351,21 +351,19 @@ class MiniGamesTest(unittest.TestCase):
         self.assertFalse(self.game.roll_gold(-1))
 
     def test_spin_is_free_once_a_day(self) -> None:
-        self.assertEqual(self.game.spin_price(5), 0)
-        self.assertTrue(self.game.pay_for_spin(5))
-        self.assertEqual(self.game.spin_price(5), 20)
-        self.assertFalse(self.game.pay_for_spin(5))  # no coins
-        self.game.pay(5, 30, "test")
-        self.assertTrue(self.game.pay_for_spin(5))
-        self.assertEqual(self.game.repo.player(5)[0], 10)
+        self.assertTrue(self.game.take_free_spin(5))
+        self.assertFalse(self.game.take_free_spin(5))
         spin, _, _ = self.game.resolve_spin(5, 64)
-        self.assertEqual((spin.kind, self.game.repo.player(5)[0]), ("jackpot", 110))
+        self.assertEqual((spin.kind, self.game.repo.player(5)[0]), ("jackpot", 100))
+        self.clock.advance(86400)
+        self.assertTrue(self.game.take_free_spin(5))
 
     def test_curse_hits_own_pic(self) -> None:
         self.game.rng.uniform = lambda a, b: 60  # lands in the "curse" weight band
         spin, pic, _ = self.game.resolve_spin(1, 2 + 4 * 2 + 16 * 3)  # no pair, no triple
         self.assertEqual(spin.kind, "curse")
-        self.assertEqual(self.game.repo.get_pic(pic.id).rating, pic.rating - 20)
+        self.assertEqual(self.game.repo.get_pic(pic.id).rating, pic.rating - 40)
+        self.assertTrue(self.game.cursed_until(pic.id))
 
     def test_horoscope_once_a_day(self) -> None:
         pic, already, _ = self.game.horoscope(5)

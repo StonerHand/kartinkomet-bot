@@ -6,17 +6,20 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from bot.core import achievements, arena, court, deck, economy, games
+from bot.core import achievements, arena, court, days, deck, economy, games, shop
 from bot.db.repo import Battle, Court, Pic, Repo
+from bot.services.boss import BossMixin
+from bot.services.casino import CasinoMixin
+from bot.services.progress import STARTER_BONUS, ProgressMixin
+from bot.services.shop import ShopMixin
+from bot.services.social import SocialMixin
+from bot.services.types import Granted, Note
+
+__all__ = ["Game", "Granted", "Note"]
 
 UPLOAD_LIMIT_PER_HOUR = 1000
-
-
-@dataclass(frozen=True)
-class Granted:
-    user_id: int
-    codes: list[str]
-    level_up: str | None = None  # name of the new level, if the player just reached one
+# Rewards for taking part: the day events "double coins" and "sniper" multiply these.
+ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,14 @@ class BattleReport:
     milestone: int | None
     granted: list[Granted]
     guessers: list[int] = field(default_factory=list)  # voters who picked the winner
+    guess_reward: int = 0
+    flipped: bool = False  # "upside down" day: the pic with fewer votes won
+    bets: dict[int, tuple[int, int]] = field(default_factory=dict)  # user → (staked, paid back)
+    bets_burned: int = 0
+    bounty: dict[int, int] = field(default_factory=dict)  # hunter → coins
+    evolved: list[tuple[int, int, int]] = field(default_factory=list)  # (slot, old stage, new stage)
+    challenge: dict | None = None
+    champion: int | None = None  # the player who won a challenge
 
 
 @dataclass(frozen=True)
@@ -58,9 +69,12 @@ class CourtReport:
     court: Court
     verdict: str  # 'executed' | 'pardoned'
     granted: list[Granted]
+    amnesty: bool = False
+    bounty: dict[int, int] = field(default_factory=dict)
+    bail_back: int = 0  # bail returned after a won appeal
 
 
-class Game:
+class Game(ProgressMixin, CasinoMixin, ShopMixin, SocialMixin, BossMixin):
     def __init__(
         self,
         repo: Repo,
@@ -75,6 +89,12 @@ class Game:
         # Event achievements earned by actions that don't announce themselves (votes):
         # delivered with the next announcement for that user.
         self._pending_events: dict[int, list[str]] = {}
+        self._pending_notes: dict[int, list[Note]] = {}
+        # Quests, challenges and random chests. Tests of other mechanics switch them off
+        # so their coin balances stay exact.
+        self.quests_enabled = True
+        self.starter_bonus = STARTER_BONUS
+        self._boss_hit_at: dict[tuple[str, int], float] = {}
         # Local 00:00–04:59 expressed in UTC hours, for night-upload achievements.
         self.night_hours_utc = [(hour - tz_offset_hours) % 24 for hour in range(0, 5)]
 
@@ -104,7 +124,8 @@ class Game:
                 events.append("deja_vu")
             if bucket == "legend" and self.repo.incr_counter(user_id, f"legends_day:{self.local_day()}") >= 3:
                 events.append("lucky")
-        granted = self.check_achievements([], {user_id: events}) if events else []
+        self.progress(user_id, "pic")
+        granted = self.check_achievements([], {user_id: events}) if events else self.flush([user_id])
         return pic, bucket, granted
 
     # ── activity & coins ───────────────────────────────────────────────
@@ -122,9 +143,21 @@ class Game:
         self.repo.set_counter(user_id, "last_active_day", today)
         return events
 
-    def pay(self, user_id: int | None, amount: int, reason: str) -> None:
-        if isinstance(user_id, int) and amount:
-            self.repo.add_coins(user_id, amount, reason, self.now())
+    def pay(self, user_id: int | None, amount: int, reason: str, earn: bool = True) -> None:
+        if not isinstance(user_id, int) or not amount:
+            return
+        if reason in ACTIVITY_REASONS and amount > 0:
+            amount *= self.activity_multiplier(reason)
+        self.repo.add_coins(user_id, amount, reason, self.now(), earn=earn)
+
+    def activity_multiplier(self, reason: str) -> int:
+        event = self.day_event()
+        if reason == "guess" and event == "sniper_day":
+            return 3
+        return 2 if event == "double_coins" else 1
+
+    def guess_reward(self) -> int:
+        return economy.GUESS * self.activity_multiplier("guess") + economy.VOTE * self.activity_multiplier("vote")
 
     # ── reactions ──────────────────────────────────────────────────────
 
@@ -147,11 +180,16 @@ class Game:
             # Coins only for a first-ever like: switching back and forth can't farm them.
             if previous == 0 and value == 1 and before.added_by not in (None, user_id):
                 self.pay(before.added_by, economy.LIKE_RECEIVED, "like")
+            if previous == 0 and value == 1:
+                self.progress(user_id, "like")
+            if previous == 0:
+                self.maybe_random_chest(user_id)
         pic = self.repo.get_pic(pic_id)
         assert pic is not None
+        threshold = 1 if self.day_is("plague") else court.DISLIKES_FOR_COURT
         court_due = (
             changed
-            and court.dislikes_trigger_court(before.dislikes, pic.dislikes)
+            and court.dislikes_trigger_court(before.dislikes, pic.dislikes, threshold)
             and court.can_be_tried(pic.status, pic.immune_until, self.now())
             and self.repo.active_court_for_pic(pic_id) is None
         )
@@ -230,9 +268,17 @@ class Game:
             return "expired", battle
         if not 0 <= slot < len(battle.pics):
             return "gone", battle
+        if battle.mode == "challenge":
+            challenge = self.repo.challenge_for_battle(battle_id)
+            if challenge and user_id in (challenge["from_user"], challenge["to_user"]):
+                return "fighter", battle
+        first_vote = user_id not in battle.votes
         if not self.repo.vote_battle(battle_id, user_id, slot):
             return "same", battle
         self._pending_events.setdefault(user_id, []).extend(self.touch_activity(user_id))
+        if first_vote:
+            self.progress(user_id, "vote")
+            self.maybe_random_chest(user_id)
         return "ok", self.repo.get_battle(battle_id)
 
     def finish_battle(self, battle_id: str) -> BattleReport | None:
@@ -245,20 +291,32 @@ class Game:
         ]
         votes = battle.vote_counts()
         before = [pic.rating for pic in battle.pics]
+        stages_before = [shop.stage(pic.wins).index for pic in battle.pics]
         now = self.now()
+        challenge_mode = battle.mode == "challenge"
+        # "Upside down" day: the pic with fewer votes wins a regular duel.
+        flipped = battle.kind == "duel" and not challenge_mode and self.day_is("upside_down") and sum(votes) > 0
+        decisive = list(reversed(votes)) if flipped else votes
 
         if battle.kind == "duel":
-            outcome = arena.resolve_duel(fighters, votes, battle.streak)
+            death = days.BLOOD_MOON_DEATH_RATING if self.day_is("blood_moon") else arena.DEATH_RATING
+            outcome = arena.resolve_duel(
+                fighters, decisive, battle.streak, death_rating=death, deadly=not challenge_mode
+            )
             winner = outcome.winner
             after = list(outcome.ratings)
             outcomes = list(outcome.outcomes)
             counted = outcome.counted
             streak = outcome.streak if winner is not None else battle.streak
             executed_slot = outcome.executed
-            self.repo.set_meta(f"last_duel:{battle.chat_id}", battle.id)
-            # A champion that drew keeps its streak; otherwise only a winner carries one.
-            result_slot = winner if winner is not None else (0 if battle.streak > 0 else None)
-            self.repo.set_battle_result(battle_id, result_slot, streak if result_slot is not None else None)
+            if challenge_mode:
+                streak = 0
+                self.repo.set_battle_result(battle_id, winner, None)
+            else:
+                self.repo.set_meta(f"last_duel:{battle.chat_id}", battle.id)
+                # A champion that drew keeps its streak; otherwise only a winner carries one.
+                result_slot = winner if winner is not None else (0 if battle.streak > 0 else None)
+                self.repo.set_battle_result(battle_id, result_slot, streak if result_slot is not None else None)
         else:
             outcome_t = arena.resolve_tournament(fighters, votes)
             winner = outcome_t.winner
@@ -271,9 +329,9 @@ class Game:
 
         if counted:
             for slot, pic in enumerate(battle.pics):
-                pic_streak = streak if (battle.kind == "duel" and slot == winner) else None
+                pic_streak = streak if (battle.kind == "duel" and slot == winner and not challenge_mode) else None
                 self.repo.apply_battle_result(pic.id, after[slot], outcomes[slot], pic_streak)
-            if battle.kind == "duel" and winner is not None:
+            if battle.kind == "duel" and winner is not None and not challenge_mode:
                 record = self.repo.meta_int(f"streak_record:{battle.chat_id}")
                 if streak > record:
                     self.repo.set_meta(f"streak_record:{battle.chat_id}", streak)
@@ -288,11 +346,31 @@ class Game:
 
         milestone = (
             arena.streak_milestone(streak)
-            if battle.kind == "duel" and winner is not None and counted
+            if battle.kind == "duel" and winner is not None and counted and not challenge_mode
             else None
         )
         guessers, events = self._settle_battle_votes(battle, votes, winner, executed, before, counted)
+        bets, burned = self._settle_bets(battle, winner, counted)
+        bounty = self._pay_bounty(executed.id, guessers) if executed is not None else {}
+        challenge, champion = self._settle_challenge(battle, winner, counted) if challenge_mode else (None, None)
+
+        evolved = []
+        if counted:
+            for slot, pic in enumerate(battle.pics):
+                fresh = self.repo.get_pic(pic.id)
+                if fresh is None:
+                    continue
+                stage = shop.stage(fresh.wins).index
+                if stage > stages_before[slot]:
+                    evolved.append((slot, stages_before[slot], stage))
+                    if isinstance(pic.added_by, int):
+                        if stage >= 2:
+                            events.setdefault(pic.added_by, []).append("breeder")
+                        if stage >= 3:
+                            events.setdefault(pic.added_by, []).append("dragon")
+
         owners = [pic.added_by for pic in battle.pics] if counted else []
+        players = [challenge["from_user"], challenge["to_user"]] if challenge else []
         return BattleReport(
             battle=self.repo.get_battle(battle_id) or battle,
             counted=counted,
@@ -302,8 +380,16 @@ class Game:
             rating_after=after,
             streak=streak if battle.kind == "duel" else 0,
             milestone=milestone,
-            granted=self.check_achievements(owners + list(battle.votes), events),
+            granted=self.check_achievements(owners + list(battle.votes) + list(battle.bets) + players, events),
             guessers=guessers,
+            guess_reward=self.guess_reward(),
+            flipped=flipped,
+            bets=bets,
+            bets_burned=burned,
+            bounty=bounty,
+            evolved=evolved,
+            challenge=challenge,
+            champion=champion,
         )
 
     def _settle_battle_votes(
@@ -330,6 +416,7 @@ class Game:
             if slot == winner:
                 guessers.append(user_id)
                 self.pay(user_id, economy.GUESS, "guess")
+                self.progress(user_id, "guess")
                 self.repo.incr_counter(user_id, "right_guesses")
                 streak = self.repo.incr_counter(user_id, "guess_streak")
                 self.repo.raise_counter(user_id, "best_guess_streak", streak)
@@ -349,7 +436,7 @@ class Game:
         winner_pic = battle.pics[winner]
         if total == 1:
             grant(guessers[0] if guessers else None, "lone_warrior")
-        if battle.kind != "duel":
+        if battle.kind != "duel" or battle.mode == "challenge":
             return guessers, events
 
         loser = 1 - winner
@@ -379,6 +466,7 @@ class Game:
         title: str = "",
         pic_message_id: int | None = None,
     ) -> CourtStart:
+        """Courts open on the second 🖕🏻, from the bottom, on schedule or bought in the shop."""
         pic = self.repo.get_pic(pic_id)
         if pic is None or pic.status != "alive":
             return CourtStart("gone")
@@ -410,8 +498,11 @@ class Game:
             return "closed", trial
         if self.now() >= trial.ends_at:
             return "expired", trial
+        first_vote = user_id not in trial.votes
         if not self.repo.vote_court(court_id, user_id, vote):
             return "same", trial
+        if first_vote:
+            self.progress(user_id, "court_vote")
         pending = self._pending_events.setdefault(user_id, [])
         pending.extend(self.touch_activity(user_id))
         if 3 <= self.local_hour() < 5:
@@ -435,7 +526,8 @@ class Game:
         if trial is None or trial.status != "active":
             return None
         kill, spare = trial.vote_counts()
-        result = court.verdict(kill, spare)
+        amnesty = self.day_is("amnesty")
+        result = "pardoned" if amnesty else court.verdict(kill, spare, appeal=trial.appeal)
         if not self.repo.close_court(court_id, result):
             return None
         now = self.now()
@@ -446,16 +538,23 @@ class Game:
             if isinstance(user_id, int):
                 events.setdefault(user_id, []).append(code)
 
+        bounty: dict[int, int] = {}
+        bail_back = 0
         if result == "executed":
             self.repo.remove_pic(trial.pic.id, "executed", "court", now)
             self.repo.incr_meta("court_executions")
             if isinstance(owner, int) and self.repo.executed_since(owner, now - 86400) >= 3:
                 grant(owner, "black_streak")
+            bounty = self._pay_bounty(trial.pic.id, [user for user, vote in trial.votes.items() if vote == "kill"])
         else:
             self.repo.set_immunity(trial.pic.id, now + court.IMMUNITY_SECONDS)
             self.repo.incr_meta("court_pardons")
             if trial.last_word:
                 grant(owner, "last_word_saved")
+            if trial.appeal and trial.bail and isinstance(owner, int):
+                bail_back = trial.bail
+                self.repo.add_coins(owner, bail_back, "bail_back", now, earn=False)
+                grant(owner, "appeal_won")
         for user_id, vote in trial.votes.items():
             self.pay(user_id, economy.COURT_VOTE, "court_vote")
             if vote == "kill" and user_id == owner:
@@ -467,7 +566,59 @@ class Game:
             court=self.repo.get_court(court_id) or trial,
             verdict=result,
             granted=self.check_achievements(users, events),
+            amnesty=amnesty,
+            bounty=bounty,
+            bail_back=bail_back,
         )
+
+    def can_appeal(self, trial: Court) -> bool:
+        return (
+            trial.status == "executed"
+            and not trial.appeal
+            and self.now() <= trial.ends_at + court.APPEAL_WINDOW
+            and not self.repo.meta_str(f"appealed:{trial.id}")
+        )
+
+    def appeal(self, court_id: str, user_id: int, title: str = "") -> CourtStart:
+        """Second trial for an executed pic, paid by its uploader. Statuses: started, gone,
+        not_owner, late, final, broke."""
+        trial = self.repo.get_court(court_id)
+        if trial is None or trial.status != "executed":
+            return CourtStart("gone")
+        if trial.appeal:
+            return CourtStart("final")
+        if trial.pic.added_by != user_id:
+            return CourtStart("not_owner")
+        if not self.can_appeal(trial) or trial.pic.status != "executed":
+            return CourtStart("late")
+        if not self.repo.spend(user_id, court.APPEAL_BAIL, "bail", self.now()):
+            return CourtStart("broke")
+        self.repo.set_meta(f"appealed:{trial.id}", self.now())
+        self.repo.revive_pic(trial.pic.id, 0)
+        self.repo.incr_meta("court_executions", -1)
+        new_id = self.repo.create_court(
+            trial.chat_id,
+            trial.pic.id,
+            trial.reason,
+            user_id,
+            self.now(),
+            court.APPEAL_SECONDS,
+            title=title,
+            appeal=True,
+            bail=court.APPEAL_BAIL,
+        )
+        return CourtStart("started", self.repo.get_court(new_id))
+
+    def undo_appeal(self, court_id: str) -> None:
+        """The appeal card couldn't be sent: put everything back as it was."""
+        trial = self.repo.get_court(court_id)
+        if trial is None:
+            return
+        self.repo.drop_court(court_id)
+        self.repo.remove_pic(trial.pic.id, "executed", "court", self.now())
+        self.repo.incr_meta("court_executions")
+        if isinstance(trial.pic.added_by, int) and trial.bail:
+            self.repo.add_coins(trial.pic.added_by, trial.bail, "bail_back", self.now(), earn=False)
 
     def pardon(self, pic_id: str) -> bool:
         revived = self.repo.revive_pic(pic_id, self.now() + court.IMMUNITY_SECONDS)
@@ -490,6 +641,7 @@ class Game:
         except sqlite3.IntegrityError:
             return None
         self.pay(user_id, economy.UPLOAD, "upload")
+        self.progress(user_id, "upload")
         self.repo.set_counter(user_id, "dup_streak", 0)
         return pic, self.check_achievements([user_id])
 
@@ -522,6 +674,8 @@ class Game:
         clean = " ".join(text.split())[: games.CAPTION_MAX_LENGTH]
         if not clean:
             return None
+        if user_id not in authors:
+            self.progress(user_id, "caption")
         self.repo.put_game_entry(game["id"], user_id, clean, self.now())
         self._pending_events.setdefault(user_id, []).extend(self.touch_activity(user_id))
         return self.repo.get_game(game["id"])
@@ -568,9 +722,12 @@ class Game:
     # ── golden pic ─────────────────────────────────────────────────────
 
     def roll_gold(self, chat_id: int) -> bool:
-        if self.rng.random() >= games.GOLD_CHANCE:
+        rush = self.day_is("gold_rush")
+        chance = games.GOLD_CHANCE * (days.GOLD_RUSH_CHANCE_FACTOR if rush else 1)
+        cooldown = days.GOLD_RUSH_COOLDOWN if rush else games.GOLD_COOLDOWN_SECONDS
+        if self.rng.random() >= chance:
             return False
-        return self.now() - self.repo.last_gold_at(chat_id) >= games.GOLD_COOLDOWN_SECONDS
+        return self.now() - self.repo.last_gold_at(chat_id) >= cooldown
 
     def claim_gold(self, token: str, user_id: int) -> tuple[bool, list[Granted]]:
         if not self.repo.claim_gold(token, user_id):
@@ -581,29 +738,31 @@ class Game:
 
     # ── wheel of fortune & horoscope ───────────────────────────────────
 
-    def spin_price(self, user_id: int) -> int:
-        return 0 if self.repo.counter(user_id, "spin_day") != self.local_day() else economy.SPIN_PRICE
+    def free_spin_available(self, user_id: int) -> bool:
+        return self.repo.counter(user_id, "spin_day") != self.local_day()
 
-    def pay_for_spin(self, user_id: int) -> bool:
-        """Free once a day, then SPIN_PRICE coins. False if the player can't afford it."""
-        price = self.spin_price(user_id)
-        if price and self.repo.player(user_id)[0] < price:
+    def take_free_spin(self, user_id: int) -> bool:
+        if not self.free_spin_available(user_id):
             return False
-        if price:
-            self.pay(user_id, -price, "spin")
         self.repo.set_counter(user_id, "spin_day", self.local_day())
         return True
 
+    def give_back_free_spin(self, user_id: int) -> None:
+        self.repo.set_counter(user_id, "spin_day", 0)
+
     def resolve_spin(self, user_id: int, dice_value: int) -> tuple[games.Spin, Pic | None, list[Granted]]:
+        """The free daily wheel: coins, a curse or a blessing for one of your pics, or a legend."""
         spin = games.spin_outcome(dice_value, self.rng)
         pic = None
         if spin.coins:
-            self.pay(user_id, spin.coins, f"spin_{spin.kind}")
+            self.pay(user_id, spin.coins, f"spin_{spin.kind}", earn=False)
         if spin.kind in ("curse", "bless"):
             pic = self.repo.random_alive_of(user_id)
             if pic is not None:
-                delta = games.CURSE_RATING if spin.kind == "curse" else games.BLESS_RATING
-                self.repo.shift_rating(pic.id, delta)
+                if spin.kind == "curse":
+                    self.curse(pic)
+                else:
+                    self.repo.shift_rating(pic.id, games.BLESS_RATING)
         elif spin.kind == "legend":
             legends = self.repo.top_rated(20)
             pic = legends[self.rng.randrange(len(legends))] if legends else None
@@ -619,6 +778,7 @@ class Game:
             return None, False, []
         self.repo.set_counter(user_id, "horoscope_day", self.local_day())
         self.repo.incr_counter(user_id, "horoscopes")
+        self.progress(user_id, "horoscope")
         return pics[0], False, self.check_achievements([user_id])
 
     # ── weekly crowns ──────────────────────────────────────────────────
@@ -649,7 +809,7 @@ class Game:
 
     # ── achievements ───────────────────────────────────────────────────
 
-    BACKFILL_KEY = "achievements_backfilled_v2"  # bump when new metric achievements are added
+    BACKFILL_KEY = "achievements_backfilled_v4"  # bump when new metric achievements are added
 
     def backfill_achievements(self) -> int:
         """Silently grant everything already earned, so old progress doesn't flood the chat."""
@@ -674,6 +834,7 @@ class Game:
             stats = self.repo.user_stats(user_id, self.night_hours_utc, self.tz_offset_hours, now)
             wanted = achievements.earned(stats, owned)
             wanted += events.get(user_id, []) + self._pending_events.pop(user_id, [])
+            notes = self._pending_notes.pop(user_id, [])
             fresh = [
                 code
                 for code in dict.fromkeys(wanted)
@@ -685,6 +846,6 @@ class Game:
             if level.index > level_seen:
                 self.repo.set_level_seen(user_id, level.index)
                 level_up = level.name
-            if fresh or level_up:
-                granted.append(Granted(user_id, fresh, level_up))
+            if fresh or level_up or notes:
+                granted.append(Granted(user_id, fresh, level_up, notes))
         return granted

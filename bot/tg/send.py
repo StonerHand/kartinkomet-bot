@@ -292,6 +292,14 @@ async def answer_quietly(callback, text: str | None = None) -> None:
         pass
 
 
+async def answer_quietly_alert(callback, text: str) -> None:
+    """A pop-up only the presser sees: refusals that shouldn't spam the chat."""
+    try:
+        await callback.answer(text, show_alert=True)
+    except TelegramAPIError:
+        pass
+
+
 async def chat_action(bot: Bot, chat_id: int, action: str) -> None:
     """'is sending a photo…' indicator while slow work runs. Cosmetic, failures ignored."""
     try:

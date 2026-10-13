@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+from bot.db.repo_v4 import V4Repo
+
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 SCHEMA_VERSION = "2"
 LEGEND_POOL_SIZE = 50
@@ -58,6 +60,8 @@ class Battle:
     extended: bool
     pics: tuple[Pic, ...]
     votes: dict[int, int]
+    mode: str = ""  # '' regular, 'challenge' player vs player
+    bets: dict[int, tuple[int, int]] = field(default_factory=dict)  # user → (slot, amount)
 
     def vote_counts(self) -> list[int]:
         counts = [0] * len(self.pics)
@@ -65,6 +69,13 @@ class Battle:
             if 0 <= slot < len(counts):
                 counts[slot] += 1
         return counts
+
+    def bet_pool(self) -> list[int]:
+        pool = [0] * len(self.pics)
+        for slot, amount in self.bets.values():
+            if 0 <= slot < len(pool):
+                pool[slot] += amount
+        return pool
 
 
 @dataclass(frozen=True)
@@ -82,6 +93,8 @@ class Court:
     pic_message_id: int | None
     last_word: str | None
     votes: dict[int, str]
+    appeal: bool = False
+    bail: int = 0
 
     def vote_counts(self) -> tuple[int, int]:
         kill = sum(1 for vote in self.votes.values() if vote == "kill")
@@ -107,6 +120,7 @@ class UserStats:
     dislikes_given: int = 0
     earned: int = 0
     counters: dict[str, int] = field(default_factory=dict)
+    married_days: int = 0
 
     def counter(self, key: str) -> int:
         return self.counters.get(key, 0)
@@ -129,6 +143,15 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     for column in ("card_is_photo", "extended"):
         if column not in battle_columns:
             connection.execute(f"ALTER TABLE battles ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+    if "mode" not in battle_columns:  # v4: '' = regular battle, 'challenge' = player vs player
+        connection.execute("ALTER TABLE battles ADD COLUMN mode TEXT NOT NULL DEFAULT ''")
+    ledger_columns = {row[1] for row in connection.execute("PRAGMA table_info(ledger)")}
+    if "earn" not in ledger_columns:  # v4: 1 = activity income (levels, weekly "rich" crown)
+        connection.execute("ALTER TABLE ledger ADD COLUMN earn INTEGER NOT NULL DEFAULT 1")
+    court_columns = {row[1] for row in connection.execute("PRAGMA table_info(courts)")}
+    for column in ("appeal", "bail"):  # v4: appeal courts and the bail paid for them
+        if column not in court_columns:
+            connection.execute(f"ALTER TABLE courts ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
     # v1 kept per-side duel history ("duel:<chat>:left"); the migration filed it under pic scopes.
     connection.execute(
         "DELETE FROM deck_seen WHERE scope LIKE 'pic:duel:%' OR scope LIKE 'pic:tournament:%'"
@@ -151,7 +174,7 @@ def _placeholders(values: Sequence) -> str:
     return ",".join("?" for _ in values)
 
 
-class Repo:
+class Repo(V4Repo):
     def __init__(self, database_path: Path | str) -> None:
         self.database_path = Path(database_path)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -492,13 +515,14 @@ class Repo:
         duration: int,
         streak: int = 0,
         title: str = "",
+        mode: str = "",
     ) -> str:
         battle_id = uuid4().hex[:16]
         with self.db:
             self.db.execute(
-                "INSERT INTO battles (id, chat_id, kind, started_at, ends_at, streak, title) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (battle_id, chat_id, kind, now, now + duration, streak, title),
+                "INSERT INTO battles (id, chat_id, kind, started_at, ends_at, streak, title, mode) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (battle_id, chat_id, kind, now, now + duration, streak, title, mode),
             )
             self.db.executemany(
                 "INSERT INTO battle_entries (battle_id, slot, pic_id) VALUES (?, ?, ?)",
@@ -569,13 +593,20 @@ class Repo:
             extended=bool(row["extended"]),
             pics=pics,
             votes=votes,
+            mode=row["mode"],
+            bets={
+                bet["user_id"]: (bet["slot"], bet["amount"])
+                for bet in self.db.execute(
+                    "SELECT user_id, slot, amount FROM battle_bets WHERE battle_id = ?", (battle_id,)
+                )
+            },
         )
 
-    def active_battle(self, chat_id: int, kind: str) -> Battle | None:
+    def active_battle(self, chat_id: int, kind: str, mode: str = "") -> Battle | None:
         row = self.db.execute(
-            "SELECT id FROM battles WHERE status = 'active' AND chat_id = ? AND kind = ? "
+            "SELECT id FROM battles WHERE status = 'active' AND chat_id = ? AND kind = ? AND mode = ? "
             "ORDER BY started_at DESC LIMIT 1",
-            (chat_id, kind),
+            (chat_id, kind, mode),
         ).fetchone()
         return self.get_battle(row["id"]) if row else None
 
@@ -629,12 +660,14 @@ class Repo:
         duration: int,
         title: str = "",
         pic_message_id: int | None = None,
+        appeal: bool = False,
+        bail: int = 0,
     ) -> str:
         court_id = uuid4().hex[:16]
         with self.db:
             self.db.execute(
                 "INSERT INTO courts (id, chat_id, pic_id, reason, started_by, started_at, ends_at, "
-                "title, pic_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "title, pic_message_id, appeal, bail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     court_id,
                     chat_id,
@@ -645,6 +678,8 @@ class Repo:
                     now + duration,
                     title,
                     pic_message_id,
+                    int(appeal),
+                    bail,
                 ),
             )
         return court_id
@@ -686,6 +721,8 @@ class Repo:
             pic_message_id=row["pic_message_id"],
             last_word=row["last_word"],
             votes=votes,
+            appeal=bool(row["appeal"]),
+            bail=row["bail"],
         )
 
     def active_court_for_pic(self, pic_id: str) -> Court | None:
@@ -826,7 +863,9 @@ class Repo:
         ).fetchone()
         player = self.player(user_id)
         first_upload = extra["first_upload"]
+        married = self.db.execute("SELECT since FROM marriages WHERE user_id = ?", (user_id,)).fetchone()
         return UserStats(
+            married_days=(now - married[0]) // 86400 if married and now else 0,
             morning_uploads=extra["morning"],
             days_since_first_upload=(now - first_upload) // 86400 if first_upload and now else 0,
             hall_top10=hall_top10,
@@ -885,21 +924,39 @@ class Repo:
         ).fetchone()
         return (row[0], row[1], row[2]) if row else (0, 0, 0)
 
-    def add_coins(self, user_id: int, amount: int, reason: str, now: int) -> int:
-        """Change the balance (never below zero); earnings count only gains. Returns new balance."""
+    def add_coins(self, user_id: int, amount: int, reason: str, now: int, earn: bool = True) -> int:
+        """Change the balance (never below zero). Gains count towards the level only with `earn`:
+        casino wins, transfers and bonuses move coins without levelling anyone up."""
         with self.db:
             self.db.execute(
                 "INSERT INTO players (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING", (user_id,)
             )
             self.db.execute(
                 "UPDATE players SET coins = MAX(0, coins + ?), earned = earned + MAX(0, ?) WHERE user_id = ?",
-                (amount, amount, user_id),
+                (amount, amount if earn else 0, user_id),
             )
             self.db.execute(
-                "INSERT INTO ledger (user_id, amount, reason, at) VALUES (?, ?, ?, ?)",
-                (user_id, amount, reason, now),
+                "INSERT INTO ledger (user_id, amount, reason, at, earn) VALUES (?, ?, ?, ?, ?)",
+                (user_id, amount, reason, now, int(earn)),
             )
         return self.player(user_id)[0]
+
+    def spend(self, user_id: int, amount: int, reason: str, now: int) -> bool:
+        """Take coins only if the whole amount is there. Atomic: two taps can't overspend."""
+        if amount <= 0:
+            return True
+        with self.db:
+            cursor = self.db.execute(
+                "UPDATE players SET coins = coins - ? WHERE user_id = ? AND coins >= ?",
+                (amount, user_id, amount),
+            )
+            if cursor.rowcount != 1:
+                return False
+            self.db.execute(
+                "INSERT INTO ledger (user_id, amount, reason, at, earn) VALUES (?, ?, ?, ?, 0)",
+                (user_id, -amount, reason, now),
+            )
+        return True
 
     def set_level_seen(self, user_id: int, level: int) -> None:
         with self.db:
@@ -1013,7 +1070,11 @@ class Repo:
                 (since,),
             ),
             "rich": (
-                "SELECT user_id, SUM(amount) FROM ledger WHERE at >= ? AND amount > 0 GROUP BY user_id",
+                "SELECT user_id, SUM(amount) FROM ledger WHERE at >= ? AND amount > 0 AND earn = 1 GROUP BY user_id",
+                (since,),
+            ),
+            "lucky": (
+                "SELECT user_id, SUM(amount) FROM ledger WHERE at >= ? AND reason LIKE 'casino%' GROUP BY user_id",
                 (since,),
             ),
         }

@@ -14,6 +14,7 @@ class RememberUser(BaseMiddleware):
     def __init__(self, game: Game) -> None:
         self.game = game
         self._chat_seen: dict[int, int] = {}
+        self._starter_checked: set[int] = set()
 
     async def __call__(
         self,
@@ -26,6 +27,9 @@ class RememberUser(BaseMiddleware):
             self.game.repo.remember_user(
                 user.id, user.username, user.first_name, user.last_name, self.game.now()
             )
+            if user.id not in self._starter_checked:  # newcomers get the starter coins too
+                self._starter_checked.add(user.id)
+                self.game.give_starter(user.id)
         chat: Chat | None = data.get("event_chat")
         if chat is not None and chat.type in ("group", "supergroup"):
             self._touch_chat(chat)

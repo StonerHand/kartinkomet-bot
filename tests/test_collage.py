@@ -30,6 +30,13 @@ class CollageTest(unittest.TestCase):
         self.assertGreater(red[0], 180)
         self.assertGreater(blue[2], 180)
 
+    def test_evolved_pics_get_a_frame(self) -> None:
+        image = Image.open(BytesIO(build([jpeg((640, 640), (0, 0, 0))] * 2, stages=[3, 0]))).convert("RGB")
+        dragon = image.getpixel((CELL_WIDTH // 2, 2))  # top edge of the left pic: gold frame
+        plain = image.getpixel((CELL_WIDTH + GAP + CELL_WIDTH // 2, 2))
+        self.assertGreater(dragon[0], 200)
+        self.assertLess(plain[0], 40)
+
     def test_rejects_wrong_count_and_garbage(self) -> None:
         with self.assertRaises(ValueError):
             build([jpeg((10, 10))] * 3)

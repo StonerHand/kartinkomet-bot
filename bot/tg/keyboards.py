@@ -13,6 +13,14 @@ Scheme:
   trial                 "court in progress" placeholder
   up:<start|done|cancel>
   adm:<health|backup|reset|reset!|spare:<pic>>
+  bt:<battle>:<slot>    arena bet
+  cg:<game> | cs:<amount|all> | cp:<game>:<stake>   casino: play / set stake / play at stake
+  pm:<pic>              pic shop menu;  sh:<item>:<pic>:<uid>  buy for a pic
+  res:<pic>             resurrect from the graveyard;  title  buy a title
+  ap:<court>            appeal
+  daily | ch:<tier>     daily bonus / open a chest
+  bh:<boss> | bs:<boss> boss hit / super hit;  boss  summon
+  mr:<y|n>:<proposal>   marriage answer;  cl:<y|n>:<challenge>  challenge answer
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -53,11 +61,11 @@ def back(to: str = "m:home") -> list[InlineKeyboardButton]:
 def home(is_admin: bool) -> InlineKeyboardMarkup:
     return markup(
         [button("🎲 Пикчу", "pic", PRIMARY), button("⚔️ Дуэль", "d:new", PRIMARY)],
-        [button("🏟 Турнир", "t:new", PRIMARY), button("🏆 Топы", "m:top:uploads")],
-        [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom")],
-        [button("⚰️ Кладбище", "m:grave"), button("👤 Я", "m:me")],
-        [button("🎮 Игры", "m:games", PRIMARY), button("❓ Правила", "m:help")],
-        [button("📥 Загрузить", "m:up", SUCCESS)],
+        [button("🏟 Турнир", "t:new", PRIMARY), button("🎮 Игры", "m:games", PRIMARY)],
+        [button("🎰 Казино", "m:casino", SUCCESS), button("🛒 Лавка", "m:shop", SUCCESS)],
+        [button("🎁 Бонус", "daily", SUCCESS), button("📜 Квесты", "m:quests")],
+        [button("🏆 Рейтинги", "m:top:uploads"), button("👤 Я", "m:me")],
+        [button("📥 Загрузить", "m:up"), button("❓ Правила", "m:help")],
         [button("🔄 Обновить", "m:home:refresh")]
         + ([button("⚙️ Админка", "m:adm")] if is_admin else []),
     )
@@ -65,9 +73,113 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
 
 def games_menu() -> InlineKeyboardMarkup:
     return markup(
-        [button("🖋 Подпиши", "gm:caption", PRIMARY), button("🎰 Колесо", "gm:spin", SUCCESS)],
-        [button("🔮 Гороскоп", "gm:horo")],
+        [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
+        [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
         back(),
+    )
+
+
+# ── v4 ─────────────────────────────────────────────────────────────────
+
+CASINO_BUTTONS = (
+    ("slots", "🎰 Слоты"),
+    ("dice", "🎲 Кости"),
+    ("darts", "🎯 Дартс"),
+    ("basket", "🏀 Баскет"),
+    ("football", "⚽ Футбол"),
+    ("bowling", "🎳 Кегли"),
+)
+
+
+def casino_menu(presets: tuple[int, ...]) -> InlineKeyboardMarkup:
+    games = [button(label, f"cg:{code}", SUCCESS if code == "slots" else None) for code, label in CASINO_BUTTONS]
+    stakes = [button(str(amount), f"cs:{amount}") for amount in presets]
+    return markup(games[:3], games[3:], stakes, [button("🃏 Ва-банк", "cs:all", DANGER)], back())
+
+
+def casino_again(game: str, stake: int) -> InlineKeyboardMarkup:
+    half = max(10, stake // 2)
+    return markup(
+        [
+            button(f"🔁 {stake}", f"cp:{game}:{stake}", SUCCESS),
+            button(f"⏫ {stake * 2}", f"cp:{game}:{stake * 2}"),
+            button(f"⏬ {half}", f"cp:{game}:{half}"),
+        ]
+    )
+
+
+def pic_menu(token: str, cursed: bool, prices: dict[str, int]) -> InlineKeyboardMarkup:
+    """token: a short server-side key for (pic, buyer, chat) — see shop.menu_token."""
+
+    def buy(label: str, item: str, code: str, style: str | None = None) -> InlineKeyboardButton:
+        return button(f"{label} {prices[item]}", f"sh:{code}:{token}", style)
+
+    rows = [
+        [buy("🛡 Щит", "shield", "s", SUCCESS), buy("⚡ Буст", "boost", "b", PRIMARY)],
+        [buy("⚖️ Суд", "court", "c", DANGER), button("🎯 +100", f"sh:h1:{token}")],
+        [button("🎯 +500", f"sh:h5:{token}")],
+    ]
+    if cursed:
+        rows[2].append(buy("🧿 Порча", "uncurse", "u", SUCCESS))
+    return markup(*rows)
+
+
+def shop_menu() -> InlineKeyboardMarkup:
+    return markup([button("🏷 Купить титул", "title", PRIMARY)], [button("⚰️ Кладбище", "m:grave"), *back()])
+
+
+def appeal(court_id: str) -> InlineKeyboardMarkup:
+    return markup([button("📜 Апелляция", f"ap:{court_id}", PRIMARY), button("🎲 ещё", "pic", PRIMARY)])
+
+
+def quests_menu(daily_ready: bool, chests: dict[str, int], chat_id: int | None = None) -> InlineKeyboardMarkup:
+    """chat_id goes into the buttons when the screen is ephemeral: such callbacks may come
+    without the message, and the bot still has to know where to post."""
+    suffix = f":{chat_id}" if chat_id is not None else ""
+    rows = []
+    if daily_ready:
+        rows.append([button("🎁 Забрать бонус", f"daily{suffix}", SUCCESS)])
+    rows.append(chest_buttons(chests, suffix))
+    if chat_id is None:
+        rows.append(back())
+    return markup(*rows)
+
+
+CHEST_LABELS = {"wood": "🟫 Сундук", "rare": "🟪 Сундук", "legend": "🟨 Сундук"}  # tap = open one
+
+
+def chest_buttons(chests: dict[str, int], suffix: str = "") -> list[InlineKeyboardButton]:
+    return [button(CHEST_LABELS[tier], f"ch:{tier}{suffix}", SUCCESS) for tier, count in chests.items() if count]
+
+
+def open_chests(tiers: list[str]) -> InlineKeyboardMarkup | None:
+    if not tiers:
+        return None
+    return markup([button(CHEST_LABELS[tier], f"ch:{tier}", SUCCESS) for tier in dict.fromkeys(tiers)])
+
+
+def boss(boss_id: str, price: int) -> InlineKeyboardMarkup:
+    return markup([button("🗡 Удар", f"bh:{boss_id}", DANGER), button(f"🔥 Супер {price}", f"bs:{boss_id}", PRIMARY)])
+
+
+def boss_over() -> InlineKeyboardMarkup:
+    return markup([button("🎲 ещё", "pic", PRIMARY), button("🎮 Игры", "m:games")])
+
+
+def proposal(proposal_id: str) -> InlineKeyboardMarkup:
+    return markup([button("💍 Да", f"mr:y:{proposal_id}", SUCCESS), button("💔 Нет", f"mr:n:{proposal_id}", DANGER)])
+
+
+def release_v4() -> InlineKeyboardMarkup:
+    return markup(
+        [button("🎁 Бонус", "daily", SUCCESS), button("🎰 Казино", "m:casino", SUCCESS)],
+        [button("📜 Квесты", "m:quests"), button("🛒 Лавка", "m:shop")],
+    )
+
+
+def challenge(challenge_id: str) -> InlineKeyboardMarkup:
+    return markup(
+        [button("✅ Принять", f"cl:y:{challenge_id}", SUCCESS), button("❌ Отказ", f"cl:n:{challenge_id}", DANGER)]
     )
 
 
@@ -88,9 +200,8 @@ def gold_taken(label: str) -> InlineKeyboardMarkup:
     return markup([button(f"🏆 {label[:10]}", "gold:taken"), button("🎲 ещё", "pic", PRIMARY)])
 
 
-def spin_again(price: int) -> InlineKeyboardMarkup:
-    label = "🎰 Ещё раз" if not price else f"🎰 За {price} 🪙"
-    return markup([button(label, "gm:spin", SUCCESS)])
+def after_wheel() -> InlineKeyboardMarkup:
+    return markup([button("🎰 В казино", "m:casino", SUCCESS), button("🎲 ещё", "pic", PRIMARY)])
 
 
 def pic_actions(pic_id: str, likes: int, dislikes: int) -> InlineKeyboardMarkup:
@@ -98,6 +209,7 @@ def pic_actions(pic_id: str, likes: int, dislikes: int) -> InlineKeyboardMarkup:
         [
             button(f"🤙🏻 {likes}", f"r:+:{pic_id}", SUCCESS),
             button(f"🖕🏻 {dislikes}", f"r:-:{pic_id}", DANGER),
+            button("🛒", f"pm:{pic_id}"),
             button("🎲 ещё", "pic", PRIMARY),
         ]
     )
@@ -117,7 +229,8 @@ def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardM
         button(f"{labels[slot]} {count}", f"v:{battle_id}:{slot}", SLOT_STYLES[slot])
         for slot, count in enumerate(counts)
     ]
-    return markup(buttons)
+    bets = [button(f"💰 {labels[slot]}", f"bt:{battle_id}:{slot}") for slot in range(len(counts))]
+    return markup(buttons, bets)
 
 
 def after_duel(battle_id: str, has_champion: bool) -> InlineKeyboardMarkup:
@@ -167,7 +280,7 @@ def bottom(pic_ids: list[str]) -> InlineKeyboardMarkup:
 
 
 def graveyard(pic_ids: list[str], is_admin: bool) -> InlineKeyboardMarkup:
-    rows = []
+    rows = [[button(f"🧟 {index}", f"res:{pic_id}") for index, pic_id in enumerate(pic_ids, start=1)]]
     if is_admin:
         rows.append(
             [
@@ -184,7 +297,8 @@ def tops(active: str) -> InlineKeyboardMarkup:
         button(("✅ " + label.split(" ", 1)[1]) if board == active else label, f"m:top:{board}")
         for board, label in TOP_BOARDS
     ]
-    return markup(tabs[:2], tabs[2:4], tabs[4:], back())
+    pics = [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom"), button("⚰️ Морг", "m:grave")]
+    return markup(tabs[:2], tabs[2:4], tabs[4:], pics, back())
 
 
 def upload_hub(is_private: bool) -> InlineKeyboardMarkup:

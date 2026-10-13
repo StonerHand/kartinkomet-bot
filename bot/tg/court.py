@@ -3,6 +3,7 @@
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
+from bot.core import court
 from bot.game import Game
 from bot.texts import court as court_texts
 from bot.texts import toasts
@@ -41,8 +42,12 @@ async def open_court(
         result = attempt()
     if result.status != "started" or result.court is None:
         return result.status
+    return await launch_court(bot, game, live, result.court, pic_message_id)
 
-    trial = result.court
+
+async def launch_court(bot: Bot, game: Game, live: Live, trial, pic_message_id: int | None = None) -> str:
+    """Send the court card for a court that already exists and start its timer."""
+    chat_id = trial.chat_id
     message = await send.send_photo(
         bot,
         chat_id,
@@ -102,6 +107,27 @@ async def court_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
     live.request_refresh_court(court_id)
 
 
+@router.callback_query(F.data.startswith("ap:"))
+async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    court_id = callback.data.split(":", 1)[1]
+    result = game.appeal(court_id, callback.from_user.id, title=pick(court_texts.APPEAL, court_id))
+    answers = {
+        "gone": "Этого приговора уже нет",
+        "final": "Это и была апелляция. Приговор окончательный",
+        "not_owner": "Апелляцию подаёт только тот, кто загрузил пикчу",
+        "late": "Срок апелляции вышел. Пять минут — и всё",
+        "broke": f"Залог — {court.APPEAL_BAIL} 🪙. Столько у тебя нет",
+    }
+    if result.status != "started" or result.court is None:
+        await callback.answer(answers.get(result.status, "Не вышло"), show_alert=True)
+        return
+    await callback.answer(f"📜 Апелляция подана. Залог {court.APPEAL_BAIL} 🪙")
+    if callback.message is not None:
+        await send.edit_markup(bot, callback.message.chat.id, callback.message.message_id, keyboards.more_only())
+    if await launch_court(bot, game, live, result.court) != "started":
+        game.undo_appeal(result.court.id)
+
+
 @router.callback_query(F.data == "trial")
 async def trial_placeholder(callback: CallbackQuery) -> None:
     await callback.answer("Пикча под судом. Голосуй в карточке суда", show_alert=True)
@@ -120,8 +146,10 @@ async def reply_to_bot(message: Message, bot: Bot, game: Game, live: Live) -> No
     )
     if trial is None:
         from bot.tg.games import caption_reply  # local: games imports arena, which shares helpers
+        from bot.tg.shop import title_reply
 
-        await caption_reply(message, bot, game, live)
+        if not await title_reply(message, bot, game):
+            await caption_reply(message, bot, game, live)
         return
     await live.refresh_court(trial.id)
     await message.reply("🗣 Записано в протокол. Присяжные, учтите")

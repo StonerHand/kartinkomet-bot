@@ -11,12 +11,13 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot import collage
+from bot.core import shop
 
 from bot.game import Game
 from bot.texts import arena as arena_texts
 from bot.texts import toasts, ui
 from bot.texts.pick import pick
-from bot.tg import keyboards, send, views
+from bot.tg import keyboards, send
 from bot.tg.timers import Live
 
 LOGGER = logging.getLogger(__name__)
@@ -63,18 +64,25 @@ async def start_battle(
     battle = result.battle
     if on_started is not None:
         await on_started()
+    return await launch_battle(bot, game, live, battle)
+
+
+async def launch_battle(bot: Bot, game: Game, live: Live, battle) -> str:
+    """Send the collage card of a battle that already exists and start its timer."""
+    chat_id = battle.chat_id
     duration = battle.ends_at - battle.started_at
     markup = keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts())
     card = None
     await send.chat_action(bot, chat_id, "upload_photo")
     image = await build_collage(bot, battle.pics)
+    text = live.battle_text(battle, duration)
     if image is not None:
         # One message: the numbered collage with the vote card as its caption.
         card = await send.send_photo(
             bot,
             chat_id,
             BufferedInputFile(image, filename="arena.jpg"),
-            views.battle_card(battle, duration),
+            text,
             markup,
         )
     if card is None:
@@ -83,7 +91,7 @@ async def start_battle(
             game.cancel_battle(battle.id)
             await send.send_text(bot, chat_id, pick(ui.ERRORS))
             return "failed"
-        card = await send.send_text(bot, chat_id, views.battle_card(battle, duration), markup)
+        card = await send.send_text(bot, chat_id, text, markup)
         if card is None:
             game.cancel_battle(battle.id)
             return "failed"
@@ -111,7 +119,8 @@ async def build_collage(bot: Bot, pics) -> bytes | None:
         images = await asyncio.gather(*(download(bot, pic.file_id) for pic in pics))
         if any(image is None for image in images):
             return None
-        return await asyncio.to_thread(collage.build, list(images))
+        stages = [shop.stage(pic.wins).index for pic in pics]
+        return await asyncio.to_thread(collage.build, list(images), stages)
     except Exception:  # any failure here just means "no collage", the album fallback still works
         LOGGER.warning("Collage failed, falling back to album", exc_info=True)
         return None
@@ -197,8 +206,35 @@ async def vote(callback: CallbackQuery, game: Game, live: Live) -> None:
     if status in ("gone", "closed"):
         await callback.answer("Бой уже окончен", show_alert=True)
         return
+    if status == "fighter":
+        await callback.answer("Ты дерёшься в этом вызове. Голосуют только зрители", show_alert=True)
+        return
     if status == "same":
         await callback.answer(pick(toasts.ALREADY))
         return
     await callback.answer(pick(toasts.DUEL_VOTE))
+    live.request_refresh_battle(battle_id)
+
+
+BET_ANSWERS = {
+    "gone": "Этого боя уже нет",
+    "closed": "Ставки закрыты, бой окончен",
+    "fighter": "Участникам вызова ставить нельзя. Совесть, всё такое",
+    "other_slot": "Твоя ставка уже стоит на другой пикче. Не жадничай",
+    "max": "Потолок — 1000 🪙 на бой",
+    "broke": "Не хватает монет. Ставка — 50 🪙",
+}
+
+
+@router.callback_query(F.data.startswith("bt:"))
+async def bet(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, battle_id, raw_slot = callback.data.split(":", 2)
+    if not raw_slot.isdigit():
+        await callback.answer()
+        return
+    status, total = game.bet_battle(battle_id, callback.from_user.id, int(raw_slot))
+    if status != "ok":
+        await callback.answer(BET_ANSWERS.get(status, "Не вышло"), show_alert=status not in ("max",))
+        return
+    await callback.answer(f"💰 Ставка принята: всего {total} 🪙 на эту пикчу")
     live.request_refresh_battle(battle_id)

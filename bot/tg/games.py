@@ -125,28 +125,24 @@ async def grab_gold(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
         await live.announce(chat_id, granted)
 
 
-# ── wheel of fortune ───────────────────────────────────────────────────
+# ── wheel of fortune (free, once a day) ────────────────────────────────
 
 
 async def spin(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
     """Returns a toast for refusals, None when the wheel actually spun."""
-    price = game.spin_price(user_id)
-    if not game.pay_for_spin(user_id):
-        return pick(game_texts.SPIN_BROKE)
+    if not game.take_free_spin(user_id):
+        return pick(game_texts.WHEEL_USED)
     try:
         dice = await bot.send_dice(chat_id, emoji="🎰")
     except TelegramAPIError:
         LOGGER.warning("Could not send the slot machine in %s", chat_id, exc_info=True)
-        if price:
-            game.pay(user_id, price, "spin_refund")
-        else:
-            game.repo.set_counter(user_id, "spin_day", 0)  # the free spin is still available
+        game.give_back_free_spin(user_id)
         return pick(ui.ERRORS)
     await asyncio.sleep(DICE_ANIMATION_SECONDS)
     result, pic, granted = game.resolve_spin(user_id, dice.dice.value)
     balance = game.repo.player(user_id)[0]
     text = views.spin_result(game.repo.user_label(user_id), result, pic, balance, chat_id)
-    markup = keyboards.spin_again(game.spin_price(user_id))
+    markup = keyboards.after_wheel()
     if result.kind == "legend" and pic is not None:
         await send.send_photo(bot, chat_id, pic.file_id, text, markup, reply_to=dice.message_id)
     else:
@@ -155,8 +151,8 @@ async def spin(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> 
     return None
 
 
-@router.message(Command("spin"))
-async def spin_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+@router.message(Command("wheel"))
+async def wheel_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     if message.from_user is None:
         return
     refusal = await spin(bot, game, live, message.chat.id, message.from_user.id)
@@ -202,8 +198,10 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
             await send.send_text(bot, chat_id, "🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
         return
     if callback.data == "gm:spin":
-        price = game.spin_price(callback.from_user.id)
-        await send.answer_quietly(callback, "🎰 Крутим!" if not price else f"🎰 Крутим за {price} 🪙")
+        if not game.free_spin_available(callback.from_user.id):
+            await callback.answer(pick(game_texts.WHEEL_USED), show_alert=True)
+            return
+        await send.answer_quietly(callback, "🎡 Крутим!")
         refusal = await spin(bot, game, live, chat_id, callback.from_user.id)
     else:
         await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")

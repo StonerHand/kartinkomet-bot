@@ -37,7 +37,20 @@ def all_keyboards():
     yield "after_caption", keyboards.after_caption()
     yield "gold", keyboards.gold("t" * 12)
     yield "gold_taken", keyboards.gold_taken("averyveryverylongname")
-    yield "spin_again", keyboards.spin_again(20)
+    yield "after_wheel", keyboards.after_wheel()
+    yield "casino", keyboards.casino_menu((50, 100, 250, 500))
+    yield "casino_again", keyboards.casino_again("football", 99999)
+    prices = {"shield": 600, "boost": 800, "court": 500, "uncurse": 300}
+    yield "pic_menu", keyboards.pic_menu("a" * 10, True, prices)
+    yield "shop", keyboards.shop_menu()
+    yield "appeal", keyboards.appeal(BATTLE)
+    yield "quests", keyboards.quests_menu(True, {"wood": 1, "rare": 2, "legend": 3})
+    yield "quests_ephemeral", keyboards.quests_menu(True, {"wood": 1, "rare": 2, "legend": 3}, -1001234567890)
+    yield "chests", keyboards.open_chests(["wood", "rare", "legend"])
+    yield "boss", keyboards.boss("b" * 12, 25)
+    yield "boss_over", keyboards.boss_over()
+    yield "proposal", keyboards.proposal("p" * 12)
+    yield "challenge", keyboards.challenge("c" * 12)
 
 
 class KeyboardTest(unittest.TestCase):

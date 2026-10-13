@@ -1,4 +1,5 @@
-"""Scheduled events: pic of the day, evening auto-court, weekly digest, daily backup.
+"""Scheduled events: event of the day, pic of the day, the daily boss, evening auto-court,
+weekly digest, daily backup, plus a one-time v4 release note.
 
 A loop wakes every minute, works in the chats' local time (BOT_TZ_OFFSET) and marks each
 job done in `meta`, so a restart never repeats or skips a day. A job only fires within
@@ -18,11 +19,13 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile
 
-from bot.core import economy
+from bot.core import days, economy
 from bot.game import Game
 from bot.texts import events as texts
 from bot.texts.pick import pick
-from bot.tg import keyboards, send, views
+from bot.texts import ui
+from bot.tg import cards, keyboards, send, views
+from bot.tg.boss import summon
 from bot.tg.court import open_court
 from bot.tg.timers import Live
 
@@ -42,10 +45,13 @@ class Job:
 
 JOBS = (
     Job("backup", 4, None, per_chat=False),
+    Job("day_event", days.START_HOUR, None, per_chat=True),
     Job("pic_of_the_day", 12, None, per_chat=True),
+    Job("boss", 16, None, per_chat=True),
     Job("auto_court", 19, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
 )
+RELEASE_KEY = "release_note_v4"
 
 
 class Events:
@@ -61,6 +67,8 @@ class Events:
             "pic_of_the_day": self.pic_of_the_day,
             "auto_court": self.auto_court,
             "weekly": self.weekly,
+            "day_event": self.day_event,
+            "boss": self.daily_boss,
         }
 
     def start(self) -> None:
@@ -83,6 +91,7 @@ class Events:
         return datetime.fromtimestamp(self.game.now(), UTC) + self.offset
 
     async def tick(self) -> None:
+        await self.release_note()
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:
@@ -105,6 +114,28 @@ class Events:
         return self.game.repo.event_chats(self.game.now() - ACTIVE_CHAT_DAYS * 86400)
 
     # ── jobs ───────────────────────────────────────────────────────────
+
+    async def release_note(self) -> None:
+        """Once per chat after the v4 deploy: what's new and the starter coins."""
+        if self.game.repo.meta_str(RELEASE_KEY):
+            return
+        self.game.repo.set_meta(RELEASE_KEY, self.game.now())
+        for chat_id in self.chats():
+            await send.send_text(self.bot, chat_id, ui.RELEASE_V4, keyboards.release_v4())
+
+    async def day_event(self, chat_id: int) -> bool:
+        code, _ = self.game.roll_day_event()
+        text = cards.day_event(code, chat_id, self.game.tax_report())
+        message = await send.send_text(self.bot, chat_id, text)
+        if message is None:
+            return False
+        await send.react(self.bot, chat_id, message.message_id, "⚡")
+        if code == "invasion":
+            await summon(self.bot, self.game, self.live, chat_id, double=True, forced=True)
+        return True
+
+    async def daily_boss(self, chat_id: int) -> bool:
+        return await summon(self.bot, self.game, self.live, chat_id, forced=True) == "started"
 
     async def pic_of_the_day(self, chat_id: int) -> bool:
         repo = self.game.repo

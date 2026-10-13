@@ -4,13 +4,15 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
+from bot.core import casino
 from bot.game import Game
 from bot.texts import ui
-from bot.tg import keyboards, send, views
+from bot.tg import cards, keyboards, send, views
 
 router = Router(name="panel")
 
 BOARDS = {"uploads", "loved", "killers", "streaks", "rich"}
+PERSONAL = {"me", "quests"}  # shown only to the person who asked, in groups
 
 
 def screen(
@@ -36,6 +38,8 @@ def screen(
         pics = repo.graveyard(5)
         labels = [repo.user_label(pic.added_by) for pic in pics]
         text = views.graveyard(repo.count_pics("executed"), pics, labels, game.now())
+        if pics:
+            text += f"\n\n<i>🧟 — воскресить за {game.price('resurrect')} 🪙 (два нажатия)</i>"
         return text, keyboards.graveyard([pic.id for pic in pics], is_admin)
     if name == "top":
         board = arg if arg in BOARDS else "uploads"
@@ -46,6 +50,8 @@ def screen(
         ranking = [uid for uid, _ in repo.top_users("uploads", limit=1000)]
         place = ranking.index(user_id) + 1 if user_id in ranking else None
         coins, earned, _ = repo.player(user_id)
+        spouse = repo.spouse_of(user_id)
+        jail = repo.counter(user_id, "jail_until") - game.now()
         streak = repo.counter(user_id, "active_streak")
         if repo.counter(user_id, "last_active_day") < game.local_day() - 1:
             streak = 0  # the streak burnt out
@@ -62,6 +68,10 @@ def screen(
                 wrong_guesses=repo.counter(user_id, "wrong_guesses"),
                 nemesis=(repo.user_label(nemesis[0]), nemesis[1]) if (nemesis := repo.nemesis(user_id)) else None,
                 crowns=tuple(game.crowns_of(user_id)),
+                spouse=(repo.user_label(spouse[0]), (game.now() - spouse[1]) // 86400) if spouse else None,
+                title=repo.title_of(user_id),
+                chests=game.chests_of(user_id),
+                jailed=max(0, jail),
             ),
             repo.achievement_owners(),
             max(1, repo.count_users()),
@@ -69,6 +79,22 @@ def screen(
         return text, keyboards.markup(keyboards.back())
     if name == "games":
         return views.GAMES_SCREEN, keyboards.games_menu()
+    if name == "casino":
+        balance = repo.player(user_id)[0]
+        text = cards.casino_screen(balance, game.stake_for_play(user_id), chat_id, game.day_is("lucky_day"))
+        return text, keyboards.casino_menu(casino.STAKE_PRESETS)
+    if name == "shop":
+        prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse", "resurrect", "title")}
+        text = cards.shop_screen(repo.player(user_id)[0], prices, chat_id, game.day_event())
+        return text, keyboards.shop_menu()
+    if name == "quests":
+        daily, weekly = game.quests_of(user_id)
+        chests = game.chests_of(user_id)
+        ready = repo.counter(user_id, "daily_day") != game.local_day()
+        text = cards.quests_screen(
+            repo.user_label(user_id), daily, weekly, chests, ready, repo.counter(user_id, "daily_streak"), chat_id
+        )
+        return text, keyboards.quests_menu(ready, chests)
     if name == "help":
         return ui.HELP, keyboards.markup(keyboards.back())
     if name == "up":
@@ -77,7 +103,8 @@ def screen(
         text = views.admin(repo.totals(), repo.count_users(), str(repo.database_path))
         events_on = None if is_private else repo.chat_events_on(chat_id)
         return text, keyboards.admin(events_on)
-    return views.home(repo.totals(), chat_id, live_now(game, chat_id)), keyboards.home(is_admin)
+    today = cards.day_event_line(game.day_event())
+    return views.home(repo.totals(), chat_id, live_now(game, chat_id), today), keyboards.home(is_admin)
 
 
 def live_now(game: Game, chat_id: int) -> list[str]:
@@ -91,6 +118,11 @@ def live_now(game: Game, chat_id: int) -> list[str]:
     if courts:
         extra = f" · и ещё {len(courts) - 1}" if len(courts) > 1 else ""
         lines.append(f"⚖️ Суд · ⏳ {views.timer(min(courts) - now)}{extra}")
+    boss = game.repo.active_boss(chat_id)
+    if boss and boss["ends_at"] > now:
+        lines.append(f"👹 Босс · ❤️ {boss['hp']}/{boss['max_hp']} · ⏳ {views.timer(boss['ends_at'] - now)}")
+    if game.repo.active_challenge_battle(chat_id):
+        lines.append("🤺 Идёт вызов")
     return lines
 
 
@@ -158,10 +190,16 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
         return
     is_private = message.chat.type == "private"
     text, markup = screen(game, name, arg, message.chat.id, callback.from_user.id, is_admin, is_private)
-    if name == "me" and not is_private:
-        # The profile is personal: in a group show it only to the person who asked.
-        if await send.send_ephemeral(bot, message.chat.id, callback.from_user.id, text, callback.id):
-            await send.answer_quietly(callback, "👤 Показал только тебе")
+    if name in PERSONAL and not is_private:
+        # Personal screens: in a group show them only to the person who asked.
+        ephemeral_markup = None
+        if name == "quests":  # no "back" (it can't edit an ephemeral message), chat id in buttons
+            user_id = callback.from_user.id
+            ready = game.repo.counter(user_id, "daily_day") != game.local_day()
+            ephemeral_markup = keyboards.quests_menu(ready, game.chests_of(user_id), message.chat.id)
+            ephemeral_markup = ephemeral_markup if ephemeral_markup.inline_keyboard else None
+        if await send.send_ephemeral(bot, message.chat.id, callback.from_user.id, text, callback.id, ephemeral_markup):
+            await send.answer_quietly(callback, "👀 Показал только тебе")
             return
     await callback.answer("🔄 Обновлено" if name == "home" and arg == "refresh" else None)
     await send.edit_text(bot, message.chat.id, message.message_id, text, markup)

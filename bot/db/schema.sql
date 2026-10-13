@@ -197,3 +197,86 @@ CREATE TABLE IF NOT EXISTS panels (
     chat_id INTEGER PRIMARY KEY,
     message_id INTEGER NOT NULL
 );
+
+-- ── v4 ─────────────────────────────────────────────────────────────────
+
+-- Parimutuel bets on battles: one slot per player per battle, raised in BET_STEP increments.
+CREATE TABLE IF NOT EXISTS battle_bets (
+    battle_id TEXT NOT NULL REFERENCES battles(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    slot INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    PRIMARY KEY (battle_id, user_id)
+) WITHOUT ROWID;
+
+-- Player vs player duels for coins. The battle itself lives in battles (mode = 'challenge').
+CREATE TABLE IF NOT EXISTS challenges (
+    id TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    message_id INTEGER,
+    from_user INTEGER NOT NULL,
+    to_user INTEGER,
+    stake INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'cancelled')),
+    battle_id TEXT,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+-- Bounties on pics: paid to whoever kills the pic.
+CREATE TABLE IF NOT EXISTS bounties (
+    pic_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bounties_pic ON bounties(pic_id);
+
+CREATE TABLE IF NOT EXISTS bosses (
+    id TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    pic_id TEXT NOT NULL,
+    message_id INTEGER,
+    title TEXT NOT NULL,
+    hp INTEGER NOT NULL,
+    max_hp INTEGER NOT NULL,
+    loot INTEGER NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'won', 'lost')),
+    last_hit_by INTEGER,
+    started_at INTEGER NOT NULL,
+    ends_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bosses_active ON bosses(status, chat_id);
+
+CREATE TABLE IF NOT EXISTS boss_hits (
+    boss_id TEXT NOT NULL REFERENCES bosses(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    damage INTEGER NOT NULL DEFAULT 0,
+    hits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (boss_id, user_id)
+) WITHOUT ROWID;
+
+-- Marriages: one row per spouse, so lookups go both ways.
+CREATE TABLE IF NOT EXISTS marriages (
+    user_id INTEGER PRIMARY KEY,
+    spouse_id INTEGER NOT NULL,
+    since INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS proposals (
+    id TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    from_user INTEGER NOT NULL,
+    to_user INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS titles (
+    user_id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL
+);
