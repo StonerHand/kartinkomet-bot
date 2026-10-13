@@ -9,7 +9,7 @@ from bot.core import shop
 from bot.game import Game
 from bot.texts import social as texts
 from bot.texts.pick import pick
-from bot.tg import cards, keyboards, send
+from bot.tg import cards, keyboards, send, views
 from bot.tg.timers import Live
 
 router = Router(name="social")
@@ -125,7 +125,7 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
     if status == "married":
         text = cards.wedding(suitor, beloved, chat_id)
     elif status == "withdrawn":
-        text = f"💍 <b>ПРЕДЛОЖЕНИЕ</b>\n<i>{cards.who(suitor)}: предложение отозвано. Бывает</i>"
+        text = views.card("💍 <b>ПРЕДЛОЖЕНИЕ</b>", f"{suitor}: предложение отозвано. Бывает")
     else:
         text = cards.rejected(suitor, beloved, chat_id)
     await send.edit_text(bot, chat_id, callback.message.message_id, text, None)

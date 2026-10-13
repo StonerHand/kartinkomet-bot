@@ -120,6 +120,9 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
             text = getattr(request, "text", None) or getattr(request, "caption", None)
             if isinstance(text, str):
                 assert_html(text)
+                # One layout everywhere: no triple line breaks, no trailing blank lines.
+                self.assertNotIn("\n\n\n", text)
+                self.assertEqual(text, text.strip("\n"))
             markup = getattr(request, "reply_markup", None)
             if isinstance(markup, InlineKeyboardMarkup):
                 for row in markup.inline_keyboard:
@@ -260,7 +263,7 @@ class BotTest(BotHarness):
 
     async def test_upload_refused_in_group(self) -> None:
         await self.send("/upload")
-        self.assertIn("только в личке", self.session.of("SendMessage")[-1].text)
+        self.assertIn("ТОЛЬКО В ЛИЧКЕ", self.session.of("SendMessage")[-1].text)
 
 
     async def test_v1_reaction_buttons_still_work(self) -> None:

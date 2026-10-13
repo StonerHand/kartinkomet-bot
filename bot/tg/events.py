@@ -150,7 +150,7 @@ class Events:
             pic = legends[self.game.rng.randrange(len(legends))]
             phrase_pool = texts.PIC_OF_THE_DAY_FALLBACK
         uploader = repo.user_label(pic.added_by) if pic.added_by else None
-        caption = f"🌅 <b>ПИКЧА ДНЯ</b>\n{views.quote(pick(phrase_pool, chat_id))}\n{views.pic_footer(pic, uploader)}"
+        caption = views.card("🌅 <b>ПИКЧА ДНЯ</b>", pick(phrase_pool, chat_id), views.pic_footer(pic, uploader))
         message = await send.send_photo(
             self.bot, chat_id, pic.file_id, caption, keyboards.pic_actions(pic.id, pic.likes, pic.dislikes)
         )
@@ -175,26 +175,25 @@ class Events:
         crowns = self.game.crown_week()
         if not summary["battles"] and not summary["likes"] and not summary["uploads"] and not crowns:
             return False
-        lines = ["📅 <b>ИТОГИ НЕДЕЛИ</b>", views.quote(pick(texts.WEEKLY, chat_id))]
-        lines.append(
-            f"⚔️ Боёв: <b>{summary['battles']}</b> · ⚰️ казнено: <b>{summary['executed']}</b>"
-        )
-        lines.append(f"🤙🏻 <b>{summary['likes']}</b> · 🖕🏻 <b>{summary['dislikes']}</b> за неделю")
-        if summary["best_streak"] > 1:
-            lines.append(f"🔥 Лучшая серия недели: <b>{summary['best_streak']}</b>")
-        if summary["uploads"]:
-            lines += ["", "<b>📥 Грузили больше всех</b>"]
-            for index, (user_id, count) in enumerate(summary["uploads"]):
-                lines.append(f"{views.MEDALS[index]} {views.who(repo.user_label(user_id))} — <b>{count}</b>")
-        if crowns:
-            lines += ["", "<b>👑 Короны недели</b> <i>(висят у имени до следующего воскресенья)</i>"]
-            for kind, (user_id, _) in crowns.items():
-                badge, title = economy.CROWNS[kind]
-                lines.append(f"{badge} {escape(title)} — <b>{views.who(repo.user_label(user_id))}</b>")
-        text = "\n".join(lines)
+        numbers = [
+            f"⚔️ Боёв: <b>{summary['battles']}</b> · ⚰️ казнено: <b>{summary['executed']}</b>",
+            f"🤙🏻 <b>{summary['likes']}</b> · 🖕🏻 <b>{summary['dislikes']}</b> за неделю",
+            f"🔥 Лучшая серия недели: <b>{summary['best_streak']}</b>" if summary["best_streak"] > 1 else "",
+        ]
+        uploaders = ["<b>📥 Грузили больше всех</b>"] + [
+            f"{views.MEDALS[index]} {views.who(repo.user_label(user_id))} — <b>{count}</b>"
+            for index, (user_id, count) in enumerate(summary["uploads"])
+        ] if summary["uploads"] else []
+        crown_lines = ["<b>👑 Короны недели</b> <i>(висят у имени до следующего воскресенья)</i>"] + [
+            f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])} — <b>{views.who(repo.user_label(user_id))}</b>"
+            for kind, (user_id, _) in crowns.items()
+        ] if crowns else []
         top_pic = summary["top_pic"]
+        photo_note = "🏅 <i>На фото — самая залайканная пикча недели</i>" if top_pic is not None else None
+        text = views.card(
+            "📅 <b>ИТОГИ НЕДЕЛИ</b>", pick(texts.WEEKLY, chat_id), numbers, uploaders, crown_lines, photo_note
+        )
         if top_pic is not None:
-            text += "\n\n🏅 <i>На фото — самая залайканная пикча недели</i>"
             message = await send.send_photo(self.bot, chat_id, top_pic.file_id, text)
         else:
             message = await send.send_text(self.bot, chat_id, text)

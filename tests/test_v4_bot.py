@@ -50,7 +50,7 @@ class V4BotTest(BotHarness):
         self.session.dice_values = [6, 1]
         await self.send("/dice 100", sender=3)
         self.assertEqual(len(self.session.of("SendDice")), 2)
-        self.assertIn("У тебя 6, у бота 1", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Ты: <b>6</b> · бот: <b>1</b>", self.session.of("SendMessage")[-1].text)
         self.assertEqual(self.coins(3), 200)
 
     async def test_broke_player_gets_a_reply_and_no_dice(self) -> None:

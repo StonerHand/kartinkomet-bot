@@ -43,6 +43,11 @@ def bar(count: int, leader: int, color: str) -> str:
     return "  " + color * max(1, round(BAR_CELLS * count / leader))
 
 
+def num(value: int) -> str:
+    """10000322 → '10 000 322' (non-breaking spaces, so a number never wraps)."""
+    return f"{value:,}".replace(",", "\u00a0")
+
+
 def rating(value: float) -> str:
     return f"{value:.0f}"
 
@@ -60,6 +65,28 @@ def quote(text: str) -> str:
     """Flavour line: italic plus an empty line after it. Not a blockquote: a header with a quote
     right under it reads as one glued block in Telegram."""
     return f"<i>{escape(text)}</i>\n"
+
+
+def card(head: str, flavour: str | None = None, *blocks) -> str:
+    """The one layout of every message:
+
+        HEADER · meta
+        flavour line (italic)
+
+        block
+
+        block…
+
+    A block is a string or a list of lines; empty lines inside a block and empty blocks are
+    dropped, so callers never glue or double the spacing by hand."""
+    top = head + (f"\n<i>{escape(flavour)}</i>" if flavour else "")
+    parts = [top]
+    for block in blocks:
+        if isinstance(block, (list, tuple)):
+            block = "\n".join(line for line in block if line)
+        if block:
+            parts.append(block.strip("\n"))
+    return "\n\n".join(parts)
 
 
 def cited(text: str) -> str:
@@ -135,28 +162,22 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
     else:
         head = "⚔️ <b>ДУЭЛЬ</b>" if is_duel else "🏟 <b>ТУРНИР ЧЕТЫРЁХ</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
-    lines = [f"{head} · ⏳ <b>{timer(remaining)}</b>"]
-    if battle.title:
-        lines.append(f"<i>{escape(battle.title)}</i>")
-    lines.append("")
-    if fighters:
-        lines += [fighters, ""]
-    if is_duel and battle.streak > 0:
-        lines.append(f"👑 {labels[0]} — чемпионка, серия <b>{battle.streak}</b>")
     marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
-    lines += [f"{line}  {mark}" if mark != "🥚" else line for line, mark in zip(vote_lines(counts, labels), marks)]
-    lines.append("")
-    if flipped:
-        lines.append("🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов")
-    bets = bets_line(battle)
-    lines.append(bets or f"💰 Ставок нет · кнопка 💰 — ставка {casino.BET_STEP} 🪙 на пикчу")
+    votes = [f"{line}  {mark}" if mark != "🥚" else line for line, mark in zip(vote_lines(counts, labels), marks)]
+    if is_duel and battle.streak > 0:
+        votes.insert(0, f"👑 {labels[0]} — чемпионка, серия <b>{battle.streak}</b>")
     if battle.extended and not total:
-        lines.append(f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>")
+        status = f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>"
     elif battle.mode == "challenge":
-        lines.append("<i>Голосуют только зрители</i>")
+        status = "<i>Голосуют только зрители</i>"
     else:
-        lines.append(f"<i>{escape(pick(status_pool, battle.chat_id))}</i>")
-    return "\n".join(lines)
+        status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
+    footer = [
+        "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else "",
+        bets_line(battle) or f"💰 Ставок нет · кнопка 💰 — ставка {casino.BET_STEP} 🪙 на пикчу",
+        status,
+    ]
+    return card(f"{head} · ⏳ <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, footer)
 
 
 def battle_result(
@@ -165,8 +186,8 @@ def battle_result(
     guessers: list[str] | None = None,
     extras: list[str] | None = None,
 ) -> str:
-    """One line per pic, best first: marker, slot, uploader, rating change. `extras` — blocks
-    of v4 lines (bets, bounty, evolution, challenge pot) shown after the table."""
+    """Table of pics (best first), then v4 blocks (`extras`: challenge pot, evolution, bets,
+    bounty), then the duel's aftermath (streak, death)."""
     battle = report.battle
     is_duel = battle.kind == "duel"
     labels = DUEL_LABELS if is_duel else TOURNAMENT_LABELS
@@ -174,18 +195,24 @@ def battle_result(
         title = "🤺 <b>ИТОГ ВЫЗОВА</b>"
     else:
         title = "⚔️ <b>ИТОГ ДУЭЛИ</b>" if is_duel else "🏟 <b>ИТОГ ТУРНИРА</b>"
-
     if not report.counted:
-        tail = "\n".join(extras or [])
-        return f"{title}\n\n{quote(pick(arena_texts.NOBODY_VOTED, battle.chat_id))}{tail}".rstrip()
+        return card(title, pick(arena_texts.NOBODY_VOTED, battle.chat_id), *(extras or []))
+
+    if battle.mode == "challenge":
+        from bot.texts.social import CHALLENGE_WIN  # local: only challenges speak this voice
+
+        pool = CHALLENGE_WIN if report.winner is not None else arena_texts.DUEL_DRAW
+    elif is_duel:
+        pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
+    else:
+        pool = arena_texts.TOURNAMENT_DRAW if report.winner is None else arena_texts.TOURNAMENT_WIN
 
     counts = battle.vote_counts()
     total = sum(counts)
     score = " : ".join(str(count) for count in counts) if is_duel else f"{total} {plural(total, 'голос', 'голоса', 'голосов')}"
-    lines = [f"{title} · <b>{score}</b>", ""]
+    table = []
     executed_id = report.executed.id if report.executed else None
-    order = sorted(range(len(battle.pics)), key=lambda slot: (-counts[slot], slot))
-    for slot in order:
+    for slot in sorted(range(len(battle.pics)), key=lambda slot: (-counts[slot], slot)):
         pic = battle.pics[slot]
         if slot == report.winner:
             marker = "👑"
@@ -198,40 +225,29 @@ def battle_result(
         votes = "" if is_duel else f" · {counts[slot]} {plural(counts[slot], 'голос', 'голоса', 'голосов')}"
         name = f"<b>{who(uploaders[slot])}</b>" if slot == report.winner else who(uploaders[slot])
         change = delta(report.rating_before[slot], report.rating_after[slot])
-        lines.append(f"{marker} {labels[slot]} {name}{votes} · ⭐ {rating(report.rating_after[slot])} <i>({change})</i>")
+        table.append(f"{marker} {labels[slot]} {name}{votes} · ⭐ {rating(report.rating_after[slot])} <i>({change})</i>")
     if guessers:
         reward = report.guess_reward or economy.GUESS + economy.VOTE
-        lines.append(f"🪙 Угадали: {', '.join(who(name) for name in guessers)} <i>(+{reward})</i>")
+        table.append(f"🪙 Угадали: {', '.join(who(name) for name in guessers)} <i>(+{reward})</i>")
     if report.flipped:
-        lines.append("🙃 <i>Перевёртыш: победила пикча с меньшим числом голосов</i>")
-    for block in extras or []:
-        lines += ["", block] if block else []
-    lines.append("")
+        table.append("🙃 <i>Перевёртыш: победила пикча с меньшим числом голосов</i>")
 
-    if battle.mode == "challenge":
-        from bot.texts.social import CHALLENGE_WIN  # local: only challenges speak this voice
-
-        lines.append(quote(pick(CHALLENGE_WIN if report.winner is not None else arena_texts.DUEL_DRAW, battle.chat_id)))
-    elif is_duel:
-        pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
-        lines.append(quote(pick(pool, battle.chat_id)))
+    aftermath = []
+    if is_duel and battle.mode != "challenge":
         if report.winner is not None and report.streak > 1:
-            lines.append(f"🔥 Серия чемпионки: <b>{report.streak}</b>")
+            aftermath.append(f"🔥 Серия чемпионки: <b>{report.streak}</b>")
         if report.executed:
-            lines.append(f"⚰️ <b>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</b>")
-            lines.append(
+            aftermath.append(f"⚰️ <b>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</b>")
+            aftermath.append(
                 f"<i>Рейтинг ниже {report.death_rating:.0f} или {DEATH_LOSS_STREAK}-е поражение подряд — арена не прощает</i>"
             )
-    else:
-        pool = arena_texts.TOURNAMENT_DRAW if report.winner is None else arena_texts.TOURNAMENT_WIN
-        lines.append(quote(pick(pool, battle.chat_id)))
-    return "\n".join(lines).rstrip()
+    return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), table, *(extras or []), aftermath)
 
 
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
     pool = {3: arena_texts.STREAK_3, 5: arena_texts.STREAK_5}.get(milestone, arena_texts.STREAK_10)
     wins = plural(streak, "победа", "победы", "побед")
-    return f"<b>{escape(pick(pool, chat_id))}</b>\n\n👑 Серия: <b>{streak}</b> {wins} подряд"
+    return card(f"🔥 <b>СЕРИЯ: {streak} {wins.upper()} ПОДРЯД</b>", pick(pool, chat_id))
 
 
 # ── courts ─────────────────────────────────────────────────────────────
@@ -241,25 +257,16 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
     kill, spare = trial.vote_counts()
     leader = max(kill, spare)
     head = "📜 <b>АПЕЛЛЯЦИЯ</b>" if trial.appeal else "⚖️ <b>НАРОДНЫЙ СУД</b>"
-    lines = [
-        f"{head} · ⏳ <b>{timer(remaining)}</b>",
-        quote(trial.title),
-        f"🪓 <b>{kill}</b>{bar(kill, leader, '🟥')}",
-        f"🕊 <b>{spare}</b>{bar(spare, leader, '🟩')}",
-        "",
+    votes = [f"🪓 <b>{kill}</b>{bar(kill, leader, '🟥')}", f"🕊 <b>{spare}</b>{bar(spare, leader, '🟩')}"]
+    status = [
         f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>",
+        "<i>Повторный суд: для казни нужно 3 голоса 🪓 и большинство</i>" if trial.appeal else "",
     ]
-    if trial.appeal:
-        lines.append("<i>Повторный суд: для казни нужно 3 голоса 🪓 и большинство</i>")
     if trial.last_word:
-        lines += [
-            "",
-            f"🗣 <b>{escape(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))}</b>",
-            cited(trial.last_word),
-        ]
+        word = f"🗣 <b>{escape(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))}</b>\n{cited(trial.last_word).rstrip()}"
     else:
-        lines += ["", f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"]
-    return "\n".join(lines)
+        word = f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"
+    return card(f"{head} · ⏳ <b>{timer(remaining)}</b>", trial.title or None, votes, status, word)
 
 
 def court_result(report: CourtReport, uploader: str, extras: list[str] | None = None) -> str:
@@ -268,18 +275,16 @@ def court_result(report: CourtReport, uploader: str, extras: list[str] | None = 
     executed = report.verdict == "executed"
     head = "⚰️ <b>ПРИГОВОР: КАЗНЕНА</b>" if executed else "🕊 <b>ПРИГОВОР: ПОМИЛОВАНА</b>"
     if trial.appeal:
-        head += " <i>· окончательно</i>" if executed else " <i>· по апелляции</i>"
+        head += " · окончательно" if executed else " · по апелляции"
     pool = court_texts.EXECUTED if executed else court_texts.PARDONED
-    lines = [head, f"🪓 <b>{kill}</b> · 🕊 <b>{spare}</b>", "", quote(pick(pool, trial.chat_id))]
-    if report.amnesty:
-        lines.append("🕊 <b>Амнистия:</b> сегодня суд никого не казнит")
-    if trial.last_word:
-        lines.append(f"<i>Последнее слово: «{escape(trial.last_word)}»</i>")
-    if report.bail_back:
-        lines.append(f"📜 Залог {report.bail_back} 🪙 вернулся загрузчику")
-    lines += extras or []
-    lines.append(f"<i>📥 {who(uploader)}" + ("" if executed else " · иммунитет на неделю") + "</i>")
-    return "\n".join(lines)
+    facts = [
+        f"🪓 <b>{kill}</b> · 🕊 <b>{spare}</b>",
+        "🕊 <b>Амнистия:</b> сегодня суд никого не казнит" if report.amnesty else "",
+        f"<i>Последнее слово: «{escape(trial.last_word)}»</i>" if trial.last_word else "",
+        f"📜 Залог {report.bail_back} 🪙 вернулся загрузчику" if report.bail_back else "",
+    ]
+    footer = f"<i>📥 {who(uploader)}" + ("" if executed else " · иммунитет на неделю") + "</i>"
+    return card(head, pick(pool, trial.chat_id), facts, *(extras or []), footer)
 
 
 # ── achievements ───────────────────────────────────────────────────────
@@ -401,7 +406,7 @@ def top(board: str, rows: list[tuple[str, int]]) -> str:
     for index, (label, value) in enumerate(rows):
         place = MEDALS[index] if index < 3 else f"{index + 1}."
         unit = plural(value, "пикча", "пикчи", "пикч") if board == "uploads" else top_texts.BOARD_UNITS[board]
-        lines.append(f"{place} {who(label)} — <b>{value}</b> {unit}")
+        lines.append(f"{place} {who(label)} — <b>{num(value)}</b> {unit}")
     lines += ["", f"<i>🥇 {who(rows[0][0])}: {escape(pick(top_texts.FIRST_PLACE, board))}</i>"]
     if len(rows) > 3:
         lines.append(f"<i>🐌 {who(rows[-1][0])}: {escape(pick(top_texts.LAST_PLACE, board))}</i>")
@@ -442,11 +447,11 @@ def profile(
     lines += [f"<i>{escape(level.name)} · уровень {level.index + 1} из {len(economy.LEVELS)}</i>", ""]
     if upcoming:
         lines += [
-            f"<code>{economy.progress(wallet.earned)}</code>  {wallet.earned} / {upcoming.threshold}",
+            f"<code>{economy.progress(wallet.earned)}</code>  {num(wallet.earned)} / {num(upcoming.threshold)}",
             f"<i>дальше — {escape(upcoming.name)}</i>",
             "",
         ]
-    wealth = f"🪙 <b>{wallet.coins}</b> {plural(wallet.coins, 'коин', 'коина', 'коинов')}"
+    wealth = f"🪙 <b>{num(wallet.coins)}</b> {plural(wallet.coins, 'коин', 'коина', 'коинов')}"
     if wallet.streak > 1:
         wealth += f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд"
     lines.append(wealth)
@@ -520,19 +525,15 @@ def profile(
 
 def upload_hub(is_private: bool) -> str:
     if is_private:
-        return (
-            "📥 <b>ЗАГРУЗКА</b>\n"
-            "Жми кнопку и кидай фото, альбомы, пересылки. Дубли и почти-дубли бот выкинет сам."
-        )
+        return card("📥 <b>ЗАГРУЗКА</b>", "Жми кнопку и кидай фото, альбомы, пересылки. Дубли и почти-дубли бот выкинет сам")
     return ui.UPLOAD_PRIVATE_ONLY
 
 
 def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str:
-    return (
-        f"📥 <b>ЗАГРУЗКА</b>\n{quote(intro)}\n"
-        f"✅ Добавлено: <b>{added}</b>\n"
-        f"♻️ Дубли: <b>{duplicates}</b>\n"
-        f"⚠️ Не взял: <b>{failed}</b>"
+    return card(
+        "📥 <b>ЗАГРУЗКА</b>",
+        intro,
+        [f"✅ Добавлено: <b>{added}</b>", f"♻️ Дубли: <b>{duplicates}</b>", f"⚠️ Не взял: <b>{failed}</b>"],
     )
 
 
@@ -579,25 +580,22 @@ GAMES_SCREEN = (
 def caption_card(game: dict, remaining: int, chat_id: int) -> str:
     entries = game["entries"]
     if game["phase"] == "collect":
-        count = len(entries)
-        return (
-            f"🖋 <b>ПОДПИШИ ПИКЧУ</b> · ⏳ <b>{timer(remaining)}</b>\n"
-            f"{quote(pick(game_texts.CAPTION_START, chat_id))}\n"
-            "Ответь на это сообщение своей подписью — до "
-            f"{game_rules.CAPTION_MAX_LENGTH} символов, можно переписать.\n"
-            f"✍️ Подписей: <b>{count}</b> из {game_rules.CAPTION_MAX_ENTRIES}"
+        return card(
+            f"🖋 <b>ПОДПИШИ ПИКЧУ</b> · ⏳ <b>{timer(remaining)}</b>",
+            pick(game_texts.CAPTION_START, chat_id),
+            f"Ответь на это сообщение своей подписью — до {game_rules.CAPTION_MAX_LENGTH} символов, можно переписать.",
+            f"✍️ Подписей: <b>{len(entries)}</b> из {game_rules.CAPTION_MAX_ENTRIES}",
         )
     tally: dict[int, int] = {}
     for author in game["votes"].values():
         tally[author] = tally.get(author, 0) + 1
-    lines = [
-        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · ⏳ <b>{timer(remaining)}</b>",
-        quote(pick(game_texts.CAPTION_VOTE, chat_id)),
+    listing = [
+        f"<b>{index}.</b> {escape(entry['text'])}" + (f"  <i>· {tally.get(entry['user_id'])}</i>" if tally.get(entry["user_id"]) else "")
+        for index, entry in enumerate(entries, start=1)
     ]
-    for index, entry in enumerate(entries, start=1):
-        votes = tally.get(entry["user_id"], 0)
-        lines.append(f"<b>{index}.</b> {escape(entry['text'])}" + (f"  <i>· {votes}</i>" if votes else ""))
-    return "\n".join(lines)
+    return card(
+        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · ⏳ <b>{timer(remaining)}</b>", pick(game_texts.CAPTION_VOTE, chat_id), listing
+    )
 
 
 def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
@@ -605,49 +603,49 @@ def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
     for author in game["votes"].values():
         tally[author] = tally.get(author, 0) + 1
     winner = game.get("winner")
-    head = "🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>"
     pool = game_texts.CAPTION_WIN if winner is not None else game_texts.CAPTION_NO_VOTES
-    lines = [head, quote(pick(pool, chat_id))]
-    ordered = sorted(game["entries"], key=lambda entry: -tally.get(entry["user_id"], 0))
-    for entry in ordered:
+    listing = []
+    for entry in sorted(game["entries"], key=lambda entry: -tally.get(entry["user_id"], 0)):
         mark = "👑" if entry["user_id"] == winner else "▫️"
         votes = tally.get(entry["user_id"], 0)
-        lines.append(f"{mark} «{escape(entry['text'])}» — {who(labels.get(entry['user_id'], '?'))} · {votes}")
-    if winner is not None:
-        lines.append(f"\n🪙 <b>{who(labels.get(winner, '?'))}</b> +{economy.CAPTION_WIN}")
-    return "\n".join(lines)
+        listing.append(f"{mark} «{escape(entry['text'])}» — {who(labels.get(entry['user_id'], '?'))} · {votes}")
+    prize = f"🪙 <b>{who(labels.get(winner, '?'))}</b> +{economy.CAPTION_WIN}" if winner is not None else None
+    return card("🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>", pick(pool, chat_id), listing, prize)
 
 
 def caption_cancelled(chat_id: int) -> str:
-    return f"🖋 <b>ПОДПИШИ ПИКЧУ</b>\n{quote(pick(game_texts.CAPTION_CANCELLED, chat_id))}"
+    return card("🖋 <b>ПОДПИШИ ПИКЧУ</b>", pick(game_texts.CAPTION_CANCELLED, chat_id))
 
 
 def gold_caption() -> str:
-    return (
-        f"⚡ <b>ЗОЛОТАЯ ПИКЧА</b>\n{quote(pick(game_texts.GOLD))}"
-        f"<i>Кто первый нажмёт «⚡ Забрать» — тому +{economy.GOLD} 🪙 и ачивка</i>"
+    return card(
+        "⚡ <b>ЗОЛОТАЯ ПИКЧА</b>",
+        pick(game_texts.GOLD),
+        f"Кто первый нажмёт «⚡ Забрать» — тому +{economy.GOLD} 🪙 и ачивка",
     )
 
 
 def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int, chat_id: int) -> str:
-    lines = [
-        f"🎡 <b>КОЛЕСО: {game_texts.SPIN_TITLES[spin.kind].split(' ', 1)[1]}</b> · {who(label)}",
-        quote(pick(game_texts.SPIN_RESULTS[spin.kind], chat_id)),
-    ]
+    title = game_texts.SPIN_TITLES[spin.kind].split(" ", 1)[1]
+    flavour = pick(game_texts.SPIN_RESULTS[spin.kind], chat_id).split(" ", 1)[1]  # phrases open with the emoji
+    facts = []
     if spin.coins:
         sign = "+" if spin.coins > 0 else "−"
-        lines.append(f"🪙 {sign}{abs(spin.coins)} · баланс <b>{balance}</b>")
+        facts.append(f"🪙 {sign}{abs(spin.coins)} · баланс <b>{num(balance)}</b>")
+    hint = None
     if spin.kind in ("curse", "bless"):
         if pic is None:
-            lines.append("<i>…но твоих пикч на складе нет, так что мимо</i>")
+            facts.append("<i>…но твоих пикч на складе нет, так что мимо</i>")
         else:
-            delta = -shop.CURSE_RATING if spin.kind == "curse" else game_rules.BLESS_RATING
-            sign = "+" if delta > 0 else "−"
-            lines.append(f"⭐ Случайная твоя пикча: {sign}{abs(delta)} рейтинга (теперь {rating(pic.rating + delta)})")
+            change = -shop.CURSE_RATING if spin.kind == "curse" else game_rules.BLESS_RATING
+            sign = "+" if change > 0 else "−"
+            facts.append(f"⭐ Случайная твоя пикча: {sign}{abs(change)} рейтинга (теперь {rating(pic.rating + change)})")
             if spin.kind == "curse":
-                lines.append("<i>🧿 Порчу можно снять за сутки: кнопка 🛒 под пикчей</i>")
-    return "\n".join(lines)
+                hint = "<i>🧿 Порчу можно снять за сутки: кнопка 🛒 под пикчей</i>"
+    return card(f"🎡 <b>КОЛЕСО: {title}</b> · {who(label)}", flavour, facts, hint)
 
 
 def horoscope(label: str, chat_id: int) -> str:
-    return f"🔮 <b>ГОРОСКОП · {who(label).upper()}</b>\n{quote(pick(game_texts.HOROSCOPE, chat_id))}".rstrip()
+    return card(f"🔮 <b>ГОРОСКОП · {who(label).upper()}</b>", None, escape(pick(game_texts.HOROSCOPE, chat_id)))
+
+

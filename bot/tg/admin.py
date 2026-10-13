@@ -28,7 +28,7 @@ def health_text(game: Game) -> str:
     totals = repo.totals()
     size = repo.database_path.stat().st_size / 1024 / 1024 if repo.database_path.exists() else 0
     return (
-        "<b>🩺 Health</b>\n\n"
+        "🩺 <b>HEALTH</b>\n<i>Состояние бота</i>\n\n"
         f"📦 Живых: {totals['alive']} · ⚰️ Казнено: {totals['executed']}\n"
         f"👥 Юзеров: {repo.count_users()}\n"
         f"⚔️ Активных боёв: {len(repo.active_battle_ids())} · ⚖️ судов: {len(repo.active_court_ids())}\n"
@@ -93,7 +93,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             bot,
             chat_id,
             message.message_id,
-            "<b>🧨 Сбросить статистику?</b>\n\n"
+            "🧨 <b>СБРОСИТЬ СТАТИСТИКУ?</b>\n<i>Отменить будет нельзя</i>\n\n"
             "Обнулятся рейтинги, реакции, показы, серии и рекорды. "
             "Пикчи, кладбище и ачивки останутся. Отменить нельзя.",
             keyboards.admin_reset_confirm(),

@@ -171,9 +171,11 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
         bot,
         chat_id,
         pic.file_id,
-        f"🧟 <b>ВОСКРЕШЕНИЕ</b> · спасибо <b>{cards.who(label)}</b>\n"
-        f"{views.quote(cards.bought('resurrect', chat_id))}"
-        f"{views.pic_footer(pic, uploader)}",
+        views.card(
+            f"🧟 <b>ВОСКРЕШЕНИЕ</b> · спасибо <b>{cards.who(label)}</b>",
+            cards.bought("resurrect", chat_id).split(" ", 1)[1],
+            views.pic_footer(pic, uploader),
+        ),
         keyboards.pic_actions(pic.id, pic.likes, pic.dislikes),
     )
     await live.announce(chat_id, game.flush([user_id, pic.added_by]))

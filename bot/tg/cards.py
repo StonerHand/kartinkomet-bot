@@ -16,13 +16,13 @@ from bot.texts import shop as shop_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
 from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
-from bot.tg.views import MEDALS, plural, quote, rating, timer, who
+from bot.tg.views import MEDALS, card, num, plural, rating, timer, who
 
 COIN = "🪙"
 
 
 def coins(amount: int) -> str:
-    return f"<b>{amount}</b> {COIN}"
+    return f"<b>{num(amount)}</b> {COIN}"
 
 
 def duration(seconds: int) -> str:
@@ -54,43 +54,41 @@ def day_event_line(code: str | None) -> str | None:
 
 
 def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) -> str:
-    name, rule, flavour = day_texts.NAMES[code], day_texts.RULES[code], day_texts.FLAVOUR[code]
-    lines = [
-        f"📰 <b>СОБЫТИЕ ДНЯ · {escape(name).upper()}</b>",
-        f"<i>{escape(pick(day_texts.HEADERS, chat_id))}</i>",
-        "",
-        quote(pick(flavour, chat_id)),
-        f"<b>Что меняется:</b> {escape(rule[0].lower() + rule[1:])}.",
-    ]
+    name, rule = day_texts.NAMES[code], day_texts.RULES[code]
+    facts = [f"<b>Что меняется:</b> {escape(rule[0].lower() + rule[1:])}."]
     if code == "tax" and tax:
         total, share, people = tax
-        lines.append(
+        facts.append(
             f"🧾 Собрано {coins(total)}, по {coins(share)} получили {people} "
             f"{plural(people, 'бедняк', 'бедняка', 'бедняков')}"
         )
-    lines.append("<i>Действует до полуночи</i>")
-    return "\n".join(lines)
+    return card(
+        f"📰 <b>СОБЫТИЕ ДНЯ · {escape(name).upper()}</b>",
+        pick(day_texts.FLAVOUR[code], chat_id),
+        facts,
+        "<i>Действует до полуночи</i>",
+    )
 
 
 # ── casino ─────────────────────────────────────────────────────────────
 
 
 def casino_screen(label: str, balance: int, stake: int, chat_id: int, lucky: bool) -> str:
-    lines = [
-        "🎰 <b>КАЗИНО</b>",
-        f"<i>{escape(pick(casino_texts.HEADERS, chat_id))}</i>",
-        "",
-        f"💼 <b>{who(label)}</b>: {coins(balance)} · ставка {coins(stake)}",
-        "<i>Ставка у каждого своя: кнопки 50…500 и «ва-банк» меняют её тому, кто нажал</i>",
+    games = [
+        f"{game.emoji} <b>{game.name}</b> · /{game.command}\n<i>{escape(casino_texts.RULES[game.code])}</i>"
+        for game in casino.GAMES.values()
     ]
-    if lucky:
-        lines.append("🍀 <b>Сегодня счастливый день:</b> выигрыши ×1.5")
-    lines.append("")
-    for game in casino.GAMES.values():
-        lines.append(f"{game.emoji} <b>{game.name}</b> · /{game.command}")
-        lines.append(f"<i>{escape(casino_texts.RULES[game.code])}</i>")
-    lines += ["", "<i>Ставка своей суммой: /spin 300, /dice все</i>"]
-    return "\n".join(lines)
+    return card(
+        "🎰 <b>КАЗИНО</b>",
+        pick(casino_texts.HEADERS, chat_id),
+        [
+            f"💼 <b>{who(label)}</b>: {coins(balance)} · ставка {coins(stake)}",
+            "🍀 <b>Счастливый день:</b> выигрыши ×1.5" if lucky else "",
+        ],
+        *games,
+        "<i>Ставка у каждого своя: кнопки 50…500 и «ва-банк» меняют её тому, кто нажал. "
+        "Своей суммой — /spin 300, /dice все</i>",
+    )
 
 
 def casino_title(game: str, kind: str) -> str:
@@ -98,21 +96,23 @@ def casino_title(game: str, kind: str) -> str:
 
 
 def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], chat_id: int) -> str:
-    lines = [f"<b>{casino_title(result.game, result.roll.kind)}</b> · {who(label)}"]
-    if result.game == "dice":
-        lines.append(f"<i>У тебя {values[0]}, у бота {values[1]}</i>")
     if result.profit > 0:
         pool = casino_texts.BIG_WIN if result.profit >= result.stake * 5 else casino_texts.WIN
-        verdict = f"➕ <b>+{result.profit}</b> {COIN}"
+        verdict = f"➕ <b>+{num(result.profit)}</b> {COIN}"
     elif result.payout == result.stake:
-        pool, verdict = casino_texts.DRAW, "↩️ ставка вернулась"
+        pool, verdict = casino_texts.DRAW, "↩️ Ставка вернулась"
     elif result.payout > 0:
-        pool, verdict = casino_texts.REFUND, f"↩️ вернулось <b>{result.payout}</b> из {result.stake}"
+        pool, verdict = casino_texts.REFUND, f"↩️ Вернулось <b>{num(result.payout)}</b> из {num(result.stake)}"
     else:
-        pool, verdict = casino_texts.LOSE, f"➖ <b>−{result.stake}</b> {COIN}"
-    lines.append(quote(pick(pool, chat_id)))
-    lines.append(f"{verdict} · баланс <b>{result.balance}</b>")
-    return "\n".join(lines)
+        pool, verdict = casino_texts.LOSE, f"➖ <b>−{num(result.stake)}</b> {COIN}"
+    return card(
+        f"<b>{casino_title(result.game, result.roll.kind)}</b> · {who(label)}",
+        pick(pool, chat_id),
+        [
+            f"🎲 Ты: <b>{values[0]}</b> · бот: <b>{values[1]}</b>" if result.game == "dice" else "",
+            f"{verdict} · баланс <b>{num(result.balance)}</b>",
+        ],
+    )
 
 
 # ── arena bets, evolution, bounties ────────────────────────────────────
@@ -159,28 +159,25 @@ def bounty_line(paid: dict[int, int], labels: dict[int, str]) -> str | None:
 def challenge_card(challenge: dict, labels: dict[int, str], chat_id: int, remaining: int) -> str:
     challenger = who(labels.get(challenge["from_user"], "?"))
     target = challenge["to_user"]
-    lines = [
+    opponent = f"<b>{who(labels.get(target, '?'))}</b>" if target else "любого смельчака"
+    return card(
         f"🤺 <b>ВЫЗОВ НА ДУЭЛЬ</b> · ⏳ <b>{timer(remaining)}</b>",
-        f"<i>{escape(pick(social_texts.CHALLENGE_CALL, chat_id))}</i>",
-        "",
-        f"<b>{challenger}</b> ставит {coins(challenge['stake'])} и ждёт "
-        + (f"<b>{who(labels.get(target, '?'))}</b>" if target else "любого смельчака"),
-        "",
-        "Каждый выставит свою пикчу, чат проголосует. Победитель заберёт "
-        f"{coins(challenge['stake'] * 2)}. Нет своих пикч — склад выдаст наёмника.",
-    ]
-    return "\n".join(lines)
+        pick(social_texts.CHALLENGE_CALL, chat_id),
+        f"<b>{challenger}</b> ставит {coins(challenge['stake'])} и ждёт {opponent}",
+        "<i>Каждый выставит свою пикчу, чат проголосует. Победитель заберёт "
+        f"{num(challenge['stake'] * 2)} {COIN}. Нет своих пикч — склад выдаст наёмника</i>",
+    )
 
 
 def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> str:
     challenger = who(labels.get(challenge["from_user"], "?"))
     reason = {
-        "declined": "отказ. Ставка вернулась",
-        "cancelled": "вызов отозван. Ставка вернулась",
-        "expired": "никто не принял. Ставка вернулась",
-        "accepted": "вызов принят — бой ниже",
+        "declined": "Отказ. Ставка вернулась",
+        "cancelled": "Вызов отозван. Ставка вернулась",
+        "expired": "Никто не принял. Ставка вернулась",
+        "accepted": "Вызов принят — бой ниже",
     }[status]
-    return f"🤺 <b>ВЫЗОВ</b> · {challenger} · {coins(challenge['stake'])}\n<i>{reason}</i>"
+    return card(f"🤺 <b>ВЫЗОВ</b> · {challenger} · {coins(challenge['stake'])}", reason)
 
 
 def challenge_names(report, labels: dict[int, str]) -> str:
@@ -209,43 +206,47 @@ def appeal_hint(uploader: str) -> str:
 
 
 def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, event: str | None) -> str:
-    lines = [
+    items = [
+        f"{emoji} <b>{name}</b> — {coins(prices[code])}\n<i>{escape(about)}</i>"
+        for code, (emoji, name, about) in shop_texts.ITEMS.items()
+    ]
+    bounty = (
+        f"🎯 <b>Награда за голову</b> — {' или '.join(str(a) for a in shop.BOUNTY_AMOUNTS)} {COIN}\n"
+        "<i>получат те, кто казнит пикчу</i>"
+    )
+    return card(
         "🛒 <b>ЛАВКА</b>",
-        f"<i>{escape(pick(shop_texts.HEADERS, chat_id))}</i>",
-        "",
-        f"💼 <b>{who(label)}</b>: {coins(balance)}",
-    ]
-    if event in ("inflation", "black_friday", "dead_day"):
-        lines.append(day_event_line(event) or "")
-    lines.append("")
-    for code, (emoji, name, about) in shop_texts.ITEMS.items():
-        lines.append(f"{emoji} <b>{name}</b> — {coins(prices[code])}")
-        lines.append(f"<i>{escape(about)}</i>")
-    lines.append(f"🎯 <b>Награда за голову</b> — {' или '.join(str(a) for a in shop.BOUNTY_AMOUNTS)} {COIN}")
-    lines.append("<i>получат те, кто казнит пикчу</i>")
-    lines += [
-        "",
-        "<b>Как купить</b>",
-        "Под каждой пикчей есть кнопка 🛒 — там всё, что можно сделать именно с ней.",
-        "Воскрешение — на экране ⚰️ Кладбище. Титул — кнопкой ниже.",
-    ]
-    return "\n".join(lines)
+        pick(shop_texts.HEADERS, chat_id),
+        [
+            f"💼 <b>{who(label)}</b>: {coins(balance)}",
+            day_event_line(event) if event in ("inflation", "black_friday", "dead_day") else "",
+        ],
+        *items,
+        bounty,
+        [
+            "<b>Как купить</b>",
+            "Под каждой пикчей есть кнопка 🛒 — там всё, что можно сделать именно с ней. "
+            "Воскрешение — на экране ⚰️ Кладбище, титул — кнопкой ниже.",
+        ],
+    )
 
 
 def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: int, now: int) -> str:
     stage = shop.stage(pic.wins)
     facts = [f"{stage.emoji} {stage.name}", f"⭐ {rating(pic.rating)}"]
     if uploader:
-        facts.append(f"📥 {who(uploader)}")
-    lines = ["🛒 <b>ЧТО СДЕЛАТЬ С ПИКЧЕЙ</b>", f"<i>{' · '.join(facts)}</i>", ""]
-    if pic.immune_until and pic.immune_until > now:
-        lines.append(f"🛡 Под щитом ещё {duration(pic.immune_until - now)}")
-    if cursed:
-        lines.append(f"🧿 Проклята ещё {duration(cursed - now)}")
-    if bounty:
-        lines.append(f"🎯 Награда за голову: {coins(bounty)}")
-    lines.append(f"💼 Твой баланс: {coins(balance)}")
-    return "\n".join(lines)
+        facts.append(f"📥 {uploader}")  # card() escapes the flavour line itself
+    status = [
+        f"🛡 Под щитом ещё {duration(pic.immune_until - now)}" if pic.immune_until and pic.immune_until > now else "",
+        f"🧿 Проклята ещё {duration(cursed - now)}" if cursed else "",
+        f"🎯 Награда за голову: {coins(bounty)}" if bounty else "",
+    ]
+    return card(
+        "🛒 <b>ЧТО СДЕЛАТЬ С ПИКЧЕЙ</b>",
+        " · ".join(facts),
+        status,
+        f"💼 Твой баланс: {coins(balance)}",
+    )
 
 
 def bought(item: str, chat_id: int) -> str:
@@ -263,18 +264,19 @@ def purchase_notice(item: str, buyer: str, pic: Pic, chat_id: int) -> str:
     """Public line under the pic after a purchase: what happened, who paid, a dealer joke."""
     emoji, name, _ = shop_texts.ITEMS[item]
     phrase = bought(item, chat_id).split(" ", 1)[1]  # phrases start with the item emoji
-    return (
-        f"{emoji} <b>{name.upper()}</b> · {PURCHASE_FACTS[item]}\n"
-        f"<i>{escape(phrase)}</i>\n\n"
-        f"За счёт <b>{who(buyer)}</b> · теперь ⭐ {rating(pic.rating)}"
+    return card(
+        f"{emoji} <b>{name.upper()}</b> · {PURCHASE_FACTS[item]}",
+        phrase,
+        f"За счёт <b>{who(buyer)}</b> · теперь ⭐ {rating(pic.rating)}",
     )
 
 
 def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
-    return (
-        f"🎯 <b>РАЗЫСКИВАЕТСЯ</b> · награда {coins(total)}\n"
-        f"{quote(pick(shop_texts.BOUNTY, chat_id))}"
-        f"<i>Заказчик: {who(sponsor)}. Деньги получат те, кто её казнит — в суде или на арене</i>"
+    return card(
+        f"🎯 <b>РАЗЫСКИВАЕТСЯ</b> · награда {coins(total)}",
+        pick(shop_texts.BOUNTY, chat_id),
+        f"Заказчик: <b>{who(sponsor)}</b>",
+        "<i>Деньги получат те, кто её казнит — в суде или на арене</i>",
     )
 
 
@@ -297,166 +299,163 @@ def quests_screen(
     daily_streak: int,
     chat_id: int,
 ) -> str:
-    lines = [
-        f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
-        f"<i>{escape(pick(progress_texts.QUEST_HEADERS, chat_id))}</i>",
-        "",
-        "🎁 <b>Бонус дня</b>",
-        "Можно забрать — жми 🎁" if daily_ready else f"Забран. Серия: <b>{daily_streak}</b> "
-        f"{plural(daily_streak, 'день', 'дня', 'дней')}",
-        "",
-        "📋 <b>Квесты дня</b> <i>(все три — 🟫 сундук)</i>",
-        *[task_line(task) for task in daily],
-        "",
-        "🏆 <b>Челленджи недели</b> <i>(каждый — 🟪 сундук)</i>",
-        *[task_line(task) for task in weekly],
-    ]
+    bonus = "Можно забрать — жми 🎁" if daily_ready else (
+        f"Забран. Серия: <b>{daily_streak}</b> {plural(daily_streak, 'день', 'дня', 'дней')}"
+    )
     owned = [(tier, count) for tier, count in chests.items() if count]
-    lines.append("")
-    if owned:
-        lines.append("🎒 <b>Сундуки:</b> " + " · ".join(
-            f"{progress_texts.CHESTS[tier][0]} {count}" for tier, count in owned
-        ))
-    else:
-        lines.append("<i>🎒 Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>")
-    return "\n".join(lines)
+    backpack = (
+        "🎒 <b>Сундуки:</b> " + " · ".join(f"{progress_texts.CHESTS[tier][0]} {count}" for tier, count in owned)
+        if owned
+        else "<i>🎒 Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
+    )
+    return card(
+        f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
+        pick(progress_texts.QUEST_HEADERS, chat_id),
+        ["🎁 <b>Бонус дня</b>", bonus],
+        ["📋 <b>Квесты дня</b> <i>(все три — 🟫 сундук)</i>", *[task_line(task) for task in daily]],
+        ["🏆 <b>Челленджи недели</b> <i>(каждый — 🟪 сундук)</i>", *[task_line(task) for task in weekly]],
+        backpack,
+    )
 
 
 def daily_result(label: str, daily: Daily, chat_id: int) -> str:
     day = daily.streak
-    lines = [
+    left = progress.DAILY_CHEST_EVERY - day % progress.DAILY_CHEST_EVERY
+    return card(
         f"🎁 <b>БОНУС ДНЯ</b> · {who(label)}",
-        quote(pick(progress_texts.DAILY, chat_id)),
-        f"➕ {coins(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
-    ]
-    if daily.family_bonus:
-        lines.append(f"💍 Семейная надбавка: +{daily.family_bonus} тебе и супругу")
-    if daily.chest:
-        lines.append(f"🟪 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>")
-    else:
-        left = progress.DAILY_CHEST_EVERY - day % progress.DAILY_CHEST_EVERY
-        lines.append(f"<i>До редкого сундука: {left} {plural(left, 'день', 'дня', 'дней')}</i>")
-    return "\n".join(lines)
+        pick(progress_texts.DAILY, chat_id),
+        [
+            f"➕ {coins(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
+            f"💍 Семейная надбавка: +{daily.family_bonus} тебе и супругу" if daily.family_bonus else "",
+            f"🟪 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest else "",
+        ],
+        None if daily.chest else f"<i>До редкого сундука: {left} {plural(left, 'день', 'дня', 'дней')}</i>",
+    )
 
 
 def chest_opening(label: str, tier: str, chat_id: int) -> str:
     emoji, name = progress_texts.CHESTS[tier]
-    return f"{emoji} <b>{name.upper()}</b> · {who(label)}\n<i>{escape(pick(progress_texts.OPENING, chat_id))}</i>"
+    return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.OPENING, chat_id))
 
 
 def chest_opened(label: str, opened, chat_id: int) -> str:
     emoji, name = progress_texts.CHESTS[opened.tier]
     loot = opened.loot
-    lines = [f"{emoji} <b>{name.upper()}</b> · {who(label)}", quote(pick(progress_texts.LOOT[loot.kind], chat_id))]
-    if loot.coins:
-        lines.append(f"➕ {coins(loot.coins)}")
-    if loot.kind == "boost" and opened.pic is not None:
-        lines.append(f"⚡ +{progress.CHEST_BOOST_RATING} ⭐ одной из твоих пикч")
-    if loot.kind == "shield" and opened.pic is not None:
-        lines.append(f"🛡 Щит на {progress.CHEST_SHIELD_SECONDS // 86400} дня самой слабой твоей пикче")
-    if loot.kind == "chest":
-        lines.append("🟫 +1 деревянный сундук")
-    return "\n".join(lines)
+    facts = [
+        f"➕ {coins(loot.coins)}" if loot.coins else "",
+        f"⚡ +{progress.CHEST_BOOST_RATING} ⭐ одной из твоих пикч" if loot.kind == "boost" and opened.pic else "",
+        f"🛡 Щит на {progress.CHEST_SHIELD_SECONDS // 86400} дня самой слабой твоей пикче"
+        if loot.kind == "shield" and opened.pic else "",
+        "🟫 +1 деревянный сундук" if loot.kind == "chest" else "",
+    ]
+    return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.LOOT[loot.kind], chat_id), facts)
 
 
 # ── boss ───────────────────────────────────────────────────────────────
 
 
 def boss_card(boss: dict, labels: dict[int, str], remaining: int, chat_id: int) -> str:
-    lines = [
-        f"👹 <b>БОСС: {escape(boss['title']).upper()}</b> · ⏳ <b>{timer(remaining)}</b>",
-        f"<i>{escape(pick(boss_texts.STATUS if boss['hits'] else boss_texts.ARRIVE, chat_id))}</i>",
-        "",
+    health = [
         f"❤️ <b>{boss['hp']}</b> / {boss['max_hp']}",
         f"<code>{hp_bar(boss['hp'], boss['max_hp'])}</code>",
         f"💰 Добыча: {coins(boss['loot'])}",
     ]
+    damage = []
     if boss["damage"]:
-        top = list(boss["damage"].items())[:5]
-        lines += ["", "⚔️ <b>Урон</b>"]
-        for index, (user, dealt) in enumerate(top):
+        damage.append("⚔️ <b>Урон</b>")
+        for index, (user, dealt) in enumerate(list(boss["damage"].items())[:5]):
             place = MEDALS[index] if index < 3 else f"{index + 1}."
-            lines.append(f"{place} {who(labels.get(user, '?'))} — <b>{dealt}</b>")
-    lines += [
-        "",
+            damage.append(f"{place} {who(labels.get(user, '?'))} — <b>{dealt}</b>")
+    return card(
+        f"👹 <b>БОСС: {escape(boss['title']).upper()}</b> · ⏳ <b>{timer(remaining)}</b>",
+        pick(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, chat_id),
+        health,
+        damage,
         f"<i>🗡 Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек. "
         f"🔥 Супер — {boss_rules.SUPER_PRICE} {COIN}, бьёт сильнее. Добычу делят по урону</i>",
-    ]
-    return "\n".join(lines)
+    )
 
 
 def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
     boss = report.boss
+    title = escape(boss["title"]).upper()
     if not report.won:
-        return (
-            f"👹 <b>БОСС СБЕЖАЛ · {escape(boss['title']).upper()}</b>\n"
-            f"{quote(pick(boss_texts.ESCAPE, chat_id))}"
-            f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']} · пикча-босс +{boss_rules.ESCAPE_RATING_BONUS} ⭐"
+        return card(
+            f"👹 <b>БОСС СБЕЖАЛ · {title}</b>",
+            pick(boss_texts.ESCAPE, chat_id),
+            f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']} · пикча-босс +{boss_rules.ESCAPE_RATING_BONUS} ⭐",
         )
-    lines = [
-        f"🏆 <b>БОСС ПОВЕРЖЕН · {escape(boss['title']).upper()}</b>",
-        quote(pick(boss_texts.WIN, chat_id)),
-        f"💰 <b>Добыча</b> · {boss['loot']} {COIN} по урону",
-    ]
+    loot = [f"💰 <b>Добыча</b> · {num(boss['loot'])} {COIN} по урону"]
     for index, (user, amount) in enumerate(sorted(report.payouts.items(), key=lambda item: -item[1])[:8]):
         place = MEDALS[index] if index < 3 else f"{index + 1}."
         dealt = boss["damage"].get(user, 0)
-        lines.append(f"{place} {who(labels.get(user, '?'))} — <b>+{amount}</b> <i>({dealt} урона)</i>")
-    if report.last_hit is not None:
-        lines.append(f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})")
-    if report.top is not None:
-        lines.append(f"🟪 Редкий сундук — <b>{who(labels.get(report.top, '?'))}</b>")
-    return "\n".join(lines)
+        loot.append(f"{place} {who(labels.get(user, '?'))} — <b>+{num(amount)}</b> <i>({dealt} урона)</i>")
+    honours = [
+        f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})"
+        if report.last_hit is not None else "",
+        f"🟪 Редкий сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
+    ]
+    return card(f"🏆 <b>БОСС ПОВЕРЖЕН · {title}</b>", pick(boss_texts.WIN, chat_id), loot, honours)
 
 
 # ── people ─────────────────────────────────────────────────────────────
 
 
 def gift(giver: str, receiver: str, amount: int, chat_id: int) -> str:
-    return (
-        f"🎁 <b>ПОДАРОК</b>\n{quote(pick(social_texts.GIFT, chat_id))}"
-        f"<b>{who(giver)}</b> → <b>{who(receiver)}</b>: {coins(amount)}"
+    return card(
+        "🎁 <b>ПОДАРОК</b>",
+        pick(social_texts.GIFT, chat_id),
+        f"<b>{who(giver)}</b> → <b>{who(receiver)}</b>: {coins(amount)}",
     )
 
 
 def robbery(robber: str, victim: str, result, chat_id: int) -> str:
     if result.status == "success":
-        return (
-            f"🕵️ <b>ОГРАБЛЕНИЕ</b>\n{quote(pick(social_texts.ROB_SUCCESS, chat_id))}"
-            f"Добыча <b>{who(robber)}</b>: {coins(result.amount)} из кармана <b>{who(victim)}</b>"
+        return card(
+            "🕵️ <b>ОГРАБЛЕНИЕ</b>",
+            pick(social_texts.ROB_SUCCESS, chat_id),
+            f"Добыча <b>{who(robber)}</b>: {coins(result.amount)} из кармана <b>{who(victim)}</b>",
         )
-    return (
-        f"🚔 <b>ПОПАЛСЯ</b>\n{quote(pick(social_texts.ROB_FAIL, chat_id))}"
-        f"<b>{who(robber)}</b> платит <b>{who(victim)}</b> штраф {coins(result.amount)} "
-        f"и сидит {duration(result.wait)}"
+    return card(
+        "🚔 <b>ПОПАЛСЯ</b>",
+        pick(social_texts.ROB_FAIL, chat_id),
+        f"<b>{who(robber)}</b> платит <b>{who(victim)}</b> штраф {coins(result.amount)} и сидит {duration(result.wait)}",
     )
 
 
 def proposal(suitor: str, beloved: str, price: int, chat_id: int) -> str:
-    cost = f"Свадьба стоит {coins(price)} с каждого" if price else "Сегодня свадьба бесплатно"
-    return (
-        f"💍 <b>ПРЕДЛОЖЕНИЕ</b>\n{quote(pick(social_texts.PROPOSAL, chat_id))}"
-        f"<b>{who(suitor)}</b> делает предложение <b>{who(beloved)}</b>.\n"
-        f"<i>{cost}. Ответить может только {who(beloved)}, предложение живёт "
-        f"{shop.PROPOSAL_SECONDS // 60} минут</i>"
+    cost = f"Свадьба стоит {num(price)} {COIN} с каждого" if price else "Сегодня свадьба бесплатно"
+    return card(
+        "💍 <b>ПРЕДЛОЖЕНИЕ</b>",
+        pick(social_texts.PROPOSAL, chat_id),
+        f"<b>{who(suitor)}</b> делает предложение <b>{who(beloved)}</b>",
+        f"<i>{cost}. Ответить может только {who(beloved)}, предложение живёт {shop.PROPOSAL_SECONDS // 60} минут</i>",
     )
 
 
 def wedding(first: str, second: str, chat_id: int) -> str:
-    return (
-        f"💒 <b>СВАДЬБА</b>\n{quote(pick(social_texts.WEDDING, chat_id))}"
-        f"💍 <b>{who(first)}</b> + <b>{who(second)}</b>\n"
-        f"<i>Семейный бонус: +20% к /daily, если оба забрали его в один день. "
-        f"При разводе всё имущество делится пополам</i>"
+    return card(
+        "💒 <b>СВАДЬБА</b>",
+        pick(social_texts.WEDDING, chat_id),
+        f"💍 <b>{who(first)}</b> + <b>{who(second)}</b>",
+        "<i>Семейный бонус: +20% к /daily, если оба забрали его в один день. "
+        "При разводе всё имущество делится пополам</i>",
     )
 
 
 def rejected(suitor: str, beloved: str, chat_id: int) -> str:
-    return f"💔 <b>ОТКАЗ</b>\n{quote(pick(social_texts.REJECTED, chat_id))}<b>{who(beloved)}</b> не хочет за <b>{who(suitor)}</b>"
+    return card(
+        "💔 <b>ОТКАЗ</b>",
+        pick(social_texts.REJECTED, chat_id),
+        f"<b>{who(beloved)}</b> не хочет за <b>{who(suitor)}</b>",
+    )
 
 
 def divorce(first: str, second: str, result, chat_id: int) -> str:
-    return (
-        f"💔 <b>РАЗВОД</b>\n{quote(pick(social_texts.DIVORCE, chat_id))}"
-        f"{who(first)}: {coins(result.mine)} · {who(second)}: {coins(result.theirs)}"
+    return card(
+        "💔 <b>РАЗВОД</b>",
+        pick(social_texts.DIVORCE, chat_id),
+        f"{who(first)}: {coins(result.mine)} · {who(second)}: {coins(result.theirs)}",
     )
+
+
