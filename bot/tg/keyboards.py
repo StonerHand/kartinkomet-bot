@@ -229,7 +229,8 @@ def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardM
         button(f"{labels[slot]} {count}", f"v:{battle_id}:{slot}", SLOT_STYLES[slot])
         for slot, count in enumerate(counts)
     ]
-    bets = [button(f"💰 {labels[slot]}", f"bt:{battle_id}:{slot}") for slot in range(len(counts))]
+    stake = "+50" if len(counts) == 2 else ""
+    bets = [button(f"💰 {labels[slot]} {stake}".rstrip(), f"bt:{battle_id}:{slot}") for slot in range(len(counts))]
     return markup(buttons, bets)
 
 

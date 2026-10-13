@@ -86,8 +86,8 @@ class ProgressTest(unittest.TestCase):
 class BossShopTest(unittest.TestCase):
     def test_boss_hp_scales(self) -> None:
         self.assertEqual(boss.max_hp(0), boss.MIN_HP)
-        self.assertEqual(boss.max_hp(10), 60)
-        self.assertEqual(boss.max_hp(10, double=True), 120)
+        self.assertEqual(boss.max_hp(10), 190)
+        self.assertEqual(boss.max_hp(10, double=True), 380)
 
     def test_loot_split_by_damage(self) -> None:
         self.assertEqual(boss.split_loot(300, {1: 20, 2: 10}), {1: 200, 2: 100})

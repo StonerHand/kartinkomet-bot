@@ -57,7 +57,13 @@ def who(label: str) -> str:
 
 
 def quote(text: str) -> str:
-    """Blockquote plus a blank line after it, so the next line doesn't stick to the quote."""
+    """Flavour line: italic plus an empty line after it. Not a blockquote: a header with a quote
+    right under it reads as one glued block in Telegram."""
+    return f"<i>{escape(text)}</i>\n"
+
+
+def cited(text: str) -> str:
+    """Words of a person (last word in court): a real blockquote, then an empty line."""
     return f"<blockquote>{escape(text)}</blockquote>\n"
 
 
@@ -115,7 +121,7 @@ def bets_line(battle: Battle) -> str | None:
         return None
     labels = DUEL_LABELS if battle.kind == "duel" else TOURNAMENT_LABELS
     parts = [f"{labels[slot]} ×{value:g}" for slot, value in enumerate(casino.odds(pool)) if value]
-    return f"💰 Банк ставок <b>{total}</b> · " + " · ".join(parts)
+    return f"💰 Ставки: банк <b>{total}</b> · " + " · ".join(parts)
 
 
 def battle_card(battle: Battle, remaining: int, fighters: str | None = None, flipped: bool = False) -> str:
@@ -129,26 +135,27 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
     else:
         head = "⚔️ <b>ДУЭЛЬ</b>" if is_duel else "🏟 <b>ТУРНИР ЧЕТЫРЁХ</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
-    lines = [f"{head} · ⏳ <b>{timer(remaining)}</b>", quote(battle.title)]
+    lines = [f"{head} · ⏳ <b>{timer(remaining)}</b>"]
+    if battle.title:
+        lines.append(f"<i>{escape(battle.title)}</i>")
+    lines.append("")
     if fighters:
-        lines.append(fighters)
+        lines += [fighters, ""]
     if is_duel and battle.streak > 0:
         lines.append(f"👑 {labels[0]} — чемпионка, серия <b>{battle.streak}</b>")
     marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
     lines += [f"{line}  {mark}" if mark != "🥚" else line for line, mark in zip(vote_lines(counts, labels), marks)]
-    votes = f"{total} {plural(total, 'голос', 'голоса', 'голосов')}" if total else "голосов пока нет"
-    if battle.extended and not total:
-        status = f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>"
-    else:
-        status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
-    lines += ["", status]
+    lines.append("")
     if flipped:
         lines.append("🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов")
     bets = bets_line(battle)
-    if bets:
-        lines.append(bets)
-    hint = "голосуют зрители" if battle.mode == "challenge" else "жми кнопку"
-    lines.append(f"🗳 {votes} · {hint} · 💰 ставка {casino.BET_STEP}")
+    lines.append(bets or f"💰 Ставок нет · кнопка 💰 — ставка {casino.BET_STEP} 🪙 на пикчу")
+    if battle.extended and not total:
+        lines.append(f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>")
+    elif battle.mode == "challenge":
+        lines.append("<i>Голосуют только зрители</i>")
+    else:
+        lines.append(f"<i>{escape(pick(status_pool, battle.chat_id))}</i>")
     return "\n".join(lines)
 
 
@@ -244,7 +251,7 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
         lines += [
             "",
             f"🗣 <b>{escape(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))}</b>",
-            quote(trial.last_word),
+            cited(trial.last_word),
         ]
     else:
         lines += ["", f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"]
@@ -278,15 +285,15 @@ NOTE_CHESTS = {"wood": "🟫 деревянный сундук", "rare": "🟪 �
 
 
 def note_line(label: str, note) -> str:
-    from bot.texts.progress import QUEST_NAMES  # local: progress texts are only needed here
+    from bot.texts.progress import quest_name  # local: progress texts are only needed here
 
     if note.kind == "quest":
-        name = QUEST_NAMES[note.code].format(n=note.target)
+        name = quest_name(note.code, note.target)
         return f"📜 <b>{who(label)}</b> — квест «{escape(name)}» · +{note.amount} 🪙"
     if note.kind == "quests_all":
         return f"📋 Все квесты дня закрыты: <b>{who(label)}</b> · +{note.amount} 🪙 и {NOTE_CHESTS['wood']}"
     if note.kind == "challenge":
-        name = QUEST_NAMES[note.code].format(n=note.target)
+        name = quest_name(note.code, note.target)
         return f"🏆 <b>{who(label)}</b> — челлендж недели «{escape(name)}» · +{note.amount} 🪙 и {NOTE_CHESTS['rare']}"
     if note.kind == "challenges_all":
         return f"💎 <b>{who(label)}</b> — все челленджи недели! Держи {NOTE_CHESTS['legend']}"
@@ -620,7 +627,7 @@ def gold_caption() -> str:
 
 def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int, chat_id: int) -> str:
     lines = [
-        f"🎡 <b>{game_texts.SPIN_TITLES[spin.kind]}</b> · {who(label)}",
+        f"🎡 <b>КОЛЕСО: {game_texts.SPIN_TITLES[spin.kind].split(' ', 1)[1]}</b> · {who(label)}",
         quote(pick(game_texts.SPIN_RESULTS[spin.kind], chat_id)),
     ]
     if spin.coins:

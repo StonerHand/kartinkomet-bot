@@ -75,13 +75,13 @@ def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) 
 # ── casino ─────────────────────────────────────────────────────────────
 
 
-def casino_screen(balance: int, stake: int, chat_id: int, lucky: bool) -> str:
+def casino_screen(label: str, balance: int, stake: int, chat_id: int, lucky: bool) -> str:
     lines = [
         "🎰 <b>КАЗИНО</b>",
         f"<i>{escape(pick(casino_texts.HEADERS, chat_id))}</i>",
         "",
-        f"💼 Твой баланс: {coins(balance)}",
-        f"🎟 Твоя ставка: {coins(stake)} <i>— меняется кнопками ниже</i>",
+        f"💼 <b>{who(label)}</b>: {coins(balance)} · ставка {coins(stake)}",
+        "<i>Ставка у каждого своя: кнопки 50…500 и «ва-банк» меняют её тому, кто нажал</i>",
     ]
     if lucky:
         lines.append("🍀 <b>Сегодня счастливый день:</b> выигрыши ×1.5")
@@ -208,10 +208,7 @@ def challenge_names(report, labels: dict[int, str]) -> str:
 def challenge_result(report, labels: dict[int, str], chat_id: int) -> list[str]:
     if report.champion is None:
         return ["🤺 <i>Победителя нет — обе ставки вернулись</i>"]
-    return [
-        f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {coins(report.challenge['stake'] * 2)}",
-        f"<i>{escape(pick(social_texts.CHALLENGE_WIN, chat_id))}</i>",
-    ]
+    return [f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {coins(report.challenge['stake'] * 2)}"]
 
 
 # ── court: appeal ──────────────────────────────────────────────────────
@@ -227,12 +224,12 @@ def appeal_hint(uploader: str) -> str:
 # ── shop ───────────────────────────────────────────────────────────────
 
 
-def shop_screen(balance: int, prices: dict[str, int], chat_id: int, event: str | None) -> str:
+def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, event: str | None) -> str:
     lines = [
         "🛒 <b>ЛАВКА</b>",
         f"<i>{escape(pick(shop_texts.HEADERS, chat_id))}</i>",
         "",
-        f"💼 Твой баланс: {coins(balance)}",
+        f"💼 <b>{who(label)}</b>: {coins(balance)}",
     ]
     if event in ("inflation", "black_friday", "dead_day"):
         lines.append(day_event_line(event) or "")
@@ -271,6 +268,24 @@ def bought(item: str, chat_id: int) -> str:
     return pick(shop_texts.BOUGHT[item], chat_id)
 
 
+PURCHASE_FACTS = {
+    "shield": "пикчу нельзя судить 3 дня",
+    "boost": f"+{shop.BOOST_RATING} ⭐ рейтинга",
+    "uncurse": f"порча снята, +{shop.CURSE_RATING} ⭐ вернулись",
+}
+
+
+def purchase_notice(item: str, buyer: str, pic: Pic, chat_id: int) -> str:
+    """Public line under the pic after a purchase: what happened, who paid, a dealer joke."""
+    emoji, name, _ = shop_texts.ITEMS[item]
+    phrase = bought(item, chat_id).split(" ", 1)[1]  # phrases start with the item emoji
+    return (
+        f"{emoji} <b>{name.upper()}</b> · {PURCHASE_FACTS[item]}\n"
+        f"<i>{escape(phrase)}</i>\n\n"
+        f"За счёт <b>{who(buyer)}</b> · теперь ⭐ {rating(pic.rating)}"
+    )
+
+
 def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
     return (
         f"🎯 <b>РАЗЫСКИВАЕТСЯ</b> · награда {coins(total)}\n"
@@ -283,7 +298,7 @@ def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
 
 
 def task_line(task: TaskState) -> str:
-    name = progress_texts.QUEST_NAMES[task.kind].format(n=task.target)
+    name = progress_texts.quest_name(task.kind, task.target)
     if task.finished:
         return f"✅ <s>{escape(name)}</s>"
     return f"▫️ {escape(name)} · <b>{min(task.done, task.target)}/{task.target}</b> · +{task.reward}"

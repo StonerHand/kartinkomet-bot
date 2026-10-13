@@ -22,20 +22,22 @@ CONFIRM_SECONDS = 10.0
 _confirm: dict[tuple[int, str], float] = {}
 
 
-def menu_token(game: Game, pic_id: str, user_id: int, chat_id: int) -> str:
+def menu_token(game: Game, pic_id: str, user_id: int, chat_id: int, message_id: int = 0) -> str:
     """Buttons of a pic menu carry a short token; the context lives in meta. Keeps callback
     data well under 64 bytes and works even if an ephemeral callback arrives without a message."""
     token = token_hex(5)
-    game.repo.set_meta(f"pm:{token}", f"{pic_id}:{user_id}:{chat_id}")
+    game.repo.set_meta(f"pm:{token}", f"{pic_id}:{user_id}:{chat_id}:{message_id}")
     return token
 
 
-def menu_context(game: Game, token: str) -> tuple[str, int, int] | None:
+def menu_context(game: Game, token: str) -> tuple[str, int, int, int | None] | None:
+    """(pic, buyer, chat, message with the pic or None)."""
     raw = game.repo.meta_str(f"pm:{token}")
     if not raw:
         return None
-    pic_id, user_id, chat_id = raw.split(":")
-    return pic_id, int(user_id), int(chat_id)
+    pic_id, user_id, chat_id, *rest = raw.split(":")
+    message_id = int(rest[0]) if rest and rest[0] != "0" else None
+    return pic_id, int(user_id), int(chat_id), message_id
 
 
 def confirmed(user_id: int, key: str) -> bool:
@@ -77,7 +79,8 @@ async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     )
     prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse")}
     chat_id = callback.message.chat.id
-    markup = keyboards.pic_menu(menu_token(game, pic.id, user_id, chat_id), bool(cursed), prices)
+    token = menu_token(game, pic.id, user_id, chat_id, callback.message.message_id)
+    markup = keyboards.pic_menu(token, bool(cursed), prices)
     if callback.message.chat.type != "private" and await send.send_ephemeral(
         bot, chat_id, user_id, text, callback.id, markup
     ):
@@ -95,7 +98,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
     if context is None:
         await callback.answer("Меню устарело. Нажми 🛒 под пикчей ещё раз", show_alert=True)
         return
-    pic_id, owner, chat_id = context
+    pic_id, owner, chat_id, pic_message = context
     if owner != user_id:
         await callback.answer("Это меню открыл кто-то другой. Жми 🛒 под пикчей сам", show_alert=True)
         return
@@ -138,10 +141,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
             game.refund(user_id, item)
             await send.send_text(bot, chat_id, f"⚖️ Суд не открылся, {price} 🪙 вернулись {cards.who(label)}")
         return
-    emoji, name, _ = texts.ITEMS[item]
-    await send.send_text(
-        bot, chat_id, f"{emoji} <b>{name}</b> от <b>{cards.who(label)}</b>: {cards.bought(item, chat_id)}"
-    )
+    await send.send_text(bot, chat_id, cards.purchase_notice(item, label, pic, chat_id), reply_to=pic_message)
     await live.announce(chat_id, game.flush([user_id]))
 
 

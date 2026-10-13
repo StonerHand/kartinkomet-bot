@@ -1,5 +1,7 @@
 """People's court: opening trials, votes, the defendant's last word."""
 
+from html import escape
+
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
@@ -123,7 +125,13 @@ async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         return
     await callback.answer(f"📜 Апелляция подана. Залог {court.APPEAL_BAIL} 🪙")
     if callback.message is not None:
-        await send.edit_markup(bot, callback.message.chat.id, callback.message.message_id, keyboards.more_only())
+        filed = (callback.message.caption or callback.message.text or "").split("\n")[0]
+        note = "📜 <b>Подана апелляция</b> — повторный суд ниже"
+        edit = send.edit_caption if callback.message.photo else send.edit_text
+        if not filed or not await edit(
+            bot, callback.message.chat.id, callback.message.message_id, f"{escape(filed)}\n\n{note}", keyboards.more_only()
+        ):
+            await send.edit_markup(bot, callback.message.chat.id, callback.message.message_id, keyboards.more_only())
     if await launch_court(bot, game, live, result.court) != "started":
         game.undo_appeal(result.court.id)
 

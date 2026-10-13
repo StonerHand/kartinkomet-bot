@@ -59,13 +59,6 @@ async def daily_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         await send.answer_quietly(callback, "🎁 Получено")
 
 
-@router.message(Command("quests", "chest"))
-async def quests_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.panel import open_panel  # local: panel imports routers' screens
-
-    await open_panel(message, bot, game, admins, "quests")
-
-
 async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int, tier: str) -> bool:
     opened = game.open_chest(user_id, tier)
     if opened is None:

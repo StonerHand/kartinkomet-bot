@@ -19,7 +19,7 @@ from bot.tg.timers import Live
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="games")
-DICE_ANIMATION_SECONDS = 2.5  # Telegram's 🎰 needs ~2 s to stop before revealing the prize
+DICE_ANIMATION_SECONDS = 2.8  # Telegram's 🎰 needs ~2.5 s to stop before revealing the prize
 
 
 # ── caption contest ────────────────────────────────────────────────────

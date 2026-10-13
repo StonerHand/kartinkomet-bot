@@ -81,11 +81,13 @@ def screen(
         return views.GAMES_SCREEN, keyboards.games_menu()
     if name == "casino":
         balance = repo.player(user_id)[0]
-        text = cards.casino_screen(balance, game.stake_for_play(user_id), chat_id, game.day_is("lucky_day"))
+        text = cards.casino_screen(
+            repo.user_label(user_id), balance, game.stake_for_play(user_id), chat_id, game.day_is("lucky_day")
+        )
         return text, keyboards.casino_menu(casino.STAKE_PRESETS)
     if name == "shop":
         prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse", "resurrect", "title")}
-        text = cards.shop_screen(repo.player(user_id)[0], prices, chat_id, game.day_event())
+        text = cards.shop_screen(repo.user_label(user_id), repo.player(user_id)[0], prices, chat_id, game.day_event())
         return text, keyboards.shop_menu()
     if name == "quests":
         daily, weekly = game.quests_of(user_id)
@@ -159,9 +161,30 @@ async def top(message: Message, bot: Bot, game: Game, admins: frozenset[int]) ->
     await open_panel(message, bot, game, admins, "top", "uploads")
 
 
+async def personal(message: Message, bot: Bot, game: Game, admins: frozenset[int], name: str) -> None:
+    """Personal screens by command: in a group only the author sees them; if Telegram refuses an
+    ephemeral message, the screen becomes the panel as before."""
+    if message.chat.type != "private" and message.from_user is not None:
+        user_id = message.from_user.id
+        text, _ = screen(game, name, None, message.chat.id, user_id, user_id in admins, False)
+        markup = None
+        if name == "quests":
+            ready = game.repo.counter(user_id, "daily_day") != game.local_day()
+            markup = keyboards.quests_menu(ready, game.chests_of(user_id), message.chat.id)
+            markup = markup if markup.inline_keyboard else None
+        if await send.send_ephemeral(bot, message.chat.id, user_id, text, None, markup):
+            return
+    await open_panel(message, bot, game, admins, name)
+
+
 @router.message(Command("me"))
 async def me(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    await open_panel(message, bot, game, admins, "me")
+    await personal(message, bot, game, admins, "me")
+
+
+@router.message(Command("quests", "chest"))
+async def quests(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
+    await personal(message, bot, game, admins, "quests")
 
 
 @router.message(Command("help"))

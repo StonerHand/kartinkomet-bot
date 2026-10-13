@@ -1,5 +1,7 @@
 """Daily bonus, quests, chests. Voice: a foreman paying wages in a warehouse full of memes."""
 
+import re
+
 from bot.texts.pick import lines
 
 DAILY = lines("""
@@ -12,35 +14,45 @@ DAILY = lines("""
 """)
 
 DAILY_AGAIN = lines("""
-Сегодня уже получал. Завтра приходи, жадина
+Сегодня бонус уже забран. Завтра приходи, жадина
 Касса на сегодня закрыта. Для тебя — точно
 Второй раз не выдаём. Бригадир всё видит
 """)
 
+# {n} is the target; "{раз|раза|раз}" picks the word form for it.
 QUEST_NAMES = {
-    "vote": "Проголосуй в {n} боях",
+    "vote": "Проголосуй в {n} {бое|боях|боях}",
     "like": "Поставь {n} 🤙🏻",
-    "pic": "Открой {n} рандомных пикч",
+    "pic": "Открой {n} {рандомную пикчу|рандомные пикчи|рандомных пикч}",
     "court_vote": "Проголосуй в суде",
-    "guess": "Угадай победителя боя {n} раз",
-    "casino_bet": "Сделай {n} ставок в казино",
+    "guess": "Угадай победителя боя {n} {раз|раза|раз}",
+    "casino_bet": "Сделай {n} {ставку|ставки|ставок} в казино",
     "arena_bet": "Поставь монеты на пикчу в бою",
-    "boss_hit": "Ударь босса {n} раз",
-    "upload": "Загрузи {n} пикч",
+    "boss_hit": "Ударь босса {n} {раз|раза|раз}",
+    "upload": "Загрузи {n} {пикчу|пикчи|пикч}",
     "caption": "Предложи подпись в «Подпиши пикчу»",
     "give": "Подари кому-нибудь монеты",
     "horoscope": "Узнай свой гороскоп",
-    "battle_start": "Запусти дуэль или турнир {n} раз",
+    "battle_start": "Запусти дуэль или турнир {n} {раз|раза|раз}",
     # weekly-only kinds
-    "casino_win": "Выиграй в казино {n} раз",
+    "casino_win": "Выиграй в казино {n} {раз|раза|раз}",
     "boss_damage": "Нанеси боссам {n} урона",
-    "bet_won": "Выиграй {n} ставки на арене",
-    "chest": "Открой {n} сундука",
-    "daily": "Забери бонус {n} дней",
-    "quest": "Выполни {n} квестов дня",
-    "challenge_win": "Выиграй {n} вызова",
-    "rob_success": "Ограбь кого-нибудь {n} раза",
+    "bet_won": "Выиграй {n} {ставку|ставки|ставок} на арене",
+    "chest": "Открой {n} {сундук|сундука|сундуков}",
+    "daily": "Забери бонус {n} {день|дня|дней}",
+    "quest": "Выполни {n} {квест|квеста|квестов} дня",
+    "challenge_win": "Выиграй {n} {вызов|вызова|вызовов}",
+    "rob_success": "Ограбь кого-нибудь {n} {раз|раза|раз}",
 }
+
+
+def quest_name(kind: str, target: int) -> str:
+    """Fill a quest template: the number and the right word form for it."""
+    tail = target % 100
+    form = 2 if 11 <= tail <= 14 else {1: 0, 2: 1, 3: 1, 4: 1}.get(target % 10, 2)
+    text = re.sub(r"\{([^{}|]+)\|([^{}|]+)\|([^{}|]+)\}", lambda match: match.group(form + 1), QUEST_NAMES[kind])
+    return text.replace("{n}", str(target))
+
 
 QUEST_HEADERS = lines("""
 Работа не волк. Но платят

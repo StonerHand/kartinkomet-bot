@@ -82,12 +82,12 @@ class CasinoGame:
 
 
 GAMES = {
-    "slots": CasinoGame("slots", "🎰", "Слоты", "spin", 2.2),
-    "dice": CasinoGame("dice", "🎲", "Кости", "dice", 3.5),
-    "darts": CasinoGame("darts", "🎯", "Дартс", "darts", 3.0),
-    "basket": CasinoGame("basket", "🏀", "Баскет", "basket", 4.0),
-    "football": CasinoGame("football", "⚽", "Футбол", "football", 4.0),
-    "bowling": CasinoGame("bowling", "🎳", "Боулинг", "bowling", 4.0),
+    "slots": CasinoGame("slots", "🎰", "Слоты", "spin", 2.8),
+    "dice": CasinoGame("dice", "🎲", "Кости", "dice", 3.8),
+    "darts": CasinoGame("darts", "🎯", "Дартс", "darts", 3.5),
+    "basket": CasinoGame("basket", "🏀", "Баскет", "basket", 4.8),
+    "football": CasinoGame("football", "⚽", "Футбол", "football", 4.8),
+    "bowling": CasinoGame("bowling", "🎳", "Боулинг", "bowling", 4.8),
 }
 
 SINGLE_ROLL = {"slots": slots, "darts": darts, "basket": basket, "football": football, "bowling": bowling}
