@@ -179,7 +179,7 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
 def challenge_names(report, labels: dict[int, str]) -> str:
     challenge = report.challenge
     first, second = (who(labels.get(challenge[key], "?")) for key in ("from_user", "to_user"))
-    return f"🤺 A — <b>{first}</b>, B — <b>{second}</b> · на кону {coins(challenge['stake'] * 2)}"
+    return f"🤺 <b>{first}</b> против <b>{second}</b>\n💰 На кону {coins(challenge['stake'] * 2)}"
 
 
 def challenge_result(report, labels: dict[int, str], chat_id: int) -> list[str]:
@@ -207,7 +207,7 @@ def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, 
         for code, (emoji, name, about) in shop_texts.ITEMS.items()
     ]
     bounty = (
-        f"🎯 <b>Награда за голову</b> — {' или '.join(str(a) for a in shop.BOUNTY_AMOUNTS)} монет\n"
+        f"🎯 <b>Награда за голову</b> — от {shop.BOUNTY_AMOUNTS[0]} монет\n"
         "<i>получат те, кто казнит пикчу</i>"
     )
     return card(
@@ -282,8 +282,8 @@ def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
 def task_line(task: TaskState) -> str:
     name = progress_texts.quest_name(task.kind, task.target)
     if task.finished:
-        return f"✅ <s>{escape(name)}</s>"
-    return f"▫️ {escape(name)} · <b>{min(task.done, task.target)}/{task.target}</b> · +{task.reward} монет"
+        return f"✅ <s>{escape(name)}</s>\n<i>готово · +{num(task.reward)} монет</i>"
+    return f"▫️ {escape(name)}\n<i>{min(task.done, task.target)} из {task.target} · награда {num(task.reward)} монет</i>"
 
 
 def quests_screen(
@@ -308,8 +308,10 @@ def quests_screen(
         f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
         pick(progress_texts.QUEST_HEADERS, chat_id),
         ["🎁 <b>Бонус дня</b>", bonus],
-        ["📋 <b>Квесты дня</b> <i>· все три — деревянный сундук</i>", *[task_line(task) for task in daily]],
-        ["🏆 <b>Челленджи недели</b> <i>· каждый — редкий сундук</i>", *[task_line(task) for task in weekly]],
+        ["📋 <b>Квесты дня</b>", "<i>За все три — деревянный сундук</i>"],
+        *[task_line(task) for task in daily],
+        ["🏆 <b>Челленджи недели</b>", "<i>За каждый — редкий сундук</i>"],
+        *[task_line(task) for task in weekly],
         backpack,
     )
 

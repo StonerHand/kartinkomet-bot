@@ -195,7 +195,7 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
         status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
     footer = [
         "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else "",
-        bets_line(battle) or f"💰 Ставок нет — второй ряд кнопок, по {casino.BET_STEP} монет на пикчу",
+        bets_line(battle) or f"💰 Ставок пока нет · по {casino.BET_STEP} монет",
         status,
     ]
     return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, footer)
@@ -246,7 +246,7 @@ def battle_result(
         votes = "" if is_duel else f" · {counts[slot]} {plural(counts[slot], 'голос', 'голоса', 'голосов')}"
         name = f"<b>{who(uploaders[slot])}</b>" if slot == report.winner else who(uploaders[slot])
         change = delta(report.rating_before[slot], report.rating_after[slot])
-        table.append(f"{marker} <b>{labels[slot]}</b> · {name}{votes} · рейтинг {rating(report.rating_after[slot])} <i>({change})</i>")
+        table.append(f"{marker} <b>{labels[slot]}</b> · {name}{votes}\n<i>рейтинг {rating(report.rating_after[slot])} ({change})</i>")
     if guessers:
         reward = report.guess_reward or economy.GUESS + economy.VOTE
         table.append(f"🎯 Угадали: {', '.join(who(name) for name in guessers)} <i>(+{reward} монет)</i>")
@@ -262,7 +262,8 @@ def battle_result(
             aftermath.append(
                 f"<i>Рейтинг ниже {report.death_rating:.0f} или {DEATH_LOSS_STREAK}-е поражение подряд — арена не прощает</i>"
             )
-    return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), table, *(extras or []), aftermath)
+    # Pic rows are two lines each (name, rating): every row is its own block.
+    return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), *table, *(extras or []), aftermath)
 
 
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
@@ -278,7 +279,10 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
     kill, spare = trial.vote_counts()
     leader = max(kill, spare)
     head = "📜 <b>АПЕЛЛЯЦИЯ</b>" if trial.appeal else "⚖️ <b>НАРОДНЫЙ СУД</b>"
-    votes = [f"🪓 <b>{kill}</b>{bar(kill, leader, '🟥')}", f"🕊 <b>{spare}</b>{bar(spare, leader, '🟩')}"]
+    votes = [
+        f"🪓 Казнить · <b>{kill}</b>{bar(kill, leader, '🟥')}",
+        f"🕊 Помиловать · <b>{spare}</b>{bar(spare, leader, '🟩')}",
+    ]
     status = [
         f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>",
         "<i>Повторный суд: для казни нужно 3 голоса «казнить» и большинство</i>" if trial.appeal else "",
@@ -315,19 +319,22 @@ NOTE_CHESTS = {"wood": "деревянный сундук", "rare": "редки�
 
 
 def note_line(label: str, note) -> str:
+    """Two lines: what happened and to whom, then the details in italics."""
     from bot.texts.progress import quest_name  # local: progress texts are only needed here
 
+    name = f"<b>{who(label)}</b>"
     if note.kind == "quest":
-        name = quest_name(note.code, note.target)
-        return f"📜 <b>{who(label)}</b> — квест «{escape(name)}» · +{money(note.amount)}"
+        return f"📜 Квест выполнен — {name}\n<i>{escape(quest_name(note.code, note.target))} · +{num(note.amount)} монет</i>"
     if note.kind == "quests_all":
-        return f"📋 Все квесты дня закрыты: <b>{who(label)}</b> · +{money(note.amount)} и {NOTE_CHESTS['wood']}"
+        return f"📋 Все квесты дня — {name}\n<i>+{num(note.amount)} монет и {NOTE_CHESTS['wood']}</i>"
     if note.kind == "challenge":
-        name = quest_name(note.code, note.target)
-        return f"🏆 <b>{who(label)}</b> — челлендж недели «{escape(name)}» · +{money(note.amount)} и {NOTE_CHESTS['rare']}"
+        return (
+            f"🏆 Челлендж недели — {name}\n"
+            f"<i>{escape(quest_name(note.code, note.target))} · +{num(note.amount)} монет и {NOTE_CHESTS['rare']}</i>"
+        )
     if note.kind == "challenges_all":
-        return f"💎 <b>{who(label)}</b> — все челленджи недели! Держи {NOTE_CHESTS['legend']}"
-    return f"🎁 <b>{who(label)}</b> находит {NOTE_CHESTS.get(note.code, 'сундук')}"
+        return f"💎 Все челленджи недели — {name}\n<i>{NOTE_CHESTS['legend']}</i>"
+    return f"🎁 Находка — {name}\n<i>{NOTE_CHESTS.get(note.code, 'сундук')}</i>"
 
 
 RARITY_WORDS = {"common": "", "rare": " · редкая", "legendary": " · легендарная"}
@@ -338,7 +345,7 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
     achievement for several people becomes one block."""
     notes = [note_line(label, note) for label, granted in items for note in granted.notes]
     if not any(granted.codes or granted.level_up for _, granted in items):
-        return "\n".join(notes)
+        return card(*notes) if len(notes) == 1 else "\n\n".join(notes)
     blocks = [
         f"⬆️ <b>{who(label)}</b> — новый уровень «{escape(bare(granted.level_up))}»\n<i>{escape(pick(LEVEL_UP))}</i>"
         for label, granted in items
@@ -353,7 +360,7 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
         people = ", ".join(who(label) for label in by_code[code])
         rarity = RARITY_WORDS[rules.rarity(code)]
         blocks.append(f"<b>{escape(name)}</b>{rarity} — {people}\n<i>{escape(description)}</i>")
-    return card(f"<b>{escape(pick(UNLOCKED))}</b>", None, *blocks, notes)
+    return card(f"<b>{escape(pick(UNLOCKED))}</b>", None, *blocks, *notes)
 
 
 def has_legendary(granted: list[Granted]) -> bool:
@@ -432,9 +439,9 @@ def top(board: str, rows: list[tuple[str, int]]) -> str:
         lines.append(f"{place} {who(label)} — <b>{num(value)}</b> {unit}")
     lines += ["", f"<i>🥇 {who(rows[0][0])}: {escape(pick(top_texts.FIRST_PLACE, board))}</i>"]
     if len(rows) > 3:
-        lines.append(f"<i>🐌 {who(rows[-1][0])}: {escape(pick(top_texts.LAST_PLACE, board))}</i>")
+        lines += ["", f"<i>🐌 {who(rows[-1][0])}: {escape(pick(top_texts.LAST_PLACE, board))}</i>"]
     elif len(rows) > 1:
-        lines.append(f"<i>🥈 {who(rows[1][0])}: {escape(pick(top_texts.PODIUM, board))}</i>")
+        lines += ["", f"<i>🥈 {who(rows[1][0])}: {escape(pick(top_texts.PODIUM, board))}</i>"]
     return "\n".join(lines)
 
 
@@ -471,7 +478,7 @@ def profile(
     if upcoming:
         lines += [
             f"<code>{economy.progress(wallet.earned)}</code>  {num(wallet.earned)} / {num(upcoming.threshold)}",
-            f"<i>дальше — {escape(upcoming.name)}</i>",
+            f"<i>дальше — {escape(bare(upcoming.name))}</i>",
             "",
         ]
     wealth = f"🪙 {money(wallet.coins)}"
