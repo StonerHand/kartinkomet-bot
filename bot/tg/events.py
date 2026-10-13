@@ -18,6 +18,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile
 
+from bot.core import economy
 from bot.game import Game
 from bot.texts import events as texts
 from bot.texts.pick import pick
@@ -140,7 +141,8 @@ class Events:
     async def weekly(self, chat_id: int) -> bool:
         repo = self.game.repo
         summary = repo.week_summary(chat_id, self.game.now() - 7 * 86400)
-        if not summary["battles"] and not summary["likes"] and not summary["uploads"]:
+        crowns = self.game.crown_week()
+        if not summary["battles"] and not summary["likes"] and not summary["uploads"] and not crowns:
             return False
         lines = ["📅 <b>ИТОГИ НЕДЕЛИ</b>", views.quote(pick(texts.WEEKLY, chat_id))]
         lines.append(
@@ -153,6 +155,11 @@ class Events:
             lines += ["", "<b>📥 Грузили больше всех</b>"]
             for index, (user_id, count) in enumerate(summary["uploads"]):
                 lines.append(f"{views.MEDALS[index]} {views.who(repo.user_label(user_id))} — <b>{count}</b>")
+        if crowns:
+            lines += ["", "<b>👑 Короны недели</b> <i>(висят у имени до следующего воскресенья)</i>"]
+            for kind, (user_id, _) in crowns.items():
+                badge, title = economy.CROWNS[kind]
+                lines.append(f"{badge} {escape(title)} — <b>{views.who(repo.user_label(user_id))}</b>")
         text = "\n".join(lines)
         top_pic = summary["top_pic"]
         if top_pic is not None:

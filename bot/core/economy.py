@@ -60,3 +60,31 @@ def progress(earned: int, cells: int = 10) -> str:
     span = upcoming.threshold - current.threshold
     filled = int(cells * (earned - current.threshold) / span) if span else cells
     return "▰" * filled + "▱" * (cells - filled)
+
+
+# Weekly crowns: kind → (badge, title). Handed out with the Sunday digest, worn for a week.
+CROWNS = {
+    "uploader": ("👑", "Король загрузок"),
+    "executioner": ("🪓", "Палач недели"),
+    "advocate": ("😇", "Адвокат недели"),
+    "oracle": ("🎯", "Оракул недели"),
+    "rich": ("💰", "Богач недели"),
+}
+CROWN_SECONDS = 7 * 24 * 3600
+
+
+def people_voice(right: int, wrong: int) -> tuple[int, str] | None:
+    """Share of votes that matched the winner, with a verdict. None until 5 decided votes."""
+    total = right + wrong
+    if total < 5:
+        return None
+    share = round(100 * right / total)
+    if share >= 90:
+        verdict = "🐑 голос стада"
+    elif share >= 60:
+        verdict = "🗳 голос народа"
+    elif share > 30:
+        verdict = "🤷 сам по себе"
+    else:
+        verdict = "🦄 уникальный вкус"
+    return share, verdict

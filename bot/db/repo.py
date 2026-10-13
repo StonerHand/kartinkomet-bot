@@ -974,6 +974,56 @@ class Repo:
         ).fetchone()
         return row is not None
 
+    def nemesis(self, user_id: int) -> tuple[int, int] | None:
+        """(owner, losses): whose pics beat this user's pics in duels most often (2+ times)."""
+        row = self.db.execute(
+            """
+            SELECT pw.added_by, COUNT(*) FROM battles b
+            JOIN battle_entries w ON w.battle_id = b.id AND w.slot = b.winner_slot
+            JOIN battle_entries l ON l.battle_id = b.id AND l.slot != b.winner_slot
+            JOIN pics pw ON pw.id = w.pic_id
+            JOIN pics pl ON pl.id = l.pic_id
+            WHERE b.kind = 'duel' AND b.status = 'done' AND pl.added_by = ?
+              AND pw.added_by IS NOT NULL AND pw.added_by != ?
+            GROUP BY pw.added_by HAVING COUNT(*) >= 2 ORDER BY 2 DESC LIMIT 1
+            """,
+            (user_id, user_id),
+        ).fetchone()
+        return (row[0], row[1]) if row else None
+
+    def week_crowns(self, since: int) -> dict[str, tuple[int, int]]:
+        """Weekly crown holders: kind → (user_id, score)."""
+        queries = {
+            "uploader": (
+                "SELECT added_by, COUNT(*) FROM pics WHERE added_at >= ? AND added_by IS NOT NULL GROUP BY added_by",
+                (since,),
+            ),
+            "executioner": (
+                "SELECT v.user_id, COUNT(*) FROM court_votes v JOIN courts c ON c.id = v.court_id "
+                "WHERE c.started_at >= ? AND v.vote = 'kill' GROUP BY v.user_id",
+                (since,),
+            ),
+            "advocate": (
+                "SELECT v.user_id, COUNT(*) FROM court_votes v JOIN courts c ON c.id = v.court_id "
+                "WHERE c.started_at >= ? AND v.vote = 'spare' GROUP BY v.user_id",
+                (since,),
+            ),
+            "oracle": (
+                "SELECT user_id, COUNT(*) FROM ledger WHERE at >= ? AND reason = 'guess' GROUP BY user_id",
+                (since,),
+            ),
+            "rich": (
+                "SELECT user_id, SUM(amount) FROM ledger WHERE at >= ? AND amount > 0 GROUP BY user_id",
+                (since,),
+            ),
+        }
+        crowns = {}
+        for kind, (query, params) in queries.items():
+            row = self.db.execute(f"SELECT * FROM ({query}) ORDER BY 2 DESC, 1 LIMIT 1", params).fetchone()
+            if row and row[1] > 0:
+                crowns[kind] = (row[0], row[1])
+        return crowns
+
     def achievement_owners(self) -> dict[str, int]:
         return {
             row[0]: row[1]

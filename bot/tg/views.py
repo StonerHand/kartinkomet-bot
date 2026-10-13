@@ -324,6 +324,10 @@ class Wallet:
     coins: int
     earned: int
     streak: int  # days in a row with any vote or reaction
+    right_guesses: int = 0
+    wrong_guesses: int = 0
+    nemesis: tuple[str, int] | None = None  # (name, defeats)
+    crowns: tuple[str, ...] = ()
 
 
 def profile(
@@ -350,8 +354,18 @@ def profile(
             f"до «{escape(upcoming.name)}»"
         )
     streak = f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд" if wallet.streak > 1 else ""
+    lines.append(f"🪙 Пикчекоины: <b>{wallet.coins}</b>{streak}")
+    if wallet.crowns:
+        lines.append("Короны недели: " + " · ".join(
+            f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])}" for kind in wallet.crowns
+        ))
+    voice = economy.people_voice(wallet.right_guesses, wallet.wrong_guesses)
+    if voice:
+        lines.append(f"🗳 Совпадаешь с победителем в {voice[0]}% боёв — {escape(voice[1])}")
+    if wallet.nemesis:
+        name, defeats = wallet.nemesis
+        lines.append(f"😈 Немезида: <b>{who(name)}</b> · {defeats} {plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч")
     lines += [
-        f"🪙 Пикчекоины: <b>{wallet.coins}</b>{streak}",
         f"🏷 Титул загрузчика: {escape(title)}",
         "",
         f"📥 Загружено: <b>{stats.uploads}</b> · живых {stats.pics_alive}",
@@ -469,11 +483,17 @@ def caption_cancelled(chat_id: int) -> str:
 
 
 def gold_caption() -> str:
-    return f"<b>{escape(pick(game_texts.GOLD))}</b>\n<i>Приз: +{economy.GOLD} 🪙 и ачивка</i>"
+    return (
+        f"⚡ <b>ЗОЛОТАЯ ПИКЧА</b>\n{quote(pick(game_texts.GOLD))}"
+        f"<i>Кто первый нажмёт «⚡ Забрать» — тому +{economy.GOLD} 🪙 и ачивка</i>"
+    )
 
 
 def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int, chat_id: int) -> str:
-    lines = [f"🎰 <b>{who(label)}</b> крутит колесо", quote(pick(game_texts.SPIN_RESULTS[spin.kind], chat_id))]
+    lines = [
+        f"🎰 <b>{game_texts.SPIN_TITLES[spin.kind]}</b> · {who(label)}",
+        quote(pick(game_texts.SPIN_RESULTS[spin.kind], chat_id)),
+    ]
     if spin.coins:
         sign = "+" if spin.coins > 0 else "−"
         lines.append(f"🪙 {sign}{abs(spin.coins)} · баланс <b>{balance}</b>")

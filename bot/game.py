@@ -330,6 +330,7 @@ class Game:
             if slot == winner:
                 guessers.append(user_id)
                 self.pay(user_id, economy.GUESS, "guess")
+                self.repo.incr_counter(user_id, "right_guesses")
                 streak = self.repo.incr_counter(user_id, "guess_streak")
                 self.repo.raise_counter(user_id, "best_guess_streak", streak)
             else:
@@ -619,6 +620,32 @@ class Game:
         self.repo.set_counter(user_id, "horoscope_day", self.local_day())
         self.repo.incr_counter(user_id, "horoscopes")
         return pics[0], False, self.check_achievements([user_id])
+
+    # ── weekly crowns ──────────────────────────────────────────────────
+
+    def crown_week(self) -> dict[str, tuple[int, int]]:
+        """Hand out this week's crowns (stored in meta) and return them."""
+        crowns = self.repo.week_crowns(self.now() - 7 * 86400)
+        self.repo.set_meta("crowns", ",".join(f"{kind}:{user_id}" for kind, (user_id, _) in crowns.items()))
+        self.repo.set_meta("crowns_until", self.now() + economy.CROWN_SECONDS)
+        return crowns
+
+    def crowns_of(self, user_id: int) -> list[str]:
+        """Crown kinds this user currently wears."""
+        if self.repo.meta_int("crowns_until") <= self.now():
+            return []
+        raw = self.repo.meta_str("crowns") or ""
+        return [
+            kind for kind, _, holder in (item.partition(":") for item in raw.split(",") if item)
+            if holder == str(user_id)
+        ]
+
+    def badges(self, user_id: int | None) -> str:
+        """Crown emojis to show next to a name, e.g. ' 👑🪓'."""
+        if user_id is None:
+            return ""
+        marks = "".join(economy.CROWNS[kind][0] for kind in self.crowns_of(user_id))
+        return f" {marks}" if marks else ""
 
     # ── achievements ───────────────────────────────────────────────────
 

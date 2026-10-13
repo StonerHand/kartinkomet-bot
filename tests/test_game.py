@@ -373,3 +373,49 @@ class MiniGamesTest(unittest.TestCase):
         self.assertTrue(self.game.horoscope(5)[1])
         self.clock.advance(86400)
         self.assertFalse(self.game.horoscope(5)[1])
+
+
+class StatusesTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.game, self.clock, temp = make_game(pics=8, uploader=1)
+        self.addCleanup(temp.cleanup)
+
+    def test_weekly_crowns_last_a_week(self) -> None:
+        battle = self.game.start_duel(-1).battle
+        self.game.vote_battle(battle.id, 5, 0)
+        self.clock.advance(61)
+        self.game.finish_battle(battle.id)
+        crowns = self.game.crown_week()
+        self.assertEqual(crowns["uploader"][0], 1)
+        self.assertEqual(crowns["oracle"][0], 5)
+        self.assertIn("oracle", self.game.crowns_of(5))
+        self.assertEqual(self.game.badges(1), " 👑")
+        self.clock.advance(8 * 86400)
+        self.assertEqual(self.game.crowns_of(5), [])
+
+    def test_people_voice(self) -> None:
+        from bot.core.economy import people_voice
+
+        self.assertIsNone(people_voice(2, 2))
+        self.assertEqual(people_voice(9, 1), (90, "🐑 голос стада"))
+        self.assertEqual(people_voice(1, 9)[1], "🦄 уникальный вкус")
+
+    def test_nemesis(self) -> None:
+        self.game.repo.db.execute("UPDATE pics SET added_by = 2 WHERE rowid % 2 = 0")
+        self.game.repo.db.commit()
+        for _ in range(3):
+            battle = self.game.start_duel(-1).battle
+            owners = [pic.added_by for pic in battle.pics]
+            if owners[0] == owners[1]:
+                self.game.cancel_battle(battle.id)
+                continue
+            winner = owners.index(2)
+            self.game.vote_battle(battle.id, 9, winner)
+            self.clock.advance(61)
+            self.game.finish_battle(battle.id)
+            self.game.repo.db.execute("UPDATE pics SET status = 'alive', loss_streak = 0, rating = 1000")
+            self.game.repo.db.commit()
+        nemesis = self.game.repo.nemesis(1)
+        if nemesis is not None:
+            self.assertEqual(nemesis[0], 2)
+            self.assertGreaterEqual(nemesis[1], 2)

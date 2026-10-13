@@ -566,5 +566,22 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ИГРЫ", self.session.of("EditMessageText")[-1].text)
 
 
+    async def test_crowns_in_tops_profile_and_digest(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        self.game.add_pic("crown", "crown-uniq", 3, None)
+        self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())
+        self.at_hour(18, weekday=6)
+        await self.events().tick()
+        digest = [r for r in self.session.requests if "Короны недели" in (getattr(r, "text", None) or getattr(r, "caption", None) or "")]
+        self.assertEqual(len(digest), 1)
+        await self.press("m:top:uploads")
+        top = self.session.of("EditMessageText")[-1].text
+        self.assertIn("uploader 👑", top)  # 10 uploads this week
+        self.assertIn("user3 💰", top)  # most coins earned this week
+        self.session.refuse = {"SendEphemeralMessage"}
+        await self.press("m:me", sender=ADMIN)
+        self.assertIn("👑 Король загрузок", self.session.of("EditMessageText")[-1].text)
+
+
 if __name__ == "__main__":
     unittest.main()

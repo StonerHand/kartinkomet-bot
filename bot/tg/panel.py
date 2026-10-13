@@ -39,7 +39,7 @@ def screen(
         return text, keyboards.graveyard([pic.id for pic in pics], is_admin)
     if name == "top":
         board = arg if arg in BOARDS else "uploads"
-        rows = [(repo.user_label(user), value) for user, value in repo.top_users(board)]
+        rows = [(repo.user_label(user) + game.badges(user), value) for user, value in repo.top_users(board)]
         return views.top(board, rows), keyboards.tops(board)
     if name == "me":
         stats = repo.user_stats(user_id, game.night_hours_utc, game.tz_offset_hours, game.now())
@@ -54,7 +54,15 @@ def screen(
             stats,
             repo.achievements_of(user_id),
             place,
-            views.Wallet(coins=coins, earned=earned, streak=streak),
+            views.Wallet(
+                coins=coins,
+                earned=earned,
+                streak=streak,
+                right_guesses=repo.counter(user_id, "right_guesses"),
+                wrong_guesses=repo.counter(user_id, "wrong_guesses"),
+                nemesis=(repo.user_label(nemesis[0]), nemesis[1]) if (nemesis := repo.nemesis(user_id)) else None,
+                crowns=tuple(game.crowns_of(user_id)),
+            ),
             repo.achievement_owners(),
             max(1, repo.count_users()),
         )
