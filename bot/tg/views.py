@@ -115,7 +115,8 @@ def ago(seconds: int) -> str:
 
 
 def pic_footer(pic: Pic, uploader: str | None, bounty: int = 0) -> str:
-    parts = [f"{shop.stage(pic.wins).emoji} ⭐ {rating(pic.rating)}"]
+    stage = shop.stage(pic.wins)
+    parts = [f"{stage.emoji} {stage.name}", f"⭐ {rating(pic.rating)}"]
     if pic.wins or pic.losses:
         parts.append(f"⚔️ {pic.wins}–{pic.losses}")
     if uploader:
