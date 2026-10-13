@@ -19,6 +19,7 @@
   <a href=".python-version"><img src="https://img.shields.io/badge/Python-3.12-E53935?style=flat-square" alt="Python 3.12"></a>
   <a href="https://docs.aiogram.dev"><img src="https://img.shields.io/badge/aiogram-3.20-E53935?style=flat-square" alt="aiogram 3.20"></a>
   <a href="https://railway.com"><img src="https://img.shields.io/badge/Deploy-Railway-E53935?style=flat-square" alt="Работает на Railway"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-E53935?style=flat-square" alt="Лицензия MIT"></a>
 </p>
 
 <p align="center">
@@ -109,5 +110,9 @@ Telegram ──▶ aiogram (long polling) ──▶ bot/tg   карточки, �
 ```
 
 Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт. CI гоняет линтер и 86 тестов, включая сквозные сценарии с фейковым Telegram. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
+
+## 📄 Лицензия
+
+[MIT](LICENSE) © StonerHand
 
 <p align="center"><a href="https://t.me/kartinkomet_bot"><strong>Устроить первую дуэль ↗</strong></a></p>
