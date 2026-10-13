@@ -59,6 +59,8 @@ def screen(
             max(1, repo.count_users()),
         )
         return text, keyboards.markup(keyboards.back())
+    if name == "games":
+        return views.GAMES_SCREEN, keyboards.games_menu()
     if name == "help":
         return ui.HELP, keyboards.markup(keyboards.back())
     if name == "up":

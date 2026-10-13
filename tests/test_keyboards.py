@@ -32,6 +32,12 @@ def all_keyboards():
     yield "uploading", keyboards.uploading()
     yield "admin", keyboards.admin()
     yield "reset", keyboards.admin_reset_confirm()
+    yield "games", keyboards.games_menu()
+    yield "caption_vote", keyboards.caption_vote("g" * 16, 8)
+    yield "after_caption", keyboards.after_caption()
+    yield "gold", keyboards.gold("t" * 12)
+    yield "gold_taken", keyboards.gold_taken("averyveryverylongname")
+    yield "spin_again", keyboards.spin_again(20)
 
 
 class KeyboardTest(unittest.TestCase):

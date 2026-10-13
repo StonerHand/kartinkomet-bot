@@ -146,6 +146,44 @@ CREATE TABLE IF NOT EXISTS counters (
     PRIMARY KEY (user_id, key)
 ) WITHOUT ROWID;
 
+-- Mini-games. "Caption this pic": collect captions as replies, then vote anonymously.
+CREATE TABLE IF NOT EXISTS games (
+    id TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    pic_id TEXT NOT NULL REFERENCES pics(id),
+    message_id INTEGER,
+    phase TEXT NOT NULL DEFAULT 'collect' CHECK (phase IN ('collect', 'vote', 'done')),
+    phase_ends_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_games_active ON games(phase, chat_id);
+
+CREATE TABLE IF NOT EXISTS game_entries (
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (game_id, user_id)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS game_votes (
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    author_id INTEGER NOT NULL,
+    PRIMARY KEY (game_id, user_id)
+) WITHOUT ROWID;
+
+-- Golden pics: the first one to press "grab" wins.
+CREATE TABLE IF NOT EXISTS gold (
+    token TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    pic_id TEXT NOT NULL,
+    claimed_by INTEGER,
+    created_at INTEGER NOT NULL
+);
+
 -- Group chats the bot lives in, for scheduled events (pic of the day, auto court, weekly digest).
 CREATE TABLE IF NOT EXISTS chats (
     chat_id INTEGER PRIMARY KEY,

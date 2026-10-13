@@ -130,3 +130,25 @@ class DeckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GamesRulesTest(unittest.TestCase):
+    def test_caption_winner_and_tie_break(self) -> None:
+        from bot.core.games import caption_winner
+
+        entries = [{"user_id": 1}, {"user_id": 2}, {"user_id": 3}]
+        self.assertEqual(caption_winner(entries, {10: 2, 11: 2, 12: 3}), 2)
+        self.assertEqual(caption_winner(entries, {10: 3, 11: 2}), 2)  # tie → earlier entry
+        self.assertIsNone(caption_winner(entries, {}))
+
+    def test_slot_machine_outcomes(self) -> None:
+        import random
+
+        from bot.core.games import reels, spin_outcome
+
+        self.assertEqual(reels(64), (3, 3, 3))
+        self.assertEqual(spin_outcome(64, random.Random(1)).kind, "jackpot")
+        self.assertEqual(spin_outcome(1, random.Random(1)).kind, "triple")  # BAR BAR BAR
+        self.assertEqual(spin_outcome(2, random.Random(1)).kind, "pair")  # grapes BAR BAR
+        kinds = {spin_outcome(value, random.Random(value)).kind for value in range(1, 65)}
+        self.assertTrue({"jackpot", "triple", "pair"} <= kinds)

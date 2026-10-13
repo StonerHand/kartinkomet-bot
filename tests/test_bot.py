@@ -21,7 +21,7 @@ from aiogram.types import (
 from bot.__main__ import build_dispatcher
 from bot.core.arena import DUEL_SECONDS
 from bot.core.court import COURT_SECONDS
-from bot.tg import pics, timers, upload
+from bot.tg import games, pics, timers, upload
 from bot.tg.events import Events
 from bot.tg.timers import Live
 from tests.helpers import make_game
@@ -42,6 +42,7 @@ class FakeSession(BaseSession):
         pass
 
     image: bytes | None = None  # served by downloads when a test enables collages
+    dice_value = 64
 
     async def stream_content(self, *args, **kwargs):
         yield self.image or b""
@@ -66,6 +67,11 @@ class FakeSession(BaseSession):
             return {"message_id": 0}
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
             return self.message(int(method.chat_id), photo=name == "SendPhoto")
+        if name == "SendDice":
+            from aiogram.types import Dice
+
+            message = self.message(int(method.chat_id))
+            return message.model_copy(update={"dice": Dice(emoji="🎰", value=self.dice_value)})
         if name == "SendMediaGroup":
             return [self.message(int(method.chat_id)) for _ in method.media]
         if name == "GetMe":
@@ -94,6 +100,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         upload.sessions.clear()
         upload._visual_hashes = None
         pics._last_drop.clear()
+        games.DICE_ANIMATION_SECONDS = 0
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()
@@ -491,6 +498,72 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.game.pay(3, 50, "test")
         await self.press("m:top:rich")
         self.assertIn("user3 — <b>50</b> 🪙", self.session.of("EditMessageText")[-1].text)
+
+
+    # ── mini-games ─────────────────────────────────────────────────────
+
+    async def test_caption_contest_end_to_end(self) -> None:
+        await self.send("/caption")
+        card = self.session.of("SendPhoto")[-1]
+        self.assertIn("ПОДПИШИ ПИКЧУ", card.caption)
+        contest = self.game.repo.active_game(-100, "caption")
+        message = Message(message_id=contest["message_id"], date=datetime.now(UTC), chat=GROUP, from_user=BOT_USER)
+        await self.send("когда бот выдал легенду", sender=3, reply_to=message)
+        await self.send("рейтинг 1090 не трогай", sender=4, reply_to=message)
+        self.assertEqual([r.reaction[0].emoji for r in self.session.of("SetMessageReaction")], ["✍", "✍"])
+        self.clock.advance(61)
+        await self.live.advance_game(contest["id"])
+        vote_card = self.session.of("EditMessageCaption")[-1]
+        self.assertIn("ЛУЧШАЯ ПОДПИСЬ", vote_card.caption)
+        self.assertEqual(self.buttons(vote_card), [f"cv:{contest['id']}:0", f"cv:{contest['id']}:1"])
+        await self.press(f"cv:{contest['id']}:1", sender=5)
+        self.clock.advance(46)
+        await self.live.advance_game(contest["id"])
+        result = self.session.of("EditMessageCaption")[-1].caption
+        self.assertIn("ИТОГИ", result)
+        self.assertIn("👑 «рейтинг 1090 не трогай» — user4", result)
+
+    async def test_spin_shows_slot_machine_then_prize(self) -> None:
+        await self.send("/spin", sender=3)
+        self.assertEqual(self.session.of("SendDice")[0].emoji, "🎰")
+        prize = self.session.of("SendMessage")[0]
+        self.assertIn("ДЖЕКПОТ", prize.text)
+        self.assertEqual(self.game.repo.player(3)[0], 100)
+        self.assertIn("gm:spin", self.buttons(prize))
+
+    async def test_second_spin_without_coins_is_refused(self) -> None:
+        self.game.pay_for_spin(3)
+        await self.send("/spin", sender=3)
+        self.assertEqual(self.session.of("SendDice"), [])
+
+    async def test_horoscope_from_panel(self) -> None:
+        await self.press("gm:horo", sender=3)
+        self.assertIn("ГОРОСКОП", self.session.of("SendPhoto")[-1].caption)
+        await self.press("gm:horo", sender=3)
+        self.assertEqual(len(self.session.of("SendPhoto")), 1)
+
+    async def test_golden_pic_is_grabbed_once(self) -> None:
+        from io import BytesIO
+
+        from PIL import Image
+
+        buffer = BytesIO()
+        Image.new("RGB", (200, 200), (10, 10, 10)).save(buffer, "JPEG")
+        self.session.image = buffer.getvalue()
+        self.game.roll_gold = lambda chat_id: True
+        await self.send("/pic")
+        gold = self.session.of("SendPhoto")[-1]
+        self.assertIn("ЗОЛОТАЯ", gold.caption)
+        token_data = self.buttons(gold)[0]
+        await self.press(token_data, sender=3)
+        await self.press(token_data, sender=4)
+        self.assertEqual(self.game.repo.player(3)[0], 25)
+        self.assertEqual(self.game.repo.player(4)[0], 0)
+        self.assertTrue(self.session.of("EditMessageReplyMarkup")[-1].reply_markup.inline_keyboard[0][0].text.startswith("🏆"))
+
+    async def test_games_screen(self) -> None:
+        await self.press("m:games")
+        self.assertIn("ИГРЫ", self.session.of("EditMessageText")[-1].text)
 
 
 if __name__ == "__main__":

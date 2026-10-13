@@ -1,0 +1,213 @@
+"""Mini-games: caption contest, golden pic, wheel of fortune, horoscope."""
+
+import asyncio
+import logging
+
+from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
+from aiogram.filters import Command
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
+
+from bot import collage
+from bot.game import Game
+from bot.texts import games as game_texts
+from bot.texts import toasts, ui
+from bot.texts.pick import pick
+from bot.tg import keyboards, send, views
+from bot.tg.arena import download
+from bot.tg.timers import Live
+
+LOGGER = logging.getLogger(__name__)
+router = Router(name="games")
+DICE_ANIMATION_SECONDS = 2.5  # Telegram's 🎰 needs ~2 s to stop before revealing the prize
+
+
+# ── caption contest ────────────────────────────────────────────────────
+
+
+async def start_caption(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
+    status, contest = game.start_caption(chat_id)
+    if status == "active" and contest is not None:
+        if contest["phase_ends_at"] <= game.now():
+            await live.advance_game(contest["id"])
+            status, contest = game.start_caption(chat_id)
+        else:
+            return "active"
+    if status == "shortage" or contest is None:
+        await send.send_text(bot, chat_id, f"<b>📦 {pick(ui.EMPTY_POOL, chat_id)}</b>")
+        return "shortage"
+    pic = game.repo.get_pic(contest["pic_id"])
+    message = await send.send_photo(
+        bot,
+        chat_id,
+        pic.file_id,
+        views.caption_card(contest, contest["phase_ends_at"] - game.now(), chat_id),
+    )
+    if message is None:
+        game.repo.drop_game(contest["id"])
+        return "failed"
+    game.repo.set_game_message(contest["id"], message.message_id)
+    live.watch_game(contest["id"])
+    return "started"
+
+
+@router.message(Command("caption"))
+async def caption_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    if await start_caption(bot, game, live, message.chat.id) == "active":
+        await message.answer("🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
+
+
+@router.callback_query(F.data.startswith("cv:"))
+async def caption_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, game_id, raw_slot = callback.data.split(":", 2)
+    status = game.caption_vote(game_id, callback.from_user.id, int(raw_slot) if raw_slot.isdigit() else -1)
+    answers = {
+        "ok": pick(toasts.DUEL_VOTE),
+        "same": pick(toasts.ALREADY),
+        "own": "За свою подпись голосовать нельзя, нарцисс",
+        "closed": "Голосование уже закрыто",
+        "gone": "Этого конкурса уже нет",
+    }
+    await callback.answer(answers[status], show_alert=status in ("own", "gone"))
+    if status == "ok":
+        live.request_refresh_game(game_id)
+
+
+async def caption_reply(message: Message, bot: Bot, game: Game, live: Live) -> bool:
+    """A reply to a caption-contest pic. Returns True if it was taken as a caption."""
+    if message.from_user is None or message.reply_to_message is None:
+        return False
+    contest = game.caption_entry(
+        message.chat.id, message.reply_to_message.message_id, message.from_user.id, message.text or ""
+    )
+    if contest is None:
+        return False
+    await send.react(bot, message.chat.id, message.message_id, "✍")
+    live.request_refresh_game(contest["id"])
+    return True
+
+
+# ── golden pic ─────────────────────────────────────────────────────────
+
+
+async def drop_gold(bot: Bot, game: Game, chat_id: int, pic) -> bool:
+    """Send a pic as a golden one. False if the frame couldn't be built (caller sends it plainly)."""
+    try:
+        image = await download(bot, pic.file_id)
+        if image is None:
+            return False
+        framed = await asyncio.to_thread(collage.golden_frame, image)
+    except Exception:  # a failed frame just means a normal pic
+        LOGGER.warning("Golden frame failed", exc_info=True)
+        return False
+    token = game.repo.create_gold(chat_id, pic.id, game.now())
+    message = await send.send_photo(
+        bot, chat_id, BufferedInputFile(framed, filename="gold.jpg"), views.gold_caption(), keyboards.gold(token)
+    )
+    return message is not None
+
+
+@router.callback_query(F.data.startswith("gold:"))
+async def grab_gold(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    token = callback.data.split(":", 1)[1]
+    if token == "taken":
+        await callback.answer(pick(game_texts.GOLD_CLAIMED))
+        return
+    won, granted = game.claim_gold(token, callback.from_user.id)
+    if not won:
+        await callback.answer(pick(game_texts.GOLD_CLAIMED), show_alert=True)
+        return
+    await callback.answer("⚡ Твоё! +25 🪙", show_alert=True)
+    if callback.message is not None:
+        label = game.repo.user_label(callback.from_user.id)
+        chat_id = callback.message.chat.id
+        await send.edit_markup(bot, chat_id, callback.message.message_id, keyboards.gold_taken(label))
+        await live.announce(chat_id, granted)
+
+
+# ── wheel of fortune ───────────────────────────────────────────────────
+
+
+async def spin(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
+    """Returns a toast for refusals, None when the wheel actually spun."""
+    price = game.spin_price(user_id)
+    if not game.pay_for_spin(user_id):
+        return pick(game_texts.SPIN_BROKE)
+    try:
+        dice = await bot.send_dice(chat_id, emoji="🎰")
+    except TelegramAPIError:
+        LOGGER.warning("Could not send the slot machine in %s", chat_id, exc_info=True)
+        if price:
+            game.pay(user_id, price, "spin_refund")
+        else:
+            game.repo.set_counter(user_id, "spin_day", 0)  # the free spin is still available
+        return pick(ui.ERRORS)
+    await asyncio.sleep(DICE_ANIMATION_SECONDS)
+    result, pic, granted = game.resolve_spin(user_id, dice.dice.value)
+    balance = game.repo.player(user_id)[0]
+    text = views.spin_result(game.repo.user_label(user_id), result, pic, balance, chat_id)
+    markup = keyboards.spin_again(game.spin_price(user_id))
+    if result.kind == "legend" and pic is not None:
+        await send.send_photo(bot, chat_id, pic.file_id, text, markup, reply_to=dice.message_id)
+    else:
+        await send.send_text(bot, chat_id, text, markup, reply_to=dice.message_id)
+    await live.announce(chat_id, granted)
+    return None
+
+
+@router.message(Command("spin"))
+async def spin_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    if message.from_user is None:
+        return
+    refusal = await spin(bot, game, live, message.chat.id, message.from_user.id)
+    if refusal:
+        await message.reply(refusal)
+
+
+# ── horoscope ──────────────────────────────────────────────────────────
+
+
+async def horoscope(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
+    pic, already, granted = game.horoscope(user_id)
+    if already:
+        return pick(game_texts.HOROSCOPE_AGAIN)
+    if pic is None:
+        return pick(ui.EMPTY_POOL)
+    await send.send_photo(bot, chat_id, pic.file_id, views.horoscope(game.repo.user_label(user_id), chat_id))
+    await live.announce(chat_id, granted)
+    return None
+
+
+@router.message(Command("horoscope"))
+async def horoscope_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    if message.from_user is None:
+        return
+    refusal = await horoscope(bot, game, live, message.chat.id, message.from_user.id)
+    if refusal:
+        await message.reply(refusal)
+
+
+# ── panel buttons ──────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo"}))
+async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+    chat_id = callback.message.chat.id
+    if callback.data == "gm:caption":
+        await send.answer_quietly(callback, "🖋 Ищу пикчу без подписи…")
+        if await start_caption(bot, game, live, chat_id) == "active":
+            await send.send_text(bot, chat_id, "🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
+        return
+    if callback.data == "gm:spin":
+        price = game.spin_price(callback.from_user.id)
+        await send.answer_quietly(callback, "🎰 Крутим!" if not price else f"🎰 Крутим за {price} 🪙")
+        refusal = await spin(bot, game, live, chat_id, callback.from_user.id)
+    else:
+        await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")
+        refusal = await horoscope(bot, game, live, chat_id, callback.from_user.id)
+    if refusal:
+        label = game.repo.user_label(callback.from_user.id)
+        await send.send_text(bot, chat_id, f"{views.who(label)}, {refusal[0].lower()}{refusal[1:]}")

@@ -68,3 +68,23 @@ def build(images: list[bytes]) -> bytes:
     output = BytesIO()
     canvas.save(output, "JPEG", quality=90, optimize=True)
     return output.getvalue()
+
+
+GOLD_OUTER = (212, 160, 23)
+GOLD_INNER = (255, 223, 110)
+
+
+def golden_frame(image_bytes: bytes) -> bytes:
+    """The pic in a thick gold frame for the 'golden pic' drop."""
+    picture = _fit(image_bytes)
+    border = max(18, picture.width // 22)
+    framed = Image.new("RGB", (picture.width + 2 * border, picture.height + 2 * border), GOLD_OUTER)
+    draw = ImageDraw.Draw(framed)
+    inset = border // 3
+    draw.rectangle(
+        (inset, inset, framed.width - 1 - inset, framed.height - 1 - inset), outline=GOLD_INNER, width=max(3, border // 5)
+    )
+    framed.paste(picture, (border, border))
+    output = BytesIO()
+    framed.save(output, "JPEG", quality=90, optimize=True)
+    return output.getvalue()

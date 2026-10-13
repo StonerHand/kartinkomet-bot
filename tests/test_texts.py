@@ -2,7 +2,7 @@ import unittest
 from html.parser import HTMLParser
 
 from bot.core.achievements import ALL_CODES
-from bot.texts import arena, captions, court, toasts, tops, ui
+from bot.texts import arena, captions, court, events, games, toasts, tops, ui
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick, reset
 
@@ -37,10 +37,14 @@ EXPECTED_SIZES = {
 
 
 def all_pools():
-    for module in (arena, captions, court, toasts, tops, ui):
+    for module in (arena, captions, court, events, games, toasts, tops, ui):
         for name, value in vars(module).items():
             if name.isupper() and isinstance(value, tuple) and value and isinstance(value[0], str):
                 yield f"{module.__name__}.{name}", value
+            if name.isupper() and isinstance(value, dict):
+                for key, pool in value.items():
+                    if isinstance(pool, tuple):
+                        yield f"{module.__name__}.{name}.{key}", pool
 
 
 class TextsTest(unittest.TestCase):

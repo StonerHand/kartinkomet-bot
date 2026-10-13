@@ -9,7 +9,7 @@ from bot.config import load_config
 from bot.db.migrate import migrate_if_needed
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import admin, arena, court, fallback, inline, panel, pics, upload
+from bot.tg import admin, arena, court, fallback, games, inline, panel, pics, upload
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
@@ -21,6 +21,9 @@ GROUP_COMMANDS = [
     BotCommand(command="duel", description="⚔️ дуэль двух пикч"),
     BotCommand(command="tournament", description="🏟 турнир четырёх"),
     BotCommand(command="menu", description="🎛 пульт: слава, дно, кладбище, топы"),
+    BotCommand(command="caption", description="🖋 подпиши пикчу"),
+    BotCommand(command="spin", description="🎰 колесо фортуны"),
+    BotCommand(command="horoscope", description="🔮 гороскоп на сегодня"),
     BotCommand(command="top", description="🏆 топы"),
     BotCommand(command="me", description="👤 моя карточка"),
     BotCommand(command="help", description="❓ правила"),
@@ -64,6 +67,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         arena.router,
         upload.router,
         admin.router,
+        games.router,
         inline.router,
         court.router,
         fallback.router,

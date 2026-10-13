@@ -299,3 +299,77 @@ class EconomyTest(unittest.TestCase):
         self.game.add_pic("x", "x-uniq", 5, None)
         self.assertEqual(self.game.repo.counter(5, "dup_streak"), 0)
         self.assertIn("garbage_chute", self.game.repo.achievements_of(5))
+
+
+class MiniGamesTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.game, self.clock, temp = make_game(pics=6, uploader=1)
+        self.addCleanup(temp.cleanup)
+
+    def test_caption_contest_full_cycle(self) -> None:
+        status, contest = self.game.start_caption(-1)
+        self.assertEqual(status, "started")
+        self.assertEqual(self.game.start_caption(-1)[0], "active")
+        self.game.repo.set_game_message(contest["id"], 50)
+        self.assertIsNotNone(self.game.caption_entry(-1, 50, 5, "  когда бот   выдал легенду "))
+        self.game.caption_entry(-1, 50, 6, "нет")
+        self.game.caption_entry(-1, 50, 6, "передумал")  # rewriting keeps one entry per person
+        self.assertIsNone(self.game.caption_entry(-1, 999, 7, "не та пикча"))
+        self.clock.advance(61)
+        outcome, contest, _ = self.game.advance_caption(contest["id"])
+        self.assertEqual(outcome, "vote")
+        self.assertEqual([entry["text"] for entry in contest["entries"]], ["когда бот выдал легенду", "передумал"])
+        self.assertIsNone(self.game.caption_entry(-1, 50, 7, "поздно"))
+        self.assertEqual(self.game.caption_vote(contest["id"], 5, 0), "own")
+        self.assertEqual(self.game.caption_vote(contest["id"], 6, 0), "ok")
+        self.assertEqual(self.game.caption_vote(contest["id"], 7, 0), "ok")
+        self.clock.advance(46)
+        outcome, contest, granted = self.game.advance_caption(contest["id"])
+        self.assertEqual((outcome, contest["winner"]), ("done", 5))
+        self.assertEqual(self.game.repo.player(5)[0], 15)
+        self.assertIn("wit", [code for item in granted if item.user_id == 5 for code in item.codes])
+        self.assertEqual(self.game.advance_caption(contest["id"])[0], "noop")
+
+    def test_caption_cancelled_without_two_entries(self) -> None:
+        _, contest = self.game.start_caption(-1)
+        self.game.repo.set_game_message(contest["id"], 50)
+        self.game.caption_entry(-1, 50, 5, "одна")
+        self.clock.advance(61)
+        self.assertEqual(self.game.advance_caption(contest["id"])[0], "cancelled")
+        self.assertEqual(self.game.start_caption(-1)[0], "started")
+
+    def test_gold_goes_to_the_first(self) -> None:
+        token = self.game.repo.create_gold(-1, "x", self.game.now())
+        self.assertTrue(self.game.claim_gold(token, 5)[0])
+        self.assertFalse(self.game.claim_gold(token, 6)[0])
+        self.assertEqual(self.game.repo.player(5)[0], 25)
+
+    def test_gold_cooldown(self) -> None:
+        self.game.rng.random = lambda: 0.0
+        self.assertTrue(self.game.roll_gold(-1))
+        self.game.repo.create_gold(-1, "x", self.game.now())
+        self.assertFalse(self.game.roll_gold(-1))
+
+    def test_spin_is_free_once_a_day(self) -> None:
+        self.assertEqual(self.game.spin_price(5), 0)
+        self.assertTrue(self.game.pay_for_spin(5))
+        self.assertEqual(self.game.spin_price(5), 20)
+        self.assertFalse(self.game.pay_for_spin(5))  # no coins
+        self.game.pay(5, 30, "test")
+        self.assertTrue(self.game.pay_for_spin(5))
+        self.assertEqual(self.game.repo.player(5)[0], 10)
+        spin, _, _ = self.game.resolve_spin(5, 64)
+        self.assertEqual((spin.kind, self.game.repo.player(5)[0]), ("jackpot", 110))
+
+    def test_curse_hits_own_pic(self) -> None:
+        self.game.rng.uniform = lambda a, b: 60  # lands in the "curse" weight band
+        spin, pic, _ = self.game.resolve_spin(1, 2 + 4 * 2 + 16 * 3)  # no pair, no triple
+        self.assertEqual(spin.kind, "curse")
+        self.assertEqual(self.game.repo.get_pic(pic.id).rating, pic.rating - 20)
+
+    def test_horoscope_once_a_day(self) -> None:
+        pic, already, _ = self.game.horoscope(5)
+        self.assertIsNotNone(pic)
+        self.assertTrue(self.game.horoscope(5)[1])
+        self.clock.advance(86400)
+        self.assertFalse(self.game.horoscope(5)[1])

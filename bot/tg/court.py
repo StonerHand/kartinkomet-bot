@@ -108,7 +108,8 @@ async def trial_placeholder(callback: CallbackQuery) -> None:
 
 
 @router.message(F.reply_to_message.from_user.is_bot & F.text)
-async def last_word(message: Message, game: Game, live: Live) -> None:
+async def reply_to_bot(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    """Replies to the bot are either a defendant's last word or a caption-contest entry."""
     if message.from_user is None or message.reply_to_message is None:
         return
     trial = game.last_word(
@@ -118,6 +119,9 @@ async def last_word(message: Message, game: Game, live: Live) -> None:
         message.text or "",
     )
     if trial is None:
+        from bot.tg.games import caption_reply  # local: games imports arena, which shares helpers
+
+        await caption_reply(message, bot, game, live)
         return
     await live.refresh_court(trial.id)
     await message.reply("🗣 Записано в протокол. Присяжные, учтите")

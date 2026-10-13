@@ -18,6 +18,8 @@ from bot.game import BattleReport, CourtReport, Granted
 from bot.texts import arena as arena_texts
 from bot.texts import captions, court as court_texts, tops as top_texts, ui
 from bot.texts import events as event_texts
+from bot.texts import games as game_texts
+from bot.core import games as game_rules
 from bot.texts.achievements import ACHIEVEMENTS, LEVEL_UP, RARITY_MARKS, UNLOCKED
 from bot.texts.pick import pick
 from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
@@ -405,3 +407,85 @@ def admin(totals: dict[str, int], users: int, database: str) -> str:
         f"👥 Юзеров: <b>{users}</b>\n"
         f"🗄 <code>{escape(database)}</code>"
     )
+
+
+# ── mini-games ─────────────────────────────────────────────────────────
+
+
+GAMES_SCREEN = (
+    "🎮 <b>ИГРЫ</b>\n\n"
+    "🖋 <b>Подпиши пикчу</b> — минута на подпись ответом на пикчу, потом анонимное голосование. "
+    f"Победителю +{economy.CAPTION_WIN} 🪙\n"
+    f"🎰 <b>Колесо фортуны</b> — раз в день бесплатно, потом {economy.SPIN_PRICE} 🪙\n"
+    "🔮 <b>Гороскоп</b> — личная пикча и предсказание, раз в день\n"
+    f"⚡ <b>Золотая пикча</b> — иногда выпадает в рандоме: кто первый нажмёт, тому +{economy.GOLD} 🪙"
+)
+
+
+def caption_card(game: dict, remaining: int, chat_id: int) -> str:
+    entries = game["entries"]
+    if game["phase"] == "collect":
+        count = len(entries)
+        return (
+            f"🖋 <b>ПОДПИШИ ПИКЧУ</b> · ⏳ <b>{timer(remaining)}</b>\n"
+            f"{quote(pick(game_texts.CAPTION_START, chat_id))}\n"
+            "Ответь на это сообщение своей подписью — до "
+            f"{game_rules.CAPTION_MAX_LENGTH} символов, можно переписать.\n"
+            f"✍️ Подписей: <b>{count}</b> из {game_rules.CAPTION_MAX_ENTRIES}"
+        )
+    tally: dict[int, int] = {}
+    for author in game["votes"].values():
+        tally[author] = tally.get(author, 0) + 1
+    lines = [
+        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · ⏳ <b>{timer(remaining)}</b>",
+        quote(pick(game_texts.CAPTION_VOTE, chat_id)),
+    ]
+    for index, entry in enumerate(entries, start=1):
+        votes = tally.get(entry["user_id"], 0)
+        lines.append(f"<b>{index}.</b> {escape(entry['text'])}" + (f"  <i>· {votes}</i>" if votes else ""))
+    return "\n".join(lines)
+
+
+def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
+    tally: dict[int, int] = {}
+    for author in game["votes"].values():
+        tally[author] = tally.get(author, 0) + 1
+    winner = game.get("winner")
+    head = "🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>"
+    pool = game_texts.CAPTION_WIN if winner is not None else game_texts.CAPTION_NO_VOTES
+    lines = [head, quote(pick(pool, chat_id))]
+    ordered = sorted(game["entries"], key=lambda entry: -tally.get(entry["user_id"], 0))
+    for entry in ordered:
+        mark = "👑" if entry["user_id"] == winner else "▫️"
+        votes = tally.get(entry["user_id"], 0)
+        lines.append(f"{mark} «{escape(entry['text'])}» — {who(labels.get(entry['user_id'], '?'))} · {votes}")
+    if winner is not None:
+        lines.append(f"\n🪙 <b>{who(labels.get(winner, '?'))}</b> +{economy.CAPTION_WIN}")
+    return "\n".join(lines)
+
+
+def caption_cancelled(chat_id: int) -> str:
+    return f"🖋 <b>ПОДПИШИ ПИКЧУ</b>\n{quote(pick(game_texts.CAPTION_CANCELLED, chat_id))}"
+
+
+def gold_caption() -> str:
+    return f"<b>{escape(pick(game_texts.GOLD))}</b>\n<i>Приз: +{economy.GOLD} 🪙 и ачивка</i>"
+
+
+def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int, chat_id: int) -> str:
+    lines = [f"🎰 <b>{who(label)}</b> крутит колесо", quote(pick(game_texts.SPIN_RESULTS[spin.kind], chat_id))]
+    if spin.coins:
+        sign = "+" if spin.coins > 0 else "−"
+        lines.append(f"🪙 {sign}{abs(spin.coins)} · баланс <b>{balance}</b>")
+    if spin.kind in ("curse", "bless"):
+        if pic is None:
+            lines.append("<i>…но твоих пикч на складе нет, так что мимо</i>")
+        else:
+            delta = game_rules.CURSE_RATING if spin.kind == "curse" else game_rules.BLESS_RATING
+            sign = "+" if delta > 0 else "−"
+            lines.append(f"⭐ Случайная твоя пикча: {sign}{abs(delta)} рейтинга (теперь {rating(pic.rating + delta)})")
+    return "\n".join(lines)
+
+
+def horoscope(label: str, chat_id: int) -> str:
+    return f"🔮 <b>ГОРОСКОП · {who(label).upper()}</b>\n{quote(pick(game_texts.HOROSCOPE, chat_id))}".rstrip()

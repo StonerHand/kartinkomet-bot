@@ -31,6 +31,12 @@ class Live:
     def watch_court(self, court_id: str) -> None:
         self._spawn(f"c:{court_id}", self._court_loop(court_id))
 
+    def watch_game(self, game_id: str) -> None:
+        self._spawn(f"g:{game_id}", self._game_loop(game_id))
+
+    def request_refresh_game(self, game_id: str) -> None:
+        self._debounce(f"rg:{game_id}", lambda: self.refresh_game(game_id))
+
     def request_refresh_battle(self, battle_id: str) -> None:
         self._debounce(f"rb:{battle_id}", lambda: self.refresh_battle(battle_id))
 
@@ -52,11 +58,14 @@ class Live:
     def restore(self) -> int:
         battle_ids = self.game.repo.active_battle_ids()
         court_ids = self.game.repo.active_court_ids()
+        game_ids = self.game.repo.active_game_ids()
         for battle_id in battle_ids:
             self.watch_battle(battle_id)
         for court_id in court_ids:
             self.watch_court(court_id)
-        return len(battle_ids) + len(court_ids)
+        for game_id in game_ids:
+            self.watch_game(game_id)
+        return len(battle_ids) + len(court_ids) + len(game_ids)
 
     async def stop(self) -> None:
         for task in self._tasks.values():
@@ -193,6 +202,60 @@ class Live:
                 markup = keyboards.pic_actions(pic.id, pic.likes, pic.dislikes)
             await send.edit_markup(self.bot, trial.chat_id, trial.pic_message_id, markup)
         await self.announce(trial.chat_id, report.granted)
+
+    # ── caption contest ────────────────────────────────────────────────
+
+    async def _game_loop(self, game_id: str) -> None:
+        while True:
+            game = self.game.repo.get_game(game_id)
+            if game is None or game["phase"] == "done":
+                return
+            remaining = game["phase_ends_at"] - self.game.now()
+            if remaining <= 0:
+                await self.advance_game(game_id)
+                continue
+            await self.refresh_game(game_id)
+            await asyncio.sleep(min(TICK_SECONDS, remaining))
+
+    async def refresh_game(self, game_id: str) -> None:
+        game = self.game.repo.get_game(game_id)
+        if game is None or game["phase"] == "done" or game["message_id"] is None:
+            return
+        markup = keyboards.caption_vote(game_id, len(game["entries"])) if game["phase"] == "vote" else None
+        await send.edit_caption(
+            self.bot,
+            game["chat_id"],
+            game["message_id"],
+            views.caption_card(game, game["phase_ends_at"] - self.game.now(), game["chat_id"]),
+            markup,
+        )
+
+    async def advance_game(self, game_id: str) -> None:
+        outcome, game, granted = self.game.advance_caption(game_id)
+        if game is None or outcome == "noop" or game["message_id"] is None:
+            return
+        chat_id, message_id = game["chat_id"], game["message_id"]
+        if outcome == "vote":
+            await self.refresh_game(game_id)
+        elif outcome == "cancelled":
+            await send.edit_caption(
+                self.bot, chat_id, message_id, views.caption_cancelled(chat_id), keyboards.after_caption()
+            )
+        elif outcome == "done":
+            labels = {
+                user_id: self.game.repo.user_label(user_id)
+                for user_id in [entry["user_id"] for entry in game["entries"]]
+            }
+            await send.edit_caption(
+                self.bot,
+                chat_id,
+                message_id,
+                views.caption_result(game, labels, chat_id),
+                keyboards.after_caption(),
+            )
+            if game.get("winner") is not None:
+                await send.react(self.bot, chat_id, message_id, "🏆")
+            await self.announce(chat_id, granted)
 
     # ── achievements ───────────────────────────────────────────────────
 

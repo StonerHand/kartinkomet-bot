@@ -56,10 +56,41 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
         [button("🏟 Турнир", "t:new", PRIMARY), button("🏆 Топы", "m:top:uploads")],
         [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom")],
         [button("⚰️ Кладбище", "m:grave"), button("👤 Я", "m:me")],
-        [button("📥 Загрузить", "m:up", SUCCESS), button("❓ Правила", "m:help")],
+        [button("🎮 Игры", "m:games", PRIMARY), button("❓ Правила", "m:help")],
+        [button("📥 Загрузить", "m:up", SUCCESS)],
         [button("🔄 Обновить", "m:home:refresh")]
         + ([button("⚙️ Админка", "m:adm")] if is_admin else []),
     )
+
+
+def games_menu() -> InlineKeyboardMarkup:
+    return markup(
+        [button("🖋 Подпиши", "gm:caption", PRIMARY), button("🎰 Колесо", "gm:spin", SUCCESS)],
+        [button("🔮 Гороскоп", "gm:horo")],
+        back(),
+    )
+
+
+def caption_vote(game_id: str, entries: int) -> InlineKeyboardMarkup:
+    buttons = [button(f"{index + 1}", f"cv:{game_id}:{index}", PRIMARY) for index in range(entries)]
+    return markup(buttons[:4], buttons[4:])
+
+
+def after_caption() -> InlineKeyboardMarkup:
+    return markup([button("🖋 Ещё пикчу", "gm:caption", PRIMARY)])
+
+
+def gold(token: str) -> InlineKeyboardMarkup:
+    return markup([button("⚡ Забрать", f"gold:{token}", SUCCESS)])
+
+
+def gold_taken(label: str) -> InlineKeyboardMarkup:
+    return markup([button(f"🏆 {label[:10]}", "gold:taken"), button("🎲 ещё", "pic", PRIMARY)])
+
+
+def spin_again(price: int) -> InlineKeyboardMarkup:
+    label = "🎰 Ещё раз" if not price else f"🎰 За {price} 🪙"
+    return markup([button(label, "gm:spin", SUCCESS)])
 
 
 def pic_actions(pic_id: str, likes: int, dislikes: int) -> InlineKeyboardMarkup:

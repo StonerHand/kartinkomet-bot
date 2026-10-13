@@ -42,6 +42,12 @@ async def drop_pic(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int 
         await send.send_text(bot, chat_id, f"<b>📦 {pick(ui.EMPTY_POOL, chat_id)}</b>")
         return
     pic, bucket, granted = drawn
+    if game.roll_gold(chat_id):
+        from bot.tg.games import drop_gold  # local: games imports arena → avoid an import cycle
+
+        if await drop_gold(bot, game, chat_id, pic):
+            await live.announce(chat_id, granted)
+            return
     uploader = game.repo.user_label(pic.added_by) if pic.added_by else None
     message = await send.send_photo(
         bot,
