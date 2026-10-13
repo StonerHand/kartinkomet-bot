@@ -489,9 +489,9 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=3)
         text = self.session.of("EditMessageText")[-1].text
-        self.assertIn("🪙 Пикчекоины: <b>70</b>", text)
+        self.assertIn("🪙 <b>70</b> коинов", text)
         self.assertIn("🙂 Свой", text)
-        self.assertIn("Витрина: 🎯 Оракул", text)
+        self.assertIn("\n🎯 Оракул\n", text)
 
     async def test_rich_top(self) -> None:
         self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())

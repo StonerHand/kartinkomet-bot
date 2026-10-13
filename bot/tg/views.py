@@ -1,9 +1,12 @@
 """Message texts for cards and screens. Pure formatting, no I/O.
 
-Visual language: bold caps header with the key number (timer, verdict), flavour phrase in a
-blockquote followed by an empty line (Telegram glues the next line to a quote otherwise),
-vote counts first and short emoji bars after them so numbers line up, no empty cells
-(they render badly on phones), names without "@" (an @mention pings the person every time).
+Visual language:
+- header: emoji + bold caps title, then one italic line of flavour or explanation;
+- the body is split into blocks by empty lines, a block of 2+ lines opens with a bold label;
+- one fact per line, the number in bold first, few emoji (an emoji per word turns into noise);
+- a blockquote is always followed by an empty line (Telegram glues the next line to it);
+- vote counts first and short emoji bars after them so numbers line up;
+- names without "@" (an @mention pings the person every time).
 """
 
 from html import escape
@@ -253,10 +256,12 @@ def has_legendary(granted: list[Granted]) -> bool:
 def home(totals: dict[str, int], chat_id: int, live_now: list[str]) -> str:
     lines = [
         "🎛 <b>КАРТИНКОМЕТ</b>",
-        quote(pick(ui.MENU_HEADERS, chat_id)),
-        f"📦 <b>{totals['alive']}</b> в строю · ⚰️ <b>{totals['executed']}</b> на кладбище",
+        f"<i>{escape(pick(ui.MENU_HEADERS, chat_id))}</i>",
+        "",
+        f"📦 <b>{totals['alive']}</b> {plural(totals['alive'], 'пикча', 'пикчи', 'пикч')} в строю",
+        f"⚰️ <b>{totals['executed']}</b> на кладбище",
         f"👀 <b>{totals['shows']}</b> {plural(totals['shows'], 'показ', 'показа', 'показов')}"
-        f" · 🤙🏻 <b>{totals['likes']}</b> · 🖕🏻 <b>{totals['dislikes']}</b>",
+        f" · 🤙🏻 {totals['likes']} · 🖕🏻 {totals['dislikes']}",
     ]
     if live_now:
         lines += ["", "🔴 <b>Сейчас идёт</b>", *live_now]
@@ -264,26 +269,24 @@ def home(totals: dict[str, int], chat_id: int, live_now: list[str]) -> str:
 
 
 def hall(pics: list[Pic], labels: list[str], record: int) -> str:
-    lines = ["🏛 <b>ЗАЛ СЛАВЫ</b>", "<i>Лучшие по рейтингу. 👀 — показать пикчу</i>", ""]
+    lines = ["🏛 <b>ЗАЛ СЛАВЫ</b>", "<i>Рейтинг · автор · победы–поражения. 👀 — показать</i>", ""]
     if not pics:
         lines.append("Пока пусто. Устройте пару дуэлей — тут появятся герои")
     for index, (pic, label) in enumerate(zip(pics, labels)):
-        place = MEDALS[index] if index < 3 else f"<b>{index + 1}.</b>"
+        place = MEDALS[index] if index < 3 else f"{index + 1}."
         streak = f" · 🔥{pic.best_streak}" if pic.best_streak > 1 else ""
-        lines.append(f"{place} ⭐ <b>{rating(pic.rating)}</b> · ⚔️ {pic.wins}–{pic.losses}{streak} · {who(label)}")
+        lines.append(f"{place} <b>{rating(pic.rating)}</b>  {who(label)}  <i>{pic.wins}–{pic.losses}{streak}</i>")
     if record:
-        lines += ["", f"👑 Рекорд серии в чате: <b>{record}</b>"]
+        lines += ["", f"<i>👑 Рекорд серии в чате: {record}</i>"]
     return "\n".join(lines)
 
 
 def bottom(pics: list[Pic], labels: list[str]) -> str:
-    lines = ["🕳 <b>ДНО СКЛАДА</b>", "<i>Худшие по рейтингу. ⚖️ — отправить под суд</i>", ""]
+    lines = ["🕳 <b>ДНО СКЛАДА</b>", "<i>Рейтинг · автор · 🖕🏻. ⚖️ — отправить под суд</i>", ""]
     if not pics:
         lines.append("Дно пустое. Подозрительно")
     for index, (pic, label) in enumerate(zip(pics, labels), start=1):
-        lines.append(
-            f"<b>{index}.</b> ⭐ <b>{rating(pic.rating)}</b> · ⚔️ {pic.wins}–{pic.losses} · 🖕🏻 {pic.dislikes} · {who(label)}"
-        )
+        lines.append(f"{index}. <b>{rating(pic.rating)}</b>  {who(label)}  <i>🖕🏻 {pic.dislikes}</i>")
     return "\n".join(lines)
 
 
@@ -291,31 +294,32 @@ REMOVAL_REASONS = {"duel": "пала на арене", "court": "казнена 
 
 
 def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
-    lines = ["⚰️ <b>КЛАДБИЩЕ</b>", f"<i>Покоится с миром: {total}</i>", ""]
+    recent = ". Последние:" if pics else ""
+    lines = ["⚰️ <b>КЛАДБИЩЕ</b>", f"<i>Покоится с миром: {total}{recent}</i>", ""]
     if not pics:
         lines.append("Пока никто не умер. Скукота")
     for index, (pic, label) in enumerate(zip(pics, labels), start=1):
         reason = REMOVAL_REASONS.get(pic.removed_reason or "", "умерла")
         when = f" · {ago(now - pic.removed_at)}" if pic.removed_at else ""
-        lines.append(f"<b>{index}.</b> 🪦 {reason}{when} · {who(label)}")
+        lines.append(f"{index}. {who(label)}  <i>{reason}{when}</i>")
     return "\n".join(lines)
 
 
 def top(board: str, rows: list[tuple[str, int]]) -> str:
-    lines = [f"<b>{escape(top_texts.BOARD_TITLES[board]).upper()}</b>", ""]
+    title, subtitle = top_texts.BOARD_TITLES[board].split(": ", 1)
+    lines = [f"<b>{escape(title).upper()}</b>", f"<i>{escape(subtitle.capitalize())}</i>", ""]
     if not rows:
         lines.append(escape(pick(top_texts.BOARD_EMPTY)))
         return "\n".join(lines)
-    unit = top_texts.BOARD_UNITS[board]
     for index, (label, value) in enumerate(rows):
-        place = MEDALS[index] if index < 3 else f"<b>{index + 1}.</b>"
+        place = MEDALS[index] if index < 3 else f"{index + 1}."
+        unit = plural(value, "пикча", "пикчи", "пикч") if board == "uploads" else top_texts.BOARD_UNITS[board]
         lines.append(f"{place} {who(label)} — <b>{value}</b> {unit}")
-        if index == 0:
-            lines.append(f"<i>      {escape(pick(top_texts.FIRST_PLACE, board))}</i>")
+    lines += ["", f"<i>🥇 {who(rows[0][0])}: {escape(pick(top_texts.FIRST_PLACE, board))}</i>"]
     if len(rows) > 3:
-        lines += ["", f"<i>🐌 {who(rows[-1][0])}: {escape(pick(top_texts.LAST_PLACE, board))}</i>"]
+        lines.append(f"<i>🐌 {who(rows[-1][0])}: {escape(pick(top_texts.LAST_PLACE, board))}</i>")
     elif len(rows) > 1:
-        lines += ["", f"<i>🥈 {who(rows[1][0])}: {escape(pick(top_texts.PODIUM, board))}</i>"]
+        lines.append(f"<i>🥈 {who(rows[1][0])}: {escape(pick(top_texts.PODIUM, board))}</i>")
     return "\n".join(lines)
 
 
@@ -339,57 +343,78 @@ def profile(
     owners: dict[str, int],
     players: int,
 ) -> str:
-    title_code = rules.upload_title_code(stats.uploads)
-    title = ACHIEVEMENTS[title_code][0] if title_code else "🥚 Никто"
     level = economy.level_for(wallet.earned)
     upcoming = economy.next_level(wallet.earned)
-    rank = f" · {place}-е место в загрузках" if place else ""
     lines = [
         f"👤 <b>{who(label).upper()}</b>",
-        f"<b>{escape(level.name)}</b> · ур. {level.index + 1}{rank}",
+        f"<i>{escape(level.name)} · уровень {level.index + 1} из {len(economy.LEVELS)}</i>",
+        "",
     ]
     if upcoming:
-        lines.append(
-            f"<code>{economy.progress(wallet.earned)}</code> {wallet.earned}/{upcoming.threshold} "
-            f"до «{escape(upcoming.name)}»"
-        )
-    streak = f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд" if wallet.streak > 1 else ""
-    lines.append(f"🪙 Пикчекоины: <b>{wallet.coins}</b>{streak}")
-    if wallet.crowns:
-        lines.append("Короны недели: " + " · ".join(
-            f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])}" for kind in wallet.crowns
-        ))
-    voice = economy.people_voice(wallet.right_guesses, wallet.wrong_guesses)
-    if voice:
-        lines.append(f"🗳 Совпадаешь с победителем в {voice[0]}% боёв — {escape(voice[1])}")
-    if wallet.nemesis:
-        name, defeats = wallet.nemesis
-        lines.append(f"😈 Немезида: <b>{who(name)}</b> · {defeats} {plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч")
-    lines += [
-        f"🏷 Титул загрузчика: {escape(title)}",
-        "",
-        f"📥 Загружено: <b>{stats.uploads}</b> · живых {stats.pics_alive}",
-        f"🤙🏻 <b>{stats.likes_received}</b> · 🖕🏻 <b>{stats.dislikes_received}</b> на твоих пикчах",
-        f"⚰️ Казнено твоих: <b>{stats.pics_executed}</b>",
-        f"⚔️ Лучшая серия пикчи: <b>{stats.best_streak}</b> · 🏛 в зале славы: <b>{stats.legends}</b>",
-        f"🪓 Казнил: <b>{stats.kill_votes}</b> · 🕊 спас: <b>{stats.spare_votes}</b>",
-    ]
+        lines += [
+            f"<code>{economy.progress(wallet.earned)}</code>  {wallet.earned} / {upcoming.threshold}",
+            f"<i>дальше — {escape(upcoming.name)}</i>",
+            "",
+        ]
+    wealth = f"🪙 <b>{wallet.coins}</b> {plural(wallet.coins, 'коин', 'коина', 'коинов')}"
+    if wallet.streak > 1:
+        wealth += f" · 🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд"
+    lines.append(wealth)
+    for kind in wallet.crowns:
+        badge, crown = economy.CROWNS[kind]
+        lines.append(f"{badge} {escape(crown)}")
+
+    rank = f" · {place}-е место" if place else ""
+    lines += ["", f"📦 <b>Склад</b>{rank}"]
+    alive = "все живы" if stats.pics_alive == stats.uploads else f"живых {stats.pics_alive}"
+    lines.append(
+        f"<b>{stats.uploads}</b> {plural(stats.uploads, 'пикча', 'пикчи', 'пикч')} · {alive}"
+        + (f" · ⚰️ {stats.pics_executed}" if stats.pics_executed else "")
+    )
+    lines.append(f"🤙🏻 <b>{stats.likes_received}</b> · 🖕🏻 <b>{stats.dislikes_received}</b> на твоих пикчах")
+    if stats.legends or stats.best_streak > 1:
+        lines.append(f"🏛 <b>{stats.legends}</b> в зале славы · 🔥 лучшая серия <b>{stats.best_streak}</b>")
+    title_code = rules.upload_title_code(stats.uploads)
     goal = rules.next_upload_goal(stats.uploads)
-    if goal:
+    if title_code and goal:
         left = goal.threshold - stats.uploads
-        lines.append(f"🎯 До «{escape(ACHIEVEMENTS[goal.code][0])}»: ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}")
+        lines.append(
+            f"<i>{escape(ACHIEVEMENTS[title_code][0])} → {escape(ACHIEVEMENTS[goal.code][0])}: "
+            f"ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}</i>"
+        )
+    elif title_code:
+        lines.append(f"<i>{escape(ACHIEVEMENTS[title_code][0])}</i>")
+
+    voice = economy.people_voice(wallet.right_guesses, wallet.wrong_guesses)
+    if voice or wallet.nemesis or stats.kill_votes or stats.spare_votes:
+        lines += ["", "⚔️ <b>Арена и суды</b>"]
+        if stats.kill_votes or stats.spare_votes:
+            lines.append(f"🪓 казнил <b>{stats.kill_votes}</b> · 🕊 спас <b>{stats.spare_votes}</b>")
+        if voice:
+            lines.append(f"🎯 угадываешь победителя в <b>{voice[0]}%</b> · {escape(voice[1])}")
+        if wallet.nemesis:
+            name, defeats = wallet.nemesis
+            lines.append(
+                f"😈 немезида — <b>{who(name)}</b> · {defeats} "
+                f"{plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч"
+            )
 
     hidden = len(rules.SECRET - owned)
-    secret = f" · 🔒 секретных не найдено: {hidden}" if hidden else ""
-    lines += ["", f"🏅 Ачивки: <b>{len(owned)}</b> из {len(rules.ALL_CODES)}{secret}"]
+    secret = f" · 🔒 ещё {hidden} {plural(hidden, 'секретная', 'секретные', 'секретных')}" if hidden else ""
+    lines += ["", f"🏅 <b>Ачивки</b> · {len(owned)} из {len(rules.ALL_CODES)}{secret}"]
     if owned:
-        best = rules.showcase(owned, owners)
-        lines.append("Витрина: " + " · ".join(escape(ACHIEVEMENTS[code][0]) for code in best))
-        listing = []
-        for code in sorted(owned, key=lambda c: (rules.RARITY_ORDER[rules.rarity(c)], c)):
-            share = round(100 * owners.get(code, 1) / players)
-            listing.append(f"{RARITY_MARKS[rules.rarity(code)]}{ACHIEVEMENTS[code][0]} — у {share}%")
+        lines += [escape(ACHIEVEMENTS[code][0]) for code in rules.showcase(owned, owners)]
+        listing = ["Вся коллекция · у скольких есть"]
+        for tier, heading in ((rules.LEGENDARY, "🌟 Легендарные"), ("rare", "✨ Редкие"), ("common", "▫️ Обычные")):
+            codes = sorted(code for code in owned if rules.rarity(code) == tier)
+            if codes:
+                listing += ["", heading]
+                for code in codes:
+                    share = round(100 * owners.get(code, 1) / players)
+                    listing.append(f"{ACHIEVEMENTS[code][0]} · {share}%")
         lines.append(f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>\n")
+    else:
+        lines += ["<i>Пока ни одной. Проголосуй в дуэли — это уже начало</i>", ""]
     lines.append(f"<i>{escape(pick(top_texts.PROFILE_ROASTS))}</i>")
     return "\n".join(lines)
 
@@ -415,11 +440,15 @@ def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str
 def admin(totals: dict[str, int], users: int, database: str) -> str:
     return (
         "⚙️ <b>АДМИНКА</b>\n"
-        "<i>По расписанию: 🌅 пикча дня в 12:00, ⚖️ суд над худшей в 19:00, "
-        "📅 итоги недели в воскресенье в 18:00, 💾 бэкап админам в 04:00</i>\n\n"
-        f"📦 Живых: <b>{totals['alive']}</b> · ⚰️ казнено: <b>{totals['executed']}</b>\n"
-        f"👥 Юзеров: <b>{users}</b>\n"
-        f"🗄 <code>{escape(database)}</code>"
+        "<i>Только для админов</i>\n\n"
+        f"📦 <b>{totals['alive']}</b> живых · ⚰️ <b>{totals['executed']}</b> казнено\n"
+        f"👥 <b>{users}</b> юзеров\n"
+        f"🗄 <code>{escape(database)}</code>\n\n"
+        "🕒 <b>Расписание</b>\n"
+        "04:00 — 💾 бэкап админам\n"
+        "12:00 — 🌅 пикча дня\n"
+        "19:00 — ⚖️ суд над худшей\n"
+        "Вс 18:00 — 📅 итоги недели и короны"
     )
 
 
@@ -427,12 +456,20 @@ def admin(totals: dict[str, int], users: int, database: str) -> str:
 
 
 GAMES_SCREEN = (
-    "🎮 <b>ИГРЫ</b>\n\n"
-    "🖋 <b>Подпиши пикчу</b> — минута на подпись ответом на пикчу, потом анонимное голосование. "
-    f"Победителю +{economy.CAPTION_WIN} 🪙\n"
-    f"🎰 <b>Колесо фортуны</b> — раз в день бесплатно, потом {economy.SPIN_PRICE} 🪙\n"
-    "🔮 <b>Гороскоп</b> — личная пикча и предсказание, раз в день\n"
-    f"⚡ <b>Золотая пикча</b> — иногда выпадает в рандоме: кто первый нажмёт, тому +{economy.GOLD} 🪙"
+    "🎮 <b>ИГРЫ</b>\n"
+    "<i>Всё, за что капают 🪙 помимо арены</i>\n"
+    "\n"
+    "🖋 <b>Подпиши пикчу</b> · /caption\n"
+    f"Минута на подпись ответом на пикчу, потом анонимное голосование. Победителю +{economy.CAPTION_WIN} 🪙\n"
+    "\n"
+    "🎰 <b>Колесо фортуны</b> · /spin\n"
+    f"Раз в день бесплатно, дальше {economy.SPIN_PRICE} 🪙. Джекпот 777 — +100 🪙\n"
+    "\n"
+    "🔮 <b>Гороскоп</b> · /horoscope\n"
+    "Личная пикча и предсказание, раз в день\n"
+    "\n"
+    "⚡ <b>Золотая пикча</b>\n"
+    f"Иногда выпадает в рандоме. Кто первый нажмёт — тому +{economy.GOLD} 🪙"
 )
 
 
