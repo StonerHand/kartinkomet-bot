@@ -53,7 +53,8 @@ def screen(
         return views.upload_hub(is_private), keyboards.upload_hub(is_private)
     if name == "adm" and is_admin:
         text = views.admin(repo.totals(), repo.count_users(), str(repo.database_path))
-        return text, keyboards.admin()
+        events_on = None if is_private else repo.chat_events_on(chat_id)
+        return text, keyboards.admin(events_on)
     return views.home(repo.totals(), chat_id, live_now(game, chat_id)), keyboards.home(is_admin)
 
 

@@ -9,7 +9,8 @@ from bot.config import load_config
 from bot.db.migrate import migrate_if_needed
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import admin, arena, court, fallback, panel, pics, upload
+from bot.tg import admin, arena, court, fallback, inline, panel, pics, upload
+from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
 
@@ -63,6 +64,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         arena.router,
         upload.router,
         admin.router,
+        inline.router,
         court.router,
         fallback.router,
     )
@@ -87,13 +89,17 @@ async def main() -> None:
     bot = Bot(token=config.bot_token)
     live = Live(bot, game)
     dispatcher = build_dispatcher(game, live, config.admin_user_ids)
+    repo.seed_chats(game.now())
+    events = Events(bot, game, live, config.admin_user_ids, config.tz_offset_hours)
     try:
         await set_up_profile(bot)
         restored = live.restore()
         if restored:
             LOGGER.info("Resumed %s live battles/courts", restored)
+        events.start()
         await dispatcher.start_polling(bot)
     finally:
+        await events.stop()
         await live.stop()
         await bot.session.close()
         repo.close()

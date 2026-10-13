@@ -21,7 +21,8 @@ from aiogram.types import (
 from bot.__main__ import build_dispatcher
 from bot.core.arena import DUEL_SECONDS
 from bot.core.court import COURT_SECONDS
-from bot.tg import upload
+from bot.tg import pics, timers, upload
+from bot.tg.events import Events
 from bot.tg.timers import Live
 from tests.helpers import make_game
 from tests.test_texts import assert_html
@@ -92,6 +93,7 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         self.update_ids = count(1)
         upload.sessions.clear()
         upload._visual_hashes = None
+        pics._last_drop.clear()
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()
@@ -329,6 +331,136 @@ class BotTest(unittest.IsolatedAsyncioTestCase):
         card = [r for r in self.session.requests if getattr(r, "reply_markup", None) and "v:" in str(r.reply_markup)][-1]
         styles = [b.model_extra.get("style") if b.model_extra else getattr(b, "style", None) for b in card.reply_markup.inline_keyboard[0]]
         self.assertEqual(styles, ["danger", "primary", "success", None])
+
+
+    # ── anti-spam, overtime, cleanup ───────────────────────────────────
+
+    async def test_pic_button_cooldown(self) -> None:
+        await self.send("/pic")
+        await self.press("pic")
+        self.assertEqual(len(self.session.of("SendPhoto")), 1)
+        self.assertTrue(self.session.of("AnswerCallbackQuery")[-1].text)
+        pics._last_drop.clear()
+        await self.press("pic")
+        self.assertEqual(len(self.session.of("SendPhoto")), 2)
+
+    async def test_empty_battle_gets_one_overtime(self) -> None:
+        battle = self.game.start_duel(-100).battle
+        self.game.repo.set_battle_message(battle.id, 90)
+
+        async def fake_sleep(seconds: float) -> None:
+            self.clock.advance(seconds)
+
+        original = timers.asyncio.sleep
+        timers.asyncio.sleep = fake_sleep
+        try:
+            self.clock.advance(DUEL_SECONDS)
+            await self.live._battle_loop(battle.id)
+        finally:
+            timers.asyncio.sleep = original
+        finished = self.game.repo.get_battle(battle.id)
+        self.assertTrue(finished.extended)
+        self.assertEqual(finished.status, "done")
+        self.assertTrue(any("⏳" in (r.text or "") and "ДУЭЛЬ" in (r.text or "") for r in self.session.of("EditMessageText")))
+
+    async def test_new_duel_button_answers_before_the_collage(self) -> None:
+        await self.press("d:new")
+        answers = [r.text for r in self.session.of("AnswerCallbackQuery")]
+        self.assertEqual(answers, ["⚔️ Собираю арену…"])
+        first_answer = self.session.requests.index(self.session.of("AnswerCallbackQuery")[0])
+        first_send = self.session.requests.index(self.session.of("SendMediaGroup")[0])
+        self.assertLess(first_answer, first_send)
+
+    async def test_migration_junk_scopes_are_cleaned_on_start(self) -> None:
+        from bot.db.repo import Repo
+
+        pic = self.game.draw_pic(-100)[0]
+        self.game.repo.db.execute("INSERT INTO deck_seen VALUES ('pic:duel:-100:left', ?)", (pic.id,))
+        self.game.repo.db.commit()
+        reopened = Repo(self.game.repo.database_path)
+        self.addCleanup(reopened.close)
+        junk = reopened.db.execute("SELECT COUNT(*) FROM deck_seen WHERE scope LIKE 'pic:duel:%'").fetchone()[0]
+        self.assertEqual(junk, 0)
+
+    # ── scheduled events ───────────────────────────────────────────────
+
+    def events(self) -> Events:
+        return Events(self.bot, self.game, self.live, frozenset({ADMIN}), tz_offset_hours=0)
+
+    def at_hour(self, hour: int, weekday: int | None = None) -> None:
+        now = int(self.clock())
+        day = now - now % 86400
+        if weekday is not None:
+            current = datetime.fromtimestamp(day, UTC).weekday()
+            day += ((weekday - current) % 7) * 86400
+        self.clock.value = day + hour * 3600 + 60
+
+    async def test_group_chats_are_tracked(self) -> None:
+        await self.send("/menu")
+        self.assertEqual(self.game.repo.event_chats(0), [-100])
+
+    async def test_pic_of_the_day_once_per_day(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        pic = self.game.draw_pic(-100)[0]
+        self.game.react(pic.id, 5, 1)
+        self.at_hour(12)
+        events = self.events()
+        await events.tick()
+        await events.tick()
+        photos = [r for r in self.session.of("SendPhoto") if "ПИКЧА ДНЯ" in (r.caption or "")]
+        self.assertEqual(len(photos), 1)
+        self.assertEqual(photos[0].photo, pic.file_id)
+
+    async def test_nothing_fires_outside_the_window(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        self.at_hour(16)
+        await self.events().tick()
+        self.assertEqual(self.session.requests, [])
+
+    async def test_evening_auto_court(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        pic = self.game.draw_pic(-100)[0]
+        for voter in (5, 6, 7):
+            self.game.repo.react(pic.id, voter, -1, self.game.now())
+        self.game.repo.db.execute("UPDATE pics SET rating = 900 WHERE id = ?", (pic.id,))
+        self.game.repo.db.commit()
+        self.at_hour(19)
+        await self.events().tick()
+        self.assertIsNotNone(self.game.repo.active_court_for_pic(pic.id))
+
+    async def test_weekly_digest_on_sunday(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        self.game.add_pic("week", "week-uniq", ADMIN, None)
+        self.at_hour(18, weekday=6)
+        await self.events().tick()
+        texts = [r.text or r.caption or "" for r in self.session.requests if hasattr(r, "text") or hasattr(r, "caption")]
+        self.assertTrue(any("ИТОГИ НЕДЕЛИ" in text for text in texts))
+
+    async def test_events_can_be_switched_off_by_admin(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        await self.press("adm:events", sender=ADMIN)
+        self.assertFalse(self.game.repo.chat_events_on(-100))
+        self.assertEqual(self.game.repo.event_chats(0), [])
+
+    async def test_daily_backup_goes_to_admins(self) -> None:
+        self.at_hour(4)
+        await self.events().tick()
+        documents = self.session.of("SendDocument")
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(int(documents[0].chat_id), ADMIN)
+
+    # ── inline ─────────────────────────────────────────────────────────
+
+    async def test_inline_mode_offers_pics(self) -> None:
+        from aiogram.types import InlineQuery
+
+        for query_text in ("", "топ"):
+            query = InlineQuery(id="q", from_user=user(3), query=query_text, offset="")
+            await self.dispatcher.feed_update(self.bot, Update(update_id=next(self.update_ids), inline_query=query))
+        random_answer, top_answer = self.session.of("AnswerInlineQuery")
+        self.assertEqual(len(random_answer.results), 10)
+        self.assertTrue(random_answer.is_personal)
+        self.assertEqual(top_answer.results, [])  # no pic has enough history yet
 
 
 if __name__ == "__main__":

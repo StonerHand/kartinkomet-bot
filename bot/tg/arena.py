@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from io import BytesIO
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot import collage
@@ -28,8 +30,13 @@ async def start_battle(
     chat_id: int,
     kind: str,
     champion_of: str | None = None,
+    on_started: Callable[[], Awaitable[None]] | None = None,
 ) -> str:
-    """Returns 'started' | 'active' | 'shortage' | 'stale' | 'failed'."""
+    """Returns 'started' | 'active' | 'shortage' | 'stale' | 'failed'.
+
+    on_started runs as soon as the battle is reserved, before the slow collage work, so a
+    button press gets its answer immediately instead of spinning for seconds.
+    """
 
     def attempt():
         if kind == "duel":
@@ -54,9 +61,12 @@ async def start_battle(
         return result.status
 
     battle = result.battle
+    if on_started is not None:
+        await on_started()
     duration = battle.ends_at - battle.started_at
     markup = keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts())
     card = None
+    await send.chat_action(bot, chat_id, "upload_photo")
     image = await build_collage(bot, battle.pics)
     if image is not None:
         # One message: the numbered collage with the vote card as its caption.
@@ -84,20 +94,24 @@ async def start_battle(
     return "started"
 
 
+async def download(bot: Bot, file_id: str) -> bytes | None:
+    telegram_file = await send.retry(lambda: bot.get_file(file_id), "collage get_file")
+    if not telegram_file.file_path:
+        return None
+    buffer = BytesIO()
+    await send.retry(
+        lambda: bot.download_file(telegram_file.file_path, destination=buffer), "collage download"
+    )
+    return buffer.getvalue()
+
+
 async def build_collage(bot: Bot, pics) -> bytes | None:
     try:
-        images = []
-        for pic in pics:
-            telegram_file = await send.retry(lambda pic=pic: bot.get_file(pic.file_id), "collage get_file")
-            if not telegram_file.file_path:
-                return None
-            buffer = BytesIO()
-            await send.retry(
-                lambda path=telegram_file.file_path: bot.download_file(path, destination=buffer),
-                "collage download",
-            )
-            images.append(buffer.getvalue())
-        return await asyncio.to_thread(collage.build, images)
+        # In parallel: sequential downloads made tournaments take up to 7 s to start.
+        images = await asyncio.gather(*(download(bot, pic.file_id) for pic in pics))
+        if any(image is None for image in images):
+            return None
+        return await asyncio.to_thread(collage.build, list(images))
     except Exception:  # any failure here just means "no collage", the album fallback still works
         LOGGER.warning("Collage failed, falling back to album", exc_info=True)
         return None
@@ -132,8 +146,16 @@ async def new_battle(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
         await callback.answer()
         return
     kind = "duel" if callback.data == "d:new" else "tournament"
-    status = await start_battle(bot, game, live, callback.message.chat.id, kind)
-    await callback.answer(BUTTON_ANSWERS.get(status, ""))
+    answered = False
+
+    async def answer_now() -> None:
+        nonlocal answered
+        answered = True
+        await send.answer_quietly(callback, "⚔️ Собираю арену…")
+
+    status = await start_battle(bot, game, live, callback.message.chat.id, kind, on_started=answer_now)
+    if not answered:
+        await send.answer_quietly(callback, BUTTON_ANSWERS.get(status, ""))
 
 
 @router.callback_query(F.data.startswith("d:ch:"))
@@ -142,11 +164,21 @@ async def champion(callback: CallbackQuery, bot: Bot, game: Game, live: Live) ->
         await callback.answer()
         return
     battle_id = callback.data.split(":", 2)[2]
+    answered = False
+
+    async def answer_now() -> None:
+        nonlocal answered
+        answered = True
+        await send.answer_quietly(callback, "👑 Чемпионка выходит на арену")
+
     status = await start_battle(
-        bot, game, live, callback.message.chat.id, "duel", champion_of=battle_id
+        bot, game, live, callback.message.chat.id, "duel", champion_of=battle_id, on_started=answer_now
     )
-    answer = "👑 Чемпионка вышла на арену" if status == "started" else BUTTON_ANSWERS.get(status, "")
-    await callback.answer(answer, show_alert=status == "stale")
+    if not answered:
+        try:
+            await callback.answer(BUTTON_ANSWERS.get(status, ""), show_alert=status == "stale")
+        except TelegramAPIError:
+            pass
 
 
 @router.callback_query(F.data.startswith("v:"))

@@ -1,10 +1,13 @@
 """Random pics, reactions, showing a specific pic."""
 
+from time import monotonic
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
+from bot.texts import events as event_texts
 from bot.texts import toasts, ui
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
@@ -18,6 +21,19 @@ def pic_markup(game: Game, pic_id: str, likes: int, dislikes: int):
     if game.repo.active_court_for_pic(pic_id):
         return keyboards.on_trial()
     return keyboards.pic_actions(pic_id, likes, dislikes)
+
+
+# Telegram allows ~20 messages a minute in a group; mashing "🎲 ещё" would get the whole chat muted.
+COOLDOWN_SECONDS = 1.5
+_last_drop: dict[int, float] = {}
+
+
+def cooling_down(chat_id: int) -> bool:
+    now = monotonic()
+    if now - _last_drop.get(chat_id, 0.0) < COOLDOWN_SECONDS:
+        return True
+    _last_drop[chat_id] = now
+    return False
 
 
 async def drop_pic(bot: Bot, game: Game, chat_id: int) -> None:
@@ -40,14 +56,20 @@ async def drop_pic(bot: Bot, game: Game, chat_id: int) -> None:
 
 @router.message(Command("pic"))
 async def pic_command(message: Message, bot: Bot, game: Game) -> None:
-    await drop_pic(bot, game, message.chat.id)
+    if not cooling_down(message.chat.id):
+        await drop_pic(bot, game, message.chat.id)
 
 
 @router.callback_query(F.data == "pic")
 async def pic_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+    if cooling_down(callback.message.chat.id):
+        await callback.answer(pick(event_texts.COOLDOWN))
+        return
     await callback.answer()
-    if callback.message is not None:
-        await drop_pic(bot, game, callback.message.chat.id)
+    await drop_pic(bot, game, callback.message.chat.id)
 
 
 @router.callback_query(F.data.startswith("show:"))

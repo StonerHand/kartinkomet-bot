@@ -55,6 +55,7 @@ class Battle:
     winner_slot: int | None
     result_streak: int | None
     card_is_photo: bool
+    extended: bool
     pics: tuple[Pic, ...]
     votes: dict[int, int]
 
@@ -115,10 +116,13 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     # Columns added after the first v2 release: CREATE TABLE IF NOT EXISTS won't add them.
     battle_columns = {row[1] for row in connection.execute("PRAGMA table_info(battles)")}
-    if "card_is_photo" not in battle_columns:
-        connection.execute(
-            "ALTER TABLE battles ADD COLUMN card_is_photo INTEGER NOT NULL DEFAULT 0"
-        )
+    for column in ("card_is_photo", "extended"):
+        if column not in battle_columns:
+            connection.execute(f"ALTER TABLE battles ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+    # v1 kept per-side duel history ("duel:<chat>:left"); the migration filed it under pic scopes.
+    connection.execute(
+        "DELETE FROM deck_seen WHERE scope LIKE 'pic:duel:%' OR scope LIKE 'pic:tournament:%'"
+    )
     connection.execute(
         "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
         "ON CONFLICT(key) DO NOTHING",
@@ -143,7 +147,22 @@ class Repo:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self.db = connect(self.database_path)
         apply_schema(self.db)
+        self._fix_migrated_reaction_times()
         self._known_users: dict[int, tuple] = {}
+
+    def _fix_migrated_reaction_times(self) -> None:
+        """Early v2 migrations stamped v1 reactions with the migration time, which made them look
+        like this week's. They happened at an unknown time: reset them to 0, once."""
+        if self.meta_str("fixed_v1_reaction_times"):
+            return
+        migrated_at = self.meta_str("migrated_from_v1_at")
+        with self.db:
+            if migrated_at:
+                self.db.execute("UPDATE reactions SET at = 0 WHERE at = ?", (int(migrated_at),))
+            self.db.execute(
+                "INSERT INTO meta (key, value) VALUES ('fixed_v1_reaction_times', '1') "
+                "ON CONFLICT(key) DO NOTHING"
+            )
 
     def close(self) -> None:
         self.db.close()
@@ -488,6 +507,16 @@ class Repo:
                 (now, now + duration, battle_id),
             )
 
+    def extend_battle(self, battle_id: str, seconds: int) -> bool:
+        """Push the end of a still-active battle once. False if it was already extended."""
+        with self.db:
+            cursor = self.db.execute(
+                "UPDATE battles SET ends_at = ends_at + ?, extended = 1 "
+                "WHERE id = ? AND status = 'active' AND extended = 0",
+                (seconds, battle_id),
+            )
+        return cursor.rowcount == 1
+
     def drop_battle(self, battle_id: str) -> None:
         with self.db:
             self.db.execute("DELETE FROM battles WHERE id = ?", (battle_id,))
@@ -524,6 +553,7 @@ class Repo:
             winner_slot=row["winner_slot"],
             result_streak=row["result_streak"],
             card_is_photo=bool(row["card_is_photo"]),
+            extended=bool(row["extended"]),
             pics=pics,
             votes=votes,
         )
@@ -798,6 +828,102 @@ class Repo:
             """
         ).fetchone()
         return {key: row[key] for key in row.keys()}
+
+    # ── chats & scheduled events ───────────────────────────────────────
+
+    def touch_chat(self, chat_id: int, title: str | None, now: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO chats (chat_id, title, last_seen) VALUES (?, ?, ?) "
+                "ON CONFLICT(chat_id) DO UPDATE SET title = excluded.title, last_seen = excluded.last_seen",
+                (chat_id, title, now),
+            )
+
+    def seed_chats(self, now: int) -> None:
+        """Groups known from earlier battles/panels, so events work before anyone writes again."""
+        with self.db:
+            self.db.execute(
+                "INSERT OR IGNORE INTO chats (chat_id, last_seen) "
+                "SELECT chat_id, ? FROM (SELECT chat_id FROM battles UNION SELECT chat_id FROM panels) "
+                "WHERE chat_id < 0",
+                (now,),
+            )
+
+    def event_chats(self, active_since: int) -> list[int]:
+        return [
+            row[0]
+            for row in self.db.execute(
+                "SELECT chat_id FROM chats WHERE events = 1 AND last_seen >= ?", (active_since,)
+            )
+        ]
+
+    def chat_events_on(self, chat_id: int) -> bool:
+        row = self.db.execute("SELECT events FROM chats WHERE chat_id = ?", (chat_id,)).fetchone()
+        return bool(row[0]) if row else True
+
+    def set_chat_events(self, chat_id: int, enabled: bool, now: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO chats (chat_id, events, last_seen) VALUES (?, ?, ?) "
+                "ON CONFLICT(chat_id) DO UPDATE SET events = excluded.events",
+                (chat_id, int(enabled), now),
+            )
+
+    def most_liked_since(self, since: int, exclude: Iterable[str] = ()) -> Pic | None:
+        excluded = list(exclude)
+        extra = f"AND p.id NOT IN ({_placeholders(excluded)})" if excluded else ""
+        row = self.db.execute(
+            f"""
+            SELECT {', '.join('p.' + c.strip() for c in PIC_COLUMNS.split(','))}
+            FROM reactions r JOIN pics p ON p.id = r.pic_id
+            WHERE r.value = 1 AND r.at >= ? AND p.status = 'alive' {extra}
+            GROUP BY p.id ORDER BY COUNT(*) DESC, p.rating DESC LIMIT 1
+            """,
+            (since, *excluded),
+        ).fetchone()
+        return _pic(row)
+
+    def worst_triable(self, now: int) -> Pic | None:
+        """Lowest-rated pic with some history that is not immune and not on trial."""
+        row = self.db.execute(
+            f"""
+            SELECT {PIC_COLUMNS} FROM pics p
+            WHERE status = 'alive' AND (games + likes + dislikes) >= ?
+              AND (immune_until IS NULL OR immune_until <= ?)
+              AND NOT EXISTS (SELECT 1 FROM courts c WHERE c.pic_id = p.id AND c.status = 'active')
+            ORDER BY rating ASC, dislikes DESC LIMIT 1
+            """,
+            (MIN_EXPERIENCE, now),
+        ).fetchone()
+        return _pic(row)
+
+    def week_summary(self, chat_id: int, since: int) -> dict:
+        uploads = self.db.execute(
+            "SELECT added_by, COUNT(*) FROM pics WHERE added_at >= ? AND added_by IS NOT NULL "
+            "GROUP BY added_by ORDER BY 2 DESC LIMIT 3",
+            (since,),
+        ).fetchall()
+        battles = self.db.execute(
+            "SELECT COUNT(*), COALESCE(MAX(result_streak), 0) FROM battles "
+            "WHERE chat_id = ? AND started_at >= ? AND status = 'done'",
+            (chat_id, since),
+        ).fetchone()
+        executed = self.db.execute(
+            "SELECT COUNT(*) FROM pics WHERE status = 'executed' AND removed_at >= ?", (since,)
+        ).fetchone()[0]
+        reactions = self.db.execute(
+            "SELECT COALESCE(SUM(value = 1), 0), COALESCE(SUM(value = -1), 0) FROM reactions WHERE at >= ?",
+            (since,),
+        ).fetchone()
+        return {
+            "uploads": [(row[0], row[1]) for row in uploads],
+            "battles": battles[0],
+            "best_streak": battles[1],
+            "executed": executed,
+            "likes": reactions[0],
+            "dislikes": reactions[1],
+            "top_pic": self.most_liked_since(since),
+        }
 
     # ── panels ──────────────────────────────────────────────────────────
 

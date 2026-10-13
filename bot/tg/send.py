@@ -290,3 +290,11 @@ async def answer_quietly(callback, text: str | None = None) -> None:
         await callback.answer(text)
     except TelegramAPIError:
         pass
+
+
+async def chat_action(bot: Bot, chat_id: int, action: str) -> None:
+    """'is sending a photo…' indicator while slow work runs. Cosmetic, failures ignored."""
+    try:
+        await bot.send_chat_action(chat_id=chat_id, action=action)
+    except TelegramAPIError:
+        pass

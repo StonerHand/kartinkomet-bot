@@ -10,6 +10,8 @@ from bot.tg import keyboards, send, views
 
 LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 15
+# A battle nobody voted in gets one overtime instead of ending empty.
+OVERTIME_SECONDS = 30
 # Votes are batched into one card edit per this many seconds: Telegram rate-limits edits per chat.
 REFRESH_DELAY = 1.5
 
@@ -85,6 +87,9 @@ class Live:
                 return
             remaining = battle.ends_at - self.game.now()
             if remaining <= 0:
+                if not battle.votes and not battle.extended:
+                    if self.game.repo.extend_battle(battle_id, OVERTIME_SECONDS):
+                        continue
                 break
             await self.refresh_battle(battle_id)
             await asyncio.sleep(min(TICK_SECONDS, remaining))

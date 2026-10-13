@@ -65,7 +65,16 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
     chat_id = message.chat.id
     action = callback.data.split(":", 1)[1]
 
-    if action == "health":
+    if action == "events":
+        enabled = not game.repo.chat_events_on(chat_id)
+        game.repo.set_chat_events(chat_id, enabled, game.now())
+        await callback.answer(
+            "🔔 Пикча дня, вечерний суд и итоги недели включены" if enabled else "🔕 События по расписанию выключены",
+            show_alert=True,
+        )
+        text, markup = screen(game, "adm", None, chat_id, callback.from_user.id, True, message.chat.type == "private")
+        await send.edit_text(bot, chat_id, message.message_id, text, markup)
+    elif action == "health":
         await callback.answer()
         await send.edit_text(
             bot, chat_id, message.message_id, health_text(game), keyboards.markup(keyboards.back("m:adm"))

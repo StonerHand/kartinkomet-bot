@@ -126,7 +126,8 @@ def _copy(legacy: sqlite3.Connection, target: sqlite3.Connection) -> dict[str, i
             except (TypeError, ValueError):
                 continue
             reactions.append(
-                (row["image_id"], user_id, 1 if row["reaction"] == "like" else -1, now)
+                # v1 didn't record when a reaction happened: 0 keeps them out of "this week" stats.
+                (row["image_id"], user_id, 1 if row["reaction"] == "like" else -1, 0)
             )
 
     seen = set()

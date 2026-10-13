@@ -160,9 +160,15 @@ def uploading() -> InlineKeyboardMarkup:
     return markup([button("✅ Готово", "up:done", SUCCESS), button("❌ Отмена", "up:cancel", DANGER)])
 
 
-def admin() -> InlineKeyboardMarkup:
+def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
+    """events_on is None in private chats, where scheduled events don't apply."""
+    events_row = []
+    if events_on is not None:
+        label = "🔔 События: вкл" if events_on else "🔕 События: выкл"
+        events_row = [button(label, "adm:events", SUCCESS if events_on else None)]
     return markup(
         [button("🩺 Health", "adm:health"), button("💾 Бэкап", "adm:backup")],
+        events_row,
         [button("🧨 Сбросить статистику", "adm:reset", DANGER)],
         back(),
     )

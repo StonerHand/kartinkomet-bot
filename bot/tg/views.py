@@ -14,6 +14,7 @@ from bot.db.repo import Battle, Court, Pic, UserStats
 from bot.game import BattleReport, CourtReport, Granted
 from bot.texts import arena as arena_texts
 from bot.texts import captions, court as court_texts, tops as top_texts, ui
+from bot.texts import events as event_texts
 from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick
 from bot.tg.keyboards import DUEL_LABELS, TOURNAMENT_LABELS
@@ -72,14 +73,18 @@ def ago(seconds: int) -> str:
 # ── pics ───────────────────────────────────────────────────────────────
 
 
+def pic_footer(pic: Pic, uploader: str | None) -> str:
+    parts = [f"⭐ {rating(pic.rating)}"]
+    if pic.wins or pic.losses:
+        parts.append(f"⚔️ {pic.wins}–{pic.losses}")
+    if uploader:
+        parts.append(f"📥 {who(uploader)}")
+    return f"<i>{' · '.join(parts)}</i>"
+
+
 def pic_caption(pic: Pic, bucket: str, chat_id: int, uploader: str | None) -> str:
     pool = {"fresh": captions.FRESH, "legend": captions.LEGEND}.get(bucket, captions.CAPTIONS)
-    footer = [f"⭐ {rating(pic.rating)}"]
-    if pic.wins or pic.losses:
-        footer.append(f"⚔️ {pic.wins}–{pic.losses}")
-    if uploader:
-        footer.append(f"📥 {who(uploader)}")
-    return f"{escape(pick(pool, chat_id))}\n\n<i>{' · '.join(footer)}</i>"
+    return f"{escape(pick(pool, chat_id))}\n\n{pic_footer(pic, uploader)}"
 
 
 # ── battles ────────────────────────────────────────────────────────────
@@ -105,7 +110,11 @@ def battle_card(battle: Battle, remaining: int) -> str:
         lines.append(f"👑 {labels[0]} — чемпионка, серия <b>{battle.streak}</b>")
     lines += vote_lines(counts, labels)
     votes = f"{total} {plural(total, 'голос', 'голоса', 'голосов')}" if total else "голосов пока нет"
-    lines += ["", f"<i>{escape(pick(status_pool, battle.chat_id))}</i>", f"🗳 {votes} · жми кнопку"]
+    if battle.extended and not total:
+        status = f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>"
+    else:
+        status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
+    lines += ["", status, f"🗳 {votes} · жми кнопку"]
     return "\n".join(lines)
 
 
@@ -330,7 +339,9 @@ def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str
 
 def admin(totals: dict[str, int], users: int, database: str) -> str:
     return (
-        "⚙️ <b>АДМИНКА</b>\n\n"
+        "⚙️ <b>АДМИНКА</b>\n"
+        "<i>По расписанию: 🌅 пикча дня в 12:00, ⚖️ суд над худшей в 19:00, "
+        "📅 итоги недели в воскресенье в 18:00, 💾 бэкап админам в 04:00</i>\n\n"
         f"📦 Живых: <b>{totals['alive']}</b> · ⚰️ казнено: <b>{totals['executed']}</b>\n"
         f"👥 Юзеров: <b>{users}</b>\n"
         f"🗄 <code>{escape(database)}</code>"

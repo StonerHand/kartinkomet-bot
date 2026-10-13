@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS battles (
     title TEXT NOT NULL DEFAULT '',
     winner_slot INTEGER,
     result_streak INTEGER,
-    card_is_photo INTEGER NOT NULL DEFAULT 0
+    card_is_photo INTEGER NOT NULL DEFAULT 0,
+    extended INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_battles_active ON battles(status, chat_id, kind);
@@ -119,6 +120,14 @@ CREATE TABLE IF NOT EXISTS achievements (
     earned_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, code)
 ) WITHOUT ROWID;
+
+-- Group chats the bot lives in, for scheduled events (pic of the day, auto court, weekly digest).
+CREATE TABLE IF NOT EXISTS chats (
+    chat_id INTEGER PRIMARY KEY,
+    title TEXT,
+    events INTEGER NOT NULL DEFAULT 1,
+    last_seen INTEGER NOT NULL
+);
 
 -- One live control panel per chat.
 CREATE TABLE IF NOT EXISTS panels (
