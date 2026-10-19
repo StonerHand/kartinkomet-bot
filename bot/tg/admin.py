@@ -13,7 +13,8 @@ from aiogram.types import CallbackQuery, FSInputFile, Message
 from bot.game import Game
 from bot.texts import ui
 from bot.tg import keyboards, send, views
-from bot.tg.panel import open_panel, screen
+from bot.tg import screens
+from bot.tg.panel import open_panel
 
 router = Router(name="admin")
 
@@ -80,7 +81,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             "🔔 Пикча дня, вечерний суд и итоги недели включены" if enabled else "🔕 События по расписанию выключены",
             show_alert=True,
         )
-        text, markup = screen(game, "adm", None, chat_id, callback.from_user.id, True, message.chat.type == "private")
+        text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.edit_text(bot, chat_id, message.message_id, text, markup)
     elif action == "health":
         await callback.answer()
@@ -109,13 +110,13 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
     elif action == "reset!":
         game.repo.reset_stats()
         await callback.answer("Стата обнулена", show_alert=True)
-        text, markup = screen(game, "adm", None, chat_id, callback.from_user.id, True, message.chat.type == "private")
+        text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.edit_text(bot, chat_id, message.message_id, text, markup)
     elif action.startswith("spare:"):
         pic_id = action.split(":", 1)[1]
         revived = game.pardon(pic_id)
         await callback.answer("🕊 Воскрешена" if revived else "Уже жива или не найдена", show_alert=True)
-        text, markup = screen(game, "grave", None, chat_id, callback.from_user.id, True, message.chat.type == "private")
+        text, markup = screens.render("grave", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.edit_text(bot, chat_id, message.message_id, text, markup)
     else:
         await callback.answer()

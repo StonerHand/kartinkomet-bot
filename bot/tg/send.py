@@ -35,12 +35,16 @@ def _reply(message_id: int | None) -> ReplyParameters | None:
     return ReplyParameters(message_id=message_id, allow_sending_without_reply=True)
 
 
+# Longer flood waits aren't worth blocking a handler for: the caller falls back or skips.
+MAX_FLOOD_WAIT = 30
+
+
 async def retry(operation: Callable[[], Awaitable[T]], what: str) -> T:
     for attempt in range(1, RETRIES + 1):
         try:
             return await operation()
         except TelegramRetryAfter as error:
-            if attempt == RETRIES:
+            if attempt == RETRIES or error.retry_after > MAX_FLOOD_WAIT:
                 raise
             LOGGER.warning("Rate limited during %s, sleeping %ss", what, error.retry_after)
             await asyncio.sleep(float(error.retry_after))
@@ -56,56 +60,42 @@ def not_modified(error: TelegramAPIError) -> bool:
     return "message is not modified" in str(error).casefold()
 
 
-async def edit_text(
-    bot: Bot,
-    chat_id: int,
-    message_id: int,
-    text: str,
-    markup: InlineKeyboardMarkup | None,
-) -> bool:
+async def _edit(operation: Callable[[], Awaitable], what: str, chat_id: int, message_id: int) -> bool:
+    """True when the message shows the new content (an unchanged edit counts as done)."""
     try:
-        await retry(
-            lambda: bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=text,
-                parse_mode="HTML",
-                reply_markup=markup,
-            ),
-            "edit text",
-        )
+        await retry(operation, what)
         return True
     except TelegramAPIError as error:
         if not_modified(error):
             return True
-        LOGGER.warning("Failed to edit message %s/%s: %s", chat_id, message_id, error)
+        LOGGER.warning("Failed to %s %s/%s: %s", what, chat_id, message_id, error)
         return False
+
+
+async def edit_text(
+    bot: Bot, chat_id: int, message_id: int, text: str, markup: InlineKeyboardMarkup | None
+) -> bool:
+    return await _edit(
+        lambda: bot.edit_message_text(
+            chat_id=chat_id, message_id=message_id, text=text, parse_mode="HTML", reply_markup=markup
+        ),
+        "edit text",
+        chat_id,
+        message_id,
+    )
 
 
 async def edit_caption(
-    bot: Bot,
-    chat_id: int,
-    message_id: int,
-    caption: str,
-    markup: InlineKeyboardMarkup | None,
+    bot: Bot, chat_id: int, message_id: int, caption: str, markup: InlineKeyboardMarkup | None
 ) -> bool:
-    try:
-        await retry(
-            lambda: bot.edit_message_caption(
-                chat_id=chat_id,
-                message_id=message_id,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=markup,
-            ),
-            "edit caption",
-        )
-        return True
-    except TelegramAPIError as error:
-        if not_modified(error):
-            return True
-        LOGGER.warning("Failed to edit caption %s/%s: %s", chat_id, message_id, error)
-        return False
+    return await _edit(
+        lambda: bot.edit_message_caption(
+            chat_id=chat_id, message_id=message_id, caption=caption, parse_mode="HTML", reply_markup=markup
+        ),
+        "edit caption",
+        chat_id,
+        message_id,
+    )
 
 
 async def edit_markup(

@@ -373,7 +373,7 @@ class BotTest(BotHarness):
         timers.asyncio.sleep = fake_sleep
         try:
             self.clock.advance(DUEL_SECONDS)
-            await self.live._battle_loop(battle.id)
+            await self.live.battle_countdown(battle.id)
         finally:
             timers.asyncio.sleep = original
         finished = self.game.repo.get_battle(battle.id)

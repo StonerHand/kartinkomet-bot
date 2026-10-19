@@ -138,7 +138,7 @@ def bets_result(report, labels: dict[int, str]) -> list[str]:
         return []
     winners = [(user, paid - staked) for user, (staked, paid) in report.bets.items() if paid > staked]
     pool = sum(staked for staked, _ in report.bets.values())
-    lines = [f"💰 <b>Ставки</b> · банк {pool}"]
+    lines = [f"💰 <b>Ставки</b> · банк {money(pool)}"]
     if not report.counted or report.winner is None:
         lines.append("<i>Ничья — всем вернули ставки</i>")
     elif winners:
@@ -189,13 +189,24 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
     return card(f"🤺 <b>ВЫЗОВ</b> · {challenger} · {money(challenge['stake'])}", reason)
 
 
-def challenge_names(report, labels: dict[int, str]) -> str:
-    challenge = report.challenge
+def challenge_names(challenge: dict, labels: dict[int, str]) -> str:
     first, second = (who(labels.get(challenge[key], "?")) for key in ("from_user", "to_user"))
     return f"🤺 <b>{first}</b> против <b>{second}</b>\n💰 На кону {money(challenge['stake'] * 2)}"
 
 
-def challenge_result(report, labels: dict[int, str], chat_id: int) -> list[str]:
+def battle_report(report: BattleReport, labels: dict[int, str]) -> str:
+    """The whole result card: the table plus every v4 block that applies."""
+    battle = report.battle
+    extras = []
+    if report.challenge:
+        extras.append("\n".join([challenge_names(report.challenge, labels), *challenge_result(report, labels)]))
+    extras += ["\n".join(evolution_lines(report)), "\n".join(bets_result(report, labels)), bounty_line(report.bounty, labels)]
+    uploaders = [labels.get(pic.added_by, "аноним") for pic in battle.pics]
+    guessers = [labels.get(user, "?") for user in report.guessers]
+    return battle_result(report, uploaders, guessers, [extra for extra in extras if extra])
+
+
+def challenge_result(report, labels: dict[int, str]) -> list[str]:
     if report.champion is None:
         return ["🤺 <i>Победителя нет — обе ставки вернулись</i>"]
     return [f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {money(report.challenge['stake'] * 2)}"]
