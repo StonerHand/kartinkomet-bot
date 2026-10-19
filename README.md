@@ -124,17 +124,16 @@ Inline-режим включается один раз в @BotFather: `/setinlin
 ## 🧩 Как устроено
 
 ```
-Telegram ──▶ aiogram (long polling) ──▶ bot/tg   карточки, кнопки, таймеры, расписание
+Telegram ──▶ aiogram (long polling) ──▶ bot/tg         роутеры, таймеры, расписание
+                                          │            bot/tg/views   тексты всех карточек
+                                          ▼
+                              bot/game.py + bot/services ──▶ bot/core   правила без I/O
                                           │
                                           ▼
-                                     bot/game.py ──▶ bot/core   колода, Elo, арена, суд, казино, ачивки
-                                     bot/services   казино, лавка, люди, квесты, боссы
-                                          │
-                                          ▼
-                                 bot/db ──▶ SQLite (WAL) на volume
+                                 bot/db/repo ──▶ SQLite (WAL) на volume
 ```
 
-Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт. CI гоняет линтер и 193 теста, включая сквозные сценарии с фейковым Telegram. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
+Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт. CI гоняет линтер и 197 тестов, включая сквозные сценарии с фейковым Telegram и проверку вёрстки каждого сообщения. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
 
 ## 📄 Лицензия
 
