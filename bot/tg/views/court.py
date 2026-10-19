@@ -7,7 +7,7 @@ from bot.db.repo import Court
 from bot.services.types import CourtReport
 from bot.texts import court as court_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import bar, card, cited, money, timer, who
+from bot.tg.views.layout import bar, bare, card, cited, money, timer, who
 
 
 def court_card(trial: Court, remaining: int, uploader: str) -> str:
@@ -23,7 +23,8 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
         "<i>Повторный суд: для казни нужно 3 голоса «казнить» и большинство</i>" if trial.appeal else "",
     ]
     if trial.last_word:
-        word = f"🗣 <b>{escape(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))}</b>\n{cited(trial.last_word).rstrip()}"
+        intro = bare(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))
+        word = f"🗣 <b>{escape(intro)}</b>\n{cited(trial.last_word).rstrip()}"
     else:
         word = f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"
     return card(f"{head} · <b>{timer(remaining)}</b>", trial.title or None, votes, status, word)

@@ -149,11 +149,8 @@ BUTTON_ANSWERS = {
 }
 
 
-@router.callback_query(F.data.in_({"d:new", "t:new"}))
+@router.callback_query(F.data.in_({"d:new", "t:new"}), F.message)
 async def new_battle(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     kind = "duel" if callback.data == "d:new" else "tournament"
     answered = False
 
@@ -167,11 +164,8 @@ async def new_battle(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
         await send.answer_quietly(callback, BUTTON_ANSWERS.get(status, ""))
 
 
-@router.callback_query(F.data.startswith("d:ch:"))
+@router.callback_query(F.data.startswith("d:ch:"), F.message)
 async def champion(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     battle_id = callback.data.split(":", 2)[2]
     answered = False
 

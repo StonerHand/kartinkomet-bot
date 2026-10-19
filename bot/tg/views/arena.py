@@ -45,7 +45,8 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
         head = "⚔️ <b>ДУЭЛЬ</b>" if is_duel else "🏟 <b>ТУРНИР ЧЕТЫРЁХ</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
     marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
-    votes = [f"{line}  {mark}" if mark != "🥚" else line for line, mark in zip(vote_lines(counts, labels), marks)]
+    # An evolved pic shows its stage in front: "🐉 A · 3 🟥🟥🟥" (the only emoji on the line).
+    votes = [line if mark == "🥚" else f"{mark} {line}" for line, mark in zip(vote_lines(counts, labels), marks)]
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")
     if battle.extended and not total:

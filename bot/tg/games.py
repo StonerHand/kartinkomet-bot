@@ -186,11 +186,8 @@ async def horoscope_command(message: Message, bot: Bot, game: Game, live: Live) 
 # ── panel buttons ──────────────────────────────────────────────────────
 
 
-@router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo"}))
+@router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo"}), F.message)
 async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     chat_id = callback.message.chat.id
     if callback.data == "gm:caption":
         await send.answer_quietly(callback, "🖋 Ищу пикчу без подписи…")

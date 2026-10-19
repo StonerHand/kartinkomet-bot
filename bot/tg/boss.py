@@ -55,11 +55,8 @@ async def boss_command(message: Message, bot: Bot, game: Game, live: Live) -> No
         await message.reply(refusal(game, message.chat.id, status))
 
 
-@router.callback_query(F.data == "boss")
+@router.callback_query(F.data == "boss", F.message)
 async def boss_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     chat_id = callback.message.chat.id
     if game.repo.active_boss(chat_id) is None and game.boss_cooldown_left(chat_id):
         await callback.answer(refusal(game, chat_id, "cooldown"), show_alert=True)

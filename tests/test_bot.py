@@ -25,7 +25,10 @@ from bot.tg import games, pics, timers, upload
 from bot.tg.events import Events
 from bot.tg.timers import Live
 from tests.helpers import make_game
-from tests.test_texts import assert_html
+from tests.test_texts import assert_html, layout_problems
+
+# Messages people read; callback toasts and alerts are pop-ups with their own rules.
+CHECKED_METHODS = {"SendMessage", "SendPhoto", "EditMessageText", "EditMessageCaption", "SendEphemeralMessage"}
 
 BOT_USER = User(id=999, is_bot=True, first_name="kartinkomet", username="kartinkomet_bot")
 GROUP = Chat(id=-100, type="supergroup", title="чат")
@@ -123,6 +126,8 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
                 # One layout everywhere: no triple line breaks, no trailing blank lines.
                 self.assertNotIn("\n\n\n", text)
                 self.assertEqual(text, text.strip("\n"))
+                if type(request).__name__ in CHECKED_METHODS:
+                    self.assertEqual(layout_problems(text), [], text)
             markup = getattr(request, "reply_markup", None)
             if isinstance(markup, InlineKeyboardMarkup):
                 for row in markup.inline_keyboard:

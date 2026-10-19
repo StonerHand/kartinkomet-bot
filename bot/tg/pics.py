@@ -68,11 +68,8 @@ async def pic_command(message: Message, bot: Bot, game: Game, live: Live) -> Non
         await drop_pic(bot, game, live, message.chat.id, message.from_user.id if message.from_user else None)
 
 
-@router.callback_query(F.data == "pic")
+@router.callback_query(F.data == "pic", F.message)
 async def pic_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     if cooling_down(callback.message.chat.id):
         await callback.answer(pick(event_texts.COOLDOWN))
         return
@@ -80,11 +77,8 @@ async def pic_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
     await drop_pic(bot, game, live, callback.message.chat.id, callback.from_user.id)
 
 
-@router.callback_query(F.data.startswith("show:"))
+@router.callback_query(F.data.startswith("show:"), F.message)
 async def show_pic(callback: CallbackQuery, bot: Bot, game: Game) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     pic = game.repo.get_pic(callback.data.split(":", 1)[1])
     if pic is None or pic.status != "alive":
         await callback.answer("Её уже нет в живых", show_alert=True)

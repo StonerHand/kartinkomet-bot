@@ -1,3 +1,4 @@
+import re
 import unittest
 from html.parser import HTMLParser
 
@@ -96,6 +97,32 @@ class HtmlBalance(HTMLParser):
 
     def handle_endtag(self, tag) -> None:
         assert self.stack and self.stack.pop() == tag, f"unbalanced </{tag}>"
+
+
+EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2B06\u2194-\u21FF\u2300-\u23FF]")
+NOT_COUNTED = set("\U0001F3FB\U0001F3FC🟥🟦🟩🟨")  # skin tones and vote bars
+PHONE_LINE = 40  # characters that fit one line of a message on a phone
+
+
+def layout_problems(text: str) -> list[str]:
+    """The message layout rules (see bot/tg/views/layout.py), as checks:
+    one emoji per line and at its start; a list item that has neighbours fits one phone line."""
+    plain = re.sub(r"<[^>]+>", "", text).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    lines = plain.split("\n")
+    problems = []
+    for index, line in enumerate(lines):
+        emoji = [char for char in EMOJI.findall(line) if char not in NOT_COUNTED]
+        if len(emoji) > 1:
+            problems.append(f"several emoji: {line}")
+        elif emoji and not EMOJI.match(line.lstrip("▫️✅ ")) and not EMOJI.match(line):
+            problems.append(f"emoji inside a line: {line}")
+        starts_with_emoji = bool(EMOJI.match(line))
+        neighbour = (index + 1 < len(lines) and lines[index + 1].strip()) or (
+            index and lines[index - 1].strip() and EMOJI.match(lines[index - 1])
+        )
+        if starts_with_emoji and len(line) > PHONE_LINE and neighbour:
+            problems.append(f"list line wraps on a phone: {line}")
+    return problems
 
 
 def assert_html(text: str) -> None:

@@ -68,11 +68,8 @@ async def launch_court(bot: Bot, game: Game, live: Live, trial, pic_message_id: 
     return "started"
 
 
-@router.callback_query(F.data.startswith("c:go:"))
+@router.callback_query(F.data.startswith("c:go:"), F.message)
 async def summon_from_bottom(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     pic_id = callback.data.split(":", 2)[2]
     status = await open_court(
         bot, game, live, callback.message.chat.id, pic_id, "bottom", callback.from_user.id

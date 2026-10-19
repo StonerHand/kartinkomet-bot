@@ -58,11 +58,8 @@ async def shop_command(message: Message, bot: Bot, game: Game, admins: frozenset
     await open_panel(message, bot, game, admins, "shop")
 
 
-@router.callback_query(F.data.startswith("pm:"))
+@router.callback_query(F.data.startswith("pm:"), F.message)
 async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     pic = game.repo.get_pic(callback.data.split(":", 1)[1])
     if pic is None or pic.status != "alive":
         await callback.answer("Её уже нет в живых. Воскрешение — на кладбище", show_alert=True)
@@ -184,11 +181,8 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
 # ── titles ─────────────────────────────────────────────────────────────
 
 
-@router.callback_query(F.data == "title")
+@router.callback_query(F.data == "title", F.message)
 async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
-    if callback.message is None:
-        await callback.answer()
-        return
     price = game.price("title")
     if game.repo.player(callback.from_user.id)[0] < price:
         await callback.answer(texts.REFUSED["broke"], show_alert=True)
@@ -199,7 +193,10 @@ async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     prompt = await send.send_text(
         bot,
         chat_id,
-        f"{views.who(label)}, " + texts.TITLE_PROMPT.format(limit=shop.TITLE_MAX_LENGTH, price=price),
+        views.card(
+            f"🏷 <b>СВОЙ ТИТУЛ</b> · {views.who(label)}",
+            texts.TITLE_PROMPT.format(limit=shop.TITLE_MAX_LENGTH, price=price),
+        ),
     )
     if prompt is not None:
         game.repo.set_meta(f"title_prompt:{chat_id}:{prompt.message_id}", callback.from_user.id)
