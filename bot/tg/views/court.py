@@ -24,7 +24,7 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
     ]
     if trial.last_word:
         intro = bare(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))
-        word = f"🗣 <b>{escape(intro)}</b>\n{cited(trial.last_word).rstrip()}"
+        word = f"🗣 <b>Последнее слово</b>\n<i>{escape(intro)}</i>\n{cited(trial.last_word).rstrip()}"
     else:
         word = f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"
     return card(f"{head} · <b>{timer(remaining)}</b>", trial.title or None, votes, status, word)

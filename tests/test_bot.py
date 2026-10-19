@@ -384,7 +384,12 @@ class BotTest(BotHarness):
         finished = self.game.repo.get_battle(battle.id)
         self.assertTrue(finished.extended)
         self.assertEqual(finished.status, "done")
-        self.assertTrue(any("⏳" in (r.text or "") and "ДУЭЛЬ" in (r.text or "") for r in self.session.of("EditMessageText")))
+        from bot.texts.events import EXTENDED
+        from bot.tg.views import bare
+
+        notices = [bare(phrase) for phrase in EXTENDED]
+        cards = [r.text or "" for r in self.session.of("EditMessageText")]
+        self.assertTrue(any(notice in text for text in cards for notice in notices))  # the overtime notice
 
     async def test_new_duel_button_answers_before_the_collage(self) -> None:
         await self.press("d:new")

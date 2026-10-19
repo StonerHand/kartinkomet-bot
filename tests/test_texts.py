@@ -76,6 +76,18 @@ class TextsTest(unittest.TestCase):
                 for fragment in bad:
                     self.assertNotIn(fragment.casefold(), phrase.casefold(), pool_name)
 
+    def test_emoji_only_at_the_start_of_a_phrase(self) -> None:
+        """Phrases become lines of a message: an emoji may open one, never sit inside it."""
+        from bot.tg.views import bare
+
+        for pool_name, pool in all_pools():
+            for phrase in pool:
+                if not any(char.isalpha() for char in phrase):
+                    continue  # a bare icon in a data tuple (shop items, chest tiers)
+                inner = [char for char in EMOJI.findall(bare(phrase)) if char not in NOT_COUNTED]
+                with self.subTest(pool=pool_name, phrase=phrase):
+                    self.assertEqual(inner, [])
+
     def test_every_achievement_has_text(self) -> None:
         self.assertEqual(set(ACHIEVEMENTS), set(ALL_CODES))
 

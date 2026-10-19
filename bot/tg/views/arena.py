@@ -12,7 +12,7 @@ from bot.texts import arena as arena_texts
 from bot.texts import events as event_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import SLOT_COLORS, bar, card, delta, money, num, plural, rating, slot_names, timer, who
+from bot.tg.views.layout import SLOT_COLORS, bar, bare, card, delta, money, num, plural, rating, slot_names, timer, who
 
 
 def vote_lines(counts: list[int], labels: tuple[str, ...]) -> list[str]:
@@ -50,7 +50,7 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")
     if battle.extended and not total:
-        status = f"<b>{escape(pick(event_texts.EXTENDED, battle.chat_id))}</b>"
+        status = f"<b>{escape(bare(pick(event_texts.EXTENDED, battle.chat_id)))}</b>"
     elif battle.mode == "challenge":
         status = "<i>Голосуют только зрители</i>"
     else:
