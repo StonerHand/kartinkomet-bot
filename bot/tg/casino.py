@@ -15,7 +15,7 @@ from bot.game import Game
 from bot.texts import casino as texts
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg import cards, keyboards, send
+from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
 LOGGER = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ async def play(
     await send.send_text(
         bot,
         chat_id,
-        cards.casino_result(label, result, values, chat_id),
+        views.casino_result(label, result, values, chat_id),
         keyboards.casino_again(code, max(casino.STAKE_MIN, min(stake, max(result.balance, casino.STAKE_MIN)))),
         reply_to=first.message_id,
     )
@@ -98,7 +98,7 @@ async def play_command(message: Message, command: CommandObject, bot: Bot, game:
 
 @router.message(Command("casino"))
 async def casino_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.panel import open_panel  # local: panel imports cards, keep imports one-way
+    from bot.tg.panel import open_panel  # local: panel imports this package, keep imports one-way
 
     await open_panel(message, bot, game, admins, "casino")
 

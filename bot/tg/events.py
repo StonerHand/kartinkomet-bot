@@ -24,7 +24,7 @@ from bot.game import Game
 from bot.texts import events as texts
 from bot.texts.pick import pick
 from bot.texts import ui
-from bot.tg import cards, keyboards, send, views
+from bot.tg import keyboards, send, views
 from bot.tg.boss import summon
 from bot.tg.court import open_court
 from bot.tg.timers import Live
@@ -125,7 +125,7 @@ class Events:
 
     async def day_event(self, chat_id: int) -> bool:
         code, _ = self.game.roll_day_event()
-        text = cards.day_event(code, chat_id, self.game.tax_report())
+        text = views.day_event(code, chat_id, self.game.tax_report())
         message = await send.send_text(self.bot, chat_id, text)
         if message is None:
             return False

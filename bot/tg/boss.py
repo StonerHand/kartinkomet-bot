@@ -8,7 +8,7 @@ from bot.core import boss as rules
 from bot.game import Game
 from bot.texts import boss as texts
 from bot.texts.pick import pick
-from bot.tg import cards, keyboards, send
+from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
 router = Router(name="boss")
@@ -30,7 +30,7 @@ async def summon(bot: Bot, game: Game, live: Live, chat_id: int, double: bool = 
         bot,
         chat_id,
         pic.file_id,
-        cards.boss_card(boss, {}, boss["ends_at"] - game.now(), chat_id),
+        views.boss_card(boss, {}, boss["ends_at"] - game.now(), chat_id),
         keyboards.boss(boss["id"], rules.SUPER_PRICE),
     )
     if message is None:
@@ -44,7 +44,7 @@ async def summon(bot: Bot, game: Game, live: Live, chat_id: int, double: bool = 
 
 def refusal(game: Game, chat_id: int, status: str) -> str:
     return texts.SUMMON_REFUSED.get(status, "Босс не пришёл. Telegram подвёл").format(
-        wait=cards.duration(game.boss_cooldown_left(chat_id))
+        wait=views.duration(game.boss_cooldown_left(chat_id))
     )
 
 
@@ -92,7 +92,7 @@ async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         await send.send_text(
             bot,
             callback.message.chat.id,
-            f"👹 {pick(texts.COUNTER)}: <b>{cards.who(name)}</b> −{rules.COUNTER_FINE} 🪙 в добычу",
+            f"👹 {pick(texts.COUNTER)}: <b>{views.who(name)}</b> −{rules.COUNTER_FINE} 🪙 в добычу",
         )
     if result.killed:
         await live.finish_boss(boss_id)

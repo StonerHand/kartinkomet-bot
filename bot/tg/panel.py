@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from bot.core import casino
 from bot.game import Game
 from bot.texts import ui
-from bot.tg import cards, keyboards, send, views
+from bot.tg import keyboards, send, views
 
 router = Router(name="panel")
 
@@ -81,19 +81,19 @@ def screen(
         return views.GAMES_SCREEN, keyboards.games_menu()
     if name == "casino":
         balance = repo.player(user_id)[0]
-        text = cards.casino_screen(
+        text = views.casino_screen(
             repo.user_label(user_id), balance, game.stake_for_play(user_id), chat_id, game.day_is("lucky_day")
         )
         return text, keyboards.casino_menu(casino.STAKE_PRESETS)
     if name == "shop":
         prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse", "resurrect", "title")}
-        text = cards.shop_screen(repo.user_label(user_id), repo.player(user_id)[0], prices, chat_id, game.day_event())
+        text = views.shop_screen(repo.user_label(user_id), repo.player(user_id)[0], prices, chat_id, game.day_event())
         return text, keyboards.shop_menu()
     if name == "quests":
         daily, weekly = game.quests_of(user_id)
         chests = game.chests_of(user_id)
         ready = repo.counter(user_id, "daily_day") != game.local_day()
-        text = cards.quests_screen(
+        text = views.quests_screen(
             repo.user_label(user_id), daily, weekly, chests, ready, repo.counter(user_id, "daily_streak"), chat_id
         )
         return text, keyboards.quests_menu(ready, chests)
@@ -105,7 +105,7 @@ def screen(
         text = views.admin(repo.totals(), repo.count_users(), str(repo.database_path))
         events_on = None if is_private else repo.chat_events_on(chat_id)
         return text, keyboards.admin(events_on)
-    today = cards.day_event_line(game.day_event())
+    today = views.day_event_line(game.day_event())
     return views.home(repo.totals(), chat_id, live_now(game, chat_id), today), keyboards.home(is_admin)
 
 

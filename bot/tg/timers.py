@@ -7,7 +7,7 @@ from aiogram import Bot
 
 from bot.core import boss as boss_rules
 from bot.game import Game, Granted
-from bot.tg import cards, keyboards, send, views
+from bot.tg import keyboards, send, views
 
 LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 15
@@ -170,10 +170,10 @@ class Live:
         labels = self.labels(people)
         extras = []
         if report.challenge:
-            extras.append("\n".join([cards.challenge_names(report, labels), *cards.challenge_result(report, labels, battle.chat_id)]))
-        extras.append("\n".join(cards.evolution_lines(report)))
-        extras.append("\n".join(cards.bets_result(report, labels)))
-        extras.append(cards.bounty_line(report.bounty, labels) or "")
+            extras.append("\n".join([views.challenge_names(report, labels), *views.challenge_result(report, labels, battle.chat_id)]))
+        extras.append("\n".join(views.evolution_lines(report)))
+        extras.append("\n".join(views.bets_result(report, labels)))
+        extras.append(views.bounty_line(report.bounty, labels) or "")
         text = views.battle_result(report, self.uploaders(battle), guessers, [block for block in extras if block])
         card_id = battle.message_id
         if card_id is None or not await self.edit_card(battle, text, markup):
@@ -233,12 +233,12 @@ class Live:
         trial = report.court
         uploader = self.game.repo.user_label(trial.pic.added_by)
         extras = []
-        bounty = cards.bounty_line(report.bounty, self.labels(report.bounty))
+        bounty = views.bounty_line(report.bounty, self.labels(report.bounty))
         if bounty:
             extras.append(bounty)
         markup = None
         if report.verdict == "executed" and self.game.can_appeal(trial) and isinstance(trial.pic.added_by, int):
-            extras.append(cards.appeal_hint(uploader))
+            extras.append(views.appeal_hint(uploader))
             markup = keyboards.appeal(trial.id)
         text = views.court_result(report, uploader, extras)
         card_id = trial.message_id
@@ -346,7 +346,7 @@ class Live:
             self.bot,
             boss["chat_id"],
             boss["message_id"],
-            cards.boss_card(boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"]),
+            views.boss_card(boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"]),
             keyboards.boss(boss_id, boss_rules.SUPER_PRICE),
         )
 
@@ -356,7 +356,7 @@ class Live:
             return
         boss = report.boss
         labels = self.labels([*boss["damage"], boss["last_hit_by"]])
-        text = cards.boss_result(report, labels, boss["chat_id"])
+        text = views.boss_result(report, labels, boss["chat_id"])
         card_id = boss["message_id"]
         if card_id is None or not await send.edit_caption(self.bot, boss["chat_id"], card_id, text, keyboards.boss_over()):
             sent = await send.send_text(self.bot, boss["chat_id"], text, keyboards.boss_over())
@@ -380,6 +380,6 @@ class Live:
                 self.bot,
                 challenge["chat_id"],
                 challenge["message_id"],
-                cards.challenge_closed(challenge, labels, "expired"),
+                views.challenge_closed(challenge, labels, "expired"),
                 None,
             )

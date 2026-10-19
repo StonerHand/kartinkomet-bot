@@ -10,7 +10,7 @@ from bot.core import progress
 from bot.game import Game
 from bot.texts import progress as texts
 from bot.texts.pick import pick
-from bot.tg import cards, keyboards, send
+from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
 router = Router(name="progress")
@@ -24,7 +24,7 @@ async def claim(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) ->
         return f"{pick(texts.DAILY_AGAIN)}. Серия: {daily.streak}"
     label = game.repo.user_label(user_id)
     markup = keyboards.open_chests([progress.RARE]) if daily.chest else None
-    await send.send_text(bot, chat_id, cards.daily_result(label, daily, chat_id), markup)
+    await send.send_text(bot, chat_id, views.daily_result(label, daily, chat_id), markup)
     await live.announce(chat_id, daily.granted or [])
     return None
 
@@ -64,9 +64,9 @@ async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int,
     if opened is None:
         return False
     label = game.repo.user_label(user_id)
-    message = await send.send_text(bot, chat_id, cards.chest_opening(label, tier, chat_id))
+    message = await send.send_text(bot, chat_id, views.chest_opening(label, tier, chat_id))
     await asyncio.sleep(CHEST_PAUSE)
-    text = cards.chest_opened(label, opened, chat_id)
+    text = views.chest_opened(label, opened, chat_id)
     left = {key: value for key, value in game.chests_of(user_id).items() if key == tier and value}
     markup = keyboards.open_chests(list(left)) if left else None
     if message is None or not await send.edit_text(bot, chat_id, message.message_id, text, markup):

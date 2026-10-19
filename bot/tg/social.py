@@ -9,7 +9,7 @@ from bot.core import shop
 from bot.game import Game
 from bot.texts import social as texts
 from bot.texts.pick import pick
-from bot.tg import cards, keyboards, send, views
+from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
 router = Router(name="social")
@@ -56,7 +56,7 @@ async def give(message: Message, command: CommandObject, bot: Bot, game: Game, l
         await message.reply(refusals[status])
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
-    await send.send_text(bot, message.chat.id, cards.gift(*labels, amount, message.chat.id))
+    await send.send_text(bot, message.chat.id, views.gift(*labels, amount, message.chat.id))
     await live.announce(message.chat.id, granted)
 
 
@@ -70,10 +70,10 @@ async def rob(message: Message, command: CommandObject, bot: Bot, game: Game, li
         return
     result = game.rob(message.from_user.id, target)
     if result.status not in ("success", "fail"):
-        await message.reply(texts.ROB_REFUSED[result.status].format(wait=cards.duration(result.wait)))
+        await message.reply(texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait)))
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
-    sent = await send.send_text(bot, message.chat.id, cards.robbery(*labels, result, message.chat.id))
+    sent = await send.send_text(bot, message.chat.id, views.robbery(*labels, result, message.chat.id))
     if sent:
         await send.react(bot, message.chat.id, sent.message_id, "😈" if result.status == "success" else "🤡")
     await live.announce(message.chat.id, result.granted)
@@ -98,7 +98,7 @@ async def marry(message: Message, command: CommandObject, bot: Bot, game: Game) 
     await send.send_text(
         bot,
         message.chat.id,
-        cards.proposal(*labels, game.wedding_price(), message.chat.id),
+        views.proposal(*labels, game.wedding_price(), message.chat.id),
         keyboards.proposal(proposal_id),
     )
 
@@ -123,11 +123,11 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
     chat_id = callback.message.chat.id
     suitor, beloved = game.repo.user_label(proposal["from_user"]), game.repo.user_label(proposal["to_user"])
     if status == "married":
-        text = cards.wedding(suitor, beloved, chat_id)
+        text = views.wedding(suitor, beloved, chat_id)
     elif status == "withdrawn":
         text = views.card("💍 <b>ПРЕДЛОЖЕНИЕ</b>", f"{suitor}: предложение отозвано. Бывает")
     else:
-        text = cards.rejected(suitor, beloved, chat_id)
+        text = views.rejected(suitor, beloved, chat_id)
     await send.edit_text(bot, chat_id, callback.message.message_id, text, None)
     if status == "married":
         await send.react(bot, chat_id, callback.message.message_id, "❤", big=True)
@@ -143,7 +143,7 @@ async def divorce(message: Message, bot: Bot, game: Game, live: Live) -> None:
         await message.reply("Ты не в браке. Разводиться не с кем")
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(result.spouse))
-    sent = await send.send_text(bot, message.chat.id, cards.divorce(*labels, result, message.chat.id))
+    sent = await send.send_text(bot, message.chat.id, views.divorce(*labels, result, message.chat.id))
     if sent:
         await send.react(bot, message.chat.id, sent.message_id, "💔")
     await live.announce(message.chat.id, result.granted)
@@ -178,7 +178,7 @@ async def challenge(message: Message, command: CommandObject, bot: Bot, game: Ga
     sent = await send.send_text(
         bot,
         message.chat.id,
-        cards.challenge_card(created, labels, message.chat.id, created["expires_at"] - game.now()),
+        views.challenge_card(created, labels, message.chat.id, created["expires_at"] - game.now()),
         keyboards.challenge(created["id"]),
     )
     if sent is None:
@@ -212,7 +212,7 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
     chat_id = callback.message.chat.id
     labels = {result.challenge["from_user"]: game.repo.user_label(result.challenge["from_user"])}
     await send.edit_text(
-        bot, chat_id, callback.message.message_id, cards.challenge_closed(result.challenge, labels, result.status), None
+        bot, chat_id, callback.message.message_id, views.challenge_closed(result.challenge, labels, result.status), None
     )
     if result.status != "accepted" or result.battle is None:
         await callback.answer("Вызов закрыт, ставка вернулась")

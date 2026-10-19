@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.core import shop
 from bot.game import Game
 from bot.texts import shop as texts
-from bot.tg import cards, keyboards, send, views
+from bot.tg import keyboards, send, views
 from bot.tg.court import open_court
 from bot.tg.timers import Live
 
@@ -69,7 +69,7 @@ async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         return
     user_id = callback.from_user.id
     cursed = game.cursed_until(pic.id)
-    text = cards.pic_menu(
+    text = views.pic_menu(
         pic,
         game.repo.user_label(pic.added_by) if pic.added_by else None,
         game.repo.player(user_id)[0],
@@ -116,7 +116,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
                 bot,
                 chat_id,
                 pic.file_id,
-                cards.wanted_poster(pic, total, label, chat_id),
+                views.wanted_poster(pic, total, label, chat_id),
                 keyboards.pic_actions(pic.id, pic.likes, pic.dislikes),
             )
             await live.announce(chat_id, game.flush([pic.added_by, user_id]))
@@ -130,7 +130,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
         return
     price = game.price(item)
-    await callback.answer(f"{cards.bought(item, user_id)} · −{price} 🪙")
+    await callback.answer(f"{views.bought(item, user_id)} · −{price} 🪙")
     if callback.message is not None and callback.message.message_id:
         await send.delete(bot, callback.message.chat.id, callback.message.message_id)
     if pic is None:
@@ -139,9 +139,9 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         status = await open_court(bot, game, live, chat_id, pic.id, "bottom", user_id)
         if status != "started":
             game.refund(user_id, item)
-            await send.send_text(bot, chat_id, f"⚖️ Суд не открылся, {price} 🪙 вернулись {cards.who(label)}")
+            await send.send_text(bot, chat_id, f"⚖️ Суд не открылся, {price} 🪙 вернулись {views.who(label)}")
         return
-    await send.send_text(bot, chat_id, cards.purchase_notice(item, label, pic, chat_id), reply_to=pic_message)
+    await send.send_text(bot, chat_id, views.purchase_notice(item, label, pic, chat_id), reply_to=pic_message)
     await live.announce(chat_id, game.flush([user_id]))
 
 
@@ -172,8 +172,8 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
         chat_id,
         pic.file_id,
         views.card(
-            f"🧟 <b>ВОСКРЕШЕНИЕ</b> · спасибо <b>{cards.who(label)}</b>",
-            cards.bought("resurrect", chat_id).split(" ", 1)[1],
+            f"🧟 <b>ВОСКРЕШЕНИЕ</b> · спасибо <b>{views.who(label)}</b>",
+            views.bought("resurrect", chat_id).split(" ", 1)[1],
             views.pic_footer(pic, uploader),
         ),
         keyboards.pic_actions(pic.id, pic.likes, pic.dislikes),
@@ -199,7 +199,7 @@ async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     prompt = await send.send_text(
         bot,
         chat_id,
-        f"{cards.who(label)}, " + texts.TITLE_PROMPT.format(limit=shop.TITLE_MAX_LENGTH, price=price),
+        f"{views.who(label)}, " + texts.TITLE_PROMPT.format(limit=shop.TITLE_MAX_LENGTH, price=price),
     )
     if prompt is not None:
         game.repo.set_meta(f"title_prompt:{chat_id}:{prompt.message_id}", callback.from_user.id)
@@ -222,6 +222,6 @@ async def title_reply(message: Message, bot: Bot, game: Game) -> bool:
     game.repo.set_meta(key, 0)
     title = game.repo.title_of(message.from_user.id) or ""
     label = game.repo.user_label(message.from_user.id)
-    await message.reply(texts.TITLE_DONE.format(name=cards.who(label), title=escape(title)), parse_mode="HTML")
+    await message.reply(texts.TITLE_DONE.format(name=views.who(label), title=escape(title)), parse_mode="HTML")
     await send.react(bot, message.chat.id, message.message_id, "🏆")
     return True
