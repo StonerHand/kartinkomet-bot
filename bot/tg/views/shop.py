@@ -61,7 +61,7 @@ def bought(item: str, chat_id: int) -> str:
 PURCHASE_FACTS = {
     "shield": "пикчу нельзя судить 3 дня",
     "boost": f"+{shop.BOOST_RATING} рейтинга",
-    "uncurse": f"порча снята, +{shop.CURSE_RATING} рейтинга вернулись",
+    "uncurse": f"+{shop.CURSE_RATING} рейтинга вернулись",
 }
 
 

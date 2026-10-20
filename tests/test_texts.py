@@ -6,6 +6,7 @@ from bot.core.achievements import ALL_CODES
 from bot.texts import arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick, reset
+from bot.tg.views.layout import PHONE_LINE
 
 EXPECTED_SIZES = {
     (captions, "CAPTIONS"): 600,
@@ -112,8 +113,8 @@ class HtmlBalance(HTMLParser):
 
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2B06\u2194-\u21FF\u2300-\u23FF]")
 NOT_COUNTED = set("\U0001F3FB\U0001F3FC🟥🟦🟩🟨")  # skin tones and vote bars
-PHONE_LINE = 40  # characters that fit one line of a message on a phone
 TITLE = re.compile(r"^(\S+ )?<b>")  # "🎁 <b>Title</b>…": the head of an item
+CAPTION = re.compile(r"^<i>[^<]*</i>$")  # an italic phrase under the lines above it
 
 
 def layout_problems(text: str) -> list[str]:
@@ -122,7 +123,8 @@ def layout_problems(text: str) -> list[str]:
     - one emoji per line, and at its start;
     - a line too long for one phone line wraps, so it must not merge with its neighbours: it
       stands in a paragraph of its own, or it is the description under its item's title
-      ("🎁 <b>Title</b>" first, no other item in the paragraph).
+      ("🎁 <b>Title</b>" first, no other item in the paragraph), or the italic caption that ends
+      a paragraph of short lines.
     The header and its flavour line are one unit and are not checked for length."""
     raw_lines = text.split("\n")
     lines = [re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
@@ -147,8 +149,10 @@ def layout_problems(text: str) -> list[str]:
         titled = bool(TITLE.match(raw_lines[first])) and len(lines[first]) <= PHONE_LINE and not any(
             EMOJI.match(lines[index]) for index in paragraph[1:]
         )
+        last = paragraph[-1]
+        caption = CAPTION.match(raw_lines[last]) and all(len(lines[index]) <= PHONE_LINE for index in paragraph[:-1])
         for index in paragraph:
-            if len(lines[index]) > PHONE_LINE and not (titled and index != first):
+            if len(lines[index]) > PHONE_LINE and not (titled and index != first) and not (caption and index == last):
                 problems.append(f"long line glued to a neighbour: {lines[index]}")
     return problems
 

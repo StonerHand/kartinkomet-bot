@@ -12,7 +12,9 @@ from bot.texts import arena as arena_texts
 from bot.texts import events as event_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import SLOT_COLORS, bar, bare, card, delta, money, num, plural, rating, slot_names, timer, who
+from bot.tg.views.layout import (
+    SLOT_COLORS, bar, bare, card, delta, fits, money, num, plural, rating, slot_names, timer, who,
+)
 
 
 def vote_lines(counts: list[int], labels: tuple[str, ...]) -> list[str]:
@@ -30,7 +32,7 @@ def bets_line(battle: Battle) -> str | None:
         return None
     names = slot_names(battle.kind)
     parts = [f"{names[slot]} ×{value:g}" for slot, value in enumerate(casino.odds(pool)) if value]
-    return f"💰 Ставки: банк {money(total)} · " + " · ".join(parts)
+    return f"💰 Ставки: {money(total)} · " + " · ".join(parts)
 
 
 def battle_card(battle: Battle, remaining: int, fighters: str | None = None, flipped: bool = False) -> str:
@@ -51,15 +53,19 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
     votes = [f"{mark} {line}" if evolved else line for line, mark in zip(vote_lines(counts, labels), marks)]
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")
-    if battle.extended and not total:
-        status = f"<b>{escape(bare(pick(event_texts.EXTENDED, battle.chat_id)))}</b>"
+    # Overtime is news, not a caption: it stands alone, like the twist of the day.
+    overtime = f"⏳ <b>{escape(bare(pick(event_texts.EXTENDED, battle.chat_id)))}</b>" if battle.extended and not total else ""
+    if overtime:
+        status = ""
     elif battle.mode == "challenge":
         status = "<i>Голосуют только зрители</i>"
     else:
         status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
     twist = "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else ""
     bets = bets_line(battle) or f"💰 Ставок пока нет · по {casino.BET_STEP} монет"
-    return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, bets, status)
+    # The status is the caption of the bets line, unless a long bet line (a tournament) wraps.
+    footer = [[bets, status]] if fits(bets) else [bets, status]
+    return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, overtime, *footer)
 
 
 def battle_result(
@@ -114,17 +120,20 @@ def battle_result(
     if report.flipped:
         table.append("🙃 <i>Перевёртыш: победила пикча с меньшим числом голосов</i>")
 
-    aftermath = []
+    streak, death = "", []
     if is_duel and battle.mode != "challenge":
         if report.winner is not None and report.streak > 1:
-            aftermath.append(f"🔥 Серия чемпионки: <b>{report.streak}</b>")
+            streak = f"🔥 Серия чемпионки: <b>{report.streak}</b>"
         if report.executed:
-            aftermath.append(f"⚰️ <b>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</b>")
-            aftermath.append(
-                f"<i>Рейтинг ниже {report.death_rating:.0f} или {DEATH_LOSS_STREAK}-е поражение подряд — арена не прощает</i>"
-            )
+            slot = next((i for i, pic in enumerate(battle.pics) if pic.id == report.executed.id), 1)
+            low = report.rating_after[slot] < report.death_rating
+            cause = f"рейтинг ниже {report.death_rating:.0f}" if low else f"{DEATH_LOSS_STREAK} поражения подряд"
+            death = [
+                f"⚰️ <b>Пикча {labels[slot]} погибла</b> · {cause}",
+                f"<i>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</i>",
+            ]
     # Pic rows are two lines each (name, rating): every row is its own block.
-    return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), *table, *(extras or []), aftermath)
+    return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), *table, *(extras or []), streak, death)
 
 
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:

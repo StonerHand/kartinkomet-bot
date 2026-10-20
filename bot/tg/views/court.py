@@ -38,12 +38,12 @@ def court_result(report: CourtReport, uploader: str, extras: list[str] | None = 
     pool = court_texts.EXECUTED if executed else court_texts.PARDONED
     facts = [
         f"⚖️ Казнить: <b>{kill}</b> · помиловать: <b>{spare}</b>",
-        "🕊 <b>Амнистия:</b> сегодня суд никого не казнит" if report.amnesty else "",
-        f"<i>Последнее слово: «{escape(trial.last_word)}»</i>" if trial.last_word else "",
+        "📰 <b>Амнистия:</b> сегодня суд никого не казнит" if report.amnesty else "",
         f"📜 Залог {money(report.bail_back)} вернулся загрузчику" if report.bail_back else "",
     ]
+    word = f"<i>Последнее слово: «{escape(trial.last_word)}»</i>" if trial.last_word else ""  # can be long: alone
     footer = f"<i>📥 {who(uploader)}" + ("" if executed else " · иммунитет на неделю") + "</i>"
-    return card(head, pick(pool, trial.chat_id), facts, *(extras or []), footer)
+    return card(head, pick(pool, trial.chat_id), facts, word, *(extras or []), footer)
 
 
 def appeal_hint(uploader: str) -> str:

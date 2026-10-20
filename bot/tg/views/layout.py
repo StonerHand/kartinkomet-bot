@@ -1,13 +1,25 @@
 """Shared layout: card(), numbers, names, plurals. Rules of every message live here."""
 
+import re
 from html import escape
 
+PHONE_LINE = 40  # characters that fit one line of a message on a phone
 BAR_CELLS = 5
 SLOT_COLORS = ("🟥", "🟦", "🟩", "🟨")
 MEDALS = ("🥇", "🥈", "🥉")
 # Fighters inside text are plain letters; the emoji letters 🅰️🅱️ live on buttons and collages.
 DUEL_SLOTS = ("A", "B")
 TOURNAMENT_SLOTS = ("1", "2", "3", "4")
+
+
+def plain(line: str) -> str:
+    """What the reader sees: no tags, no entities."""
+    return re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+
+def fits(line: str) -> bool:
+    """True if the line doesn't wrap on a phone."""
+    return len(plain(line)) <= PHONE_LINE
 
 
 def timer(seconds: int) -> str:
@@ -66,7 +78,11 @@ def card(head: str, flavour: str | None = None, *blocks) -> str:
         block…
 
     A block is a string or a list of lines; empty lines inside a block and empty blocks are
-    dropped, so callers never glue or double the spacing by hand."""
+    dropped, so callers never glue or double the spacing by hand.
+
+    Inside a block, lines that wrap on a phone would merge with their neighbours, so a long line
+    is either a block of its own, the description under its item's title, or the italic caption
+    that ends a block (like the flavour under the header)."""
     top = head + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
     parts = [top]
     for block in blocks:

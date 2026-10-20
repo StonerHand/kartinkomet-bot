@@ -174,3 +174,63 @@ class ScreensTest(BotHarness):
                     cards.append(views.court_card(state, 50, "stoner_hand"))
         for text in cards:
             self.assert_layout(text)
+
+    def test_results_in_every_state(self) -> None:
+        """Result cards with every optional block: battles, courts, bosses, challenges, purchases."""
+        from dataclasses import replace
+
+        from bot.core.arena import TOURNAMENT_SECONDS
+        from bot.core.court import COURT_SECONDS
+        from bot.tg.views.shop import PURCHASE_FACTS
+
+        game, repo, labels = self.game, self.game.repo, dict(NAMES)
+        texts = []
+        duel = game.start_duel(-100).battle
+        for voter in (3, 4, 5):
+            game.vote_battle(duel.id, voter, 0)
+        self.clock.advance(DUEL_SECONDS + 1)
+        report = game.finish_battle(duel.id)
+        challenge = {"from_user": 1, "to_user": 6, "stake": 1500}
+        duels = [
+            report,
+            replace(report, flipped=True, executed=report.battle.pics[1], bets={3: (50, 300), 4: (250, 0)},
+                    bounty={3: 500, 4: 250}, evolved=[(0, 0, 1)], streak=5, milestone=5, guessers=[3, 4, 5],
+                    guess_reward=4),
+            replace(report, bets={3: (50, 0)}, bets_burned=50),
+            replace(report, bets={3: (50, 50)}),
+            replace(report, counted=False, winner=None, bets={3: (50, 50)}),
+            replace(report, challenge=challenge, champion=1),
+            replace(report, challenge=challenge, champion=None),
+        ]
+        tournament = game.start_tournament(-100).battle
+        for voter, slot in ((3, 0), (4, 1), (5, 0), (6, 3)):
+            game.vote_battle(tournament.id, voter, slot)
+        self.clock.advance(TOURNAMENT_SECONDS + 1)
+        for item in [*duels, game.finish_battle(tournament.id)]:
+            texts.append(views.battle_report(item, labels))
+
+        pic = game.draw_pic(-100)[0]
+        trial = game.start_court(-100, pic.id, "bottom", None).court
+        for voter in (3, 4):
+            game.vote_court(trial.id, voter, "kill")
+        self.clock.advance(COURT_SECONDS + 1)
+        verdict = game.finish_court(trial.id)
+        appealed = replace(verdict.court, appeal=True, last_word="я не виновата, это всё загрузчик, он меня таким сделал")
+        extras = [views.bounty_line({3: 500}, labels), views.appeal_hint("stoner_hand")]
+        for item in (verdict, replace(verdict, verdict="pardoned"), replace(verdict, verdict="pardoned", amnesty=True),
+                     replace(verdict, court=appealed, verdict="pardoned", bail_back=200), replace(verdict, court=appealed)):
+            texts.append(views.court_result(item, "stoner_hand", extras))
+
+        _, boss = game.summon_boss(-100, "Тест", forced=True)
+        for user_id in (2, 3, 4, 5, 6):
+            game.hit_boss(boss["id"], user_id, super_hit=user_id == 3)
+        texts.append(views.boss_card(repo.get_boss(boss["id"]), labels, 300, -100))
+        self.clock.advance(3600)
+        texts.append(views.boss_result(game.finish_boss(boss["id"]), labels, -100))
+
+        for status in ("declined", "cancelled", "expired", "accepted"):
+            texts.append(views.challenge_closed(challenge, labels, status))
+        for item in PURCHASE_FACTS:
+            texts.append(views.purchase_notice(item, "stoner_hand", pic, -100))
+        for text in texts:
+            self.assert_layout(text)
