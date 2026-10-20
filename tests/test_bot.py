@@ -64,6 +64,14 @@ class FakeSession(BaseSession):
             photo=[PhotoSize(file_id="sent", file_unique_id="sent", width=1, height=1)] if photo else None,
         )
 
+    @staticmethod
+    def kind(method: TelegramMethod) -> str:
+        """The request type; a sendMessage only one user sees counts as its own kind."""
+        name = type(method).__name__
+        if name == "SendMessage" and getattr(method, "ephemeral_message_parameters", None):
+            return "SendEphemeralMessage"
+        return name
+
     async def make_request(self, bot, method, timeout=None):
         self.requests.append(method)
         result = self.reply(method)
@@ -71,13 +79,13 @@ class FakeSession(BaseSession):
         return self.check_response(bot, method, 200, json.dumps({"ok": True, "result": wire(result)})).result
 
     def reply(self, method: TelegramMethod):
-        name = type(method).__name__
+        name = self.kind(method)
         if name in getattr(self, "refuse", set()):
             from aiogram.exceptions import TelegramBadRequest
 
             raise TelegramBadRequest(method=method, message="Bad Request: not supported")
         if name == "SendEphemeralMessage":
-            return {"message_id": 0}
+            return self.message(int(method.chat_id))
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
             return self.message(int(method.chat_id), photo=name == "SendPhoto")
         if name == "SendDice":
@@ -101,7 +109,7 @@ class FakeSession(BaseSession):
         return True
 
     def of(self, name: str) -> list[TelegramMethod]:
-        return [request for request in self.requests if type(request).__name__ == name]
+        return [request for request in self.requests if self.kind(request) == name]
 
 
 def wire(value):
@@ -149,7 +157,7 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
                 # One layout everywhere: no triple line breaks, no trailing blank lines.
                 self.assertNotIn("\n\n\n", text)
                 self.assertEqual(text, text.strip("\n"))
-                if type(request).__name__ in CHECKED_METHODS:
+                if self.session.kind(request) in CHECKED_METHODS:
                     self.assertEqual(layout_problems(text), [], text)
             markup = getattr(request, "reply_markup", None)
             if isinstance(markup, InlineKeyboardMarkup):
@@ -199,7 +207,7 @@ class BotTest(BotHarness):
         await self.press("m:me", sender=3)
         ephemeral = self.session.of("SendEphemeralMessage")
         self.assertEqual(len(ephemeral), 1)
-        self.assertEqual(ephemeral[0].ephemeral_message_parameters["receiver_user_id"], 3)
+        self.assertEqual(ephemeral[0].ephemeral_message_parameters.receiver_user_id, 3)
         self.assertEqual(self.session.of("EditMessageText"), [])
 
     async def test_profile_falls_back_to_panel_if_ephemeral_refused(self) -> None:

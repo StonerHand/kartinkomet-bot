@@ -119,7 +119,10 @@ class Live:
             if remaining <= 0:
                 await finish()
                 return
-            await refresh()
+            try:
+                await refresh()
+            except Exception:  # a card that failed to redraw must not stop the settlement
+                LOGGER.exception("Live card refresh failed, the countdown goes on")
             await asyncio.sleep(min(TICK_SECONDS, remaining))
 
     def _debounce(self, key: str, refresh: Callable[[], Awaitable[None]]) -> None:

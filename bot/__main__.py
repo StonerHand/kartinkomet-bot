@@ -13,6 +13,7 @@ from bot.tg import admin, arena, boss, casino, court, fallback, games, inline, p
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
+from bot.tg.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
 
 LOGGER = logging.getLogger("kartinkomet")
 STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
@@ -140,10 +141,13 @@ async def main() -> None:
         LOGGER.info("Silently granted %s already-earned achievements", backfilled)
 
     bot = Bot(token=config.bot_token)
+    watchdog = PollingWatchdog()
+    bot.session.middleware.register(watchdog)
     live = Live(bot, game)
     dispatcher = build_dispatcher(game, live, config.admin_user_ids)
     repo.seed_chats(game.now())
     events = Events(bot, game, live, config.admin_user_ids, config.tz_offset_hours)
+    guard: asyncio.Task | None = None
     try:
         await set_up_profile(bot)
         restored = live.restore()
@@ -153,12 +157,27 @@ async def main() -> None:
         if dropped:
             LOGGER.info("Dropped %s stale updates left from downtime", dropped)
         events.start()
+
+        async def on_stall() -> None:
+            await alert_admins(
+                bot,
+                config.admin_user_ids,
+                f"⚠️ Бот {STALL_SECONDS // 60} минут не получает обновления от Telegram и перезапускается. "
+                "Если это повторяется, загляни в логи Railway",
+            )
+            await dispatcher.stop_polling()
+
+        guard = asyncio.create_task(watchdog.watch(on_stall))
         await dispatcher.start_polling(bot)
     finally:
+        if guard is not None:
+            guard.cancel()
         await events.stop()
         await live.stop()
         await bot.session.close()
         repo.close()
+    if watchdog.stalled:
+        raise SystemExit(1)  # a failure exit: Railway restarts the process and records the crash
 
 
 if __name__ == "__main__":

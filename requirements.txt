@@ -1,7 +1,6 @@
-# aiogram 3.20 on purpose: 3.31 needs ~235 MB RAM; 3.20 + bot/lean.py runs in ~65 MB.
-# Button "style" still works on 3.20 (sent as an extra field).
-aiogram==3.20.0
+# aiogram builds every Telegram model on import (~235 MB); bot/lean.py makes that lazy: ~70 MB.
+aiogram==3.31.0
 python-dotenv==1.2.4
 Pillow==12.3.0
 # Pinned with aiogram: bot/lean.py loads aiogram lazily through pydantic internals.
-pydantic==2.11.10
+pydantic==2.13.5

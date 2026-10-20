@@ -1,13 +1,13 @@
 """Load aiogram without building every Telegram model up front.
 
-aiogram declares its ~300 types with pydantic's `defer_build=True`, then defeats it: importing
+aiogram declares its types with pydantic's `defer_build=True`, then defeats it: importing
 `aiogram.types` calls `model_rebuild()` on each of them, compiling validators for payments,
-stories, giveaways and everything else this bot never receives. That alone takes ~85 MB.
+stories, giveaways and everything else this bot never receives. On aiogram 3.31 that is ~165 MB.
 
 `load_aiogram()` imports aiogram with model_rebuild intercepted for those deferred models: it
 only remembers the namespace aiogram passes (so forward references still resolve) and lets
 pydantic build each model the first time a matching update actually arrives. The bot ends up
-with validators for messages, callbacks and a few more types, ~45 MB less memory.
+with validators for messages, callbacks and a few more types: ~70 MB instead of ~235.
 
 Relies on pydantic internals (`__pydantic_parent_namespace__`), so pydantic is pinned in
 requirements.txt. The whole test suite runs in this mode (tests/__init__.py).

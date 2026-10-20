@@ -13,8 +13,8 @@ from aiogram.exceptions import (
     TelegramRetryAfter,
     TelegramServerError,
 )
-from aiogram.methods import TelegramMethod
 from aiogram.types import (
+    EphemeralMessageParameters,
     InlineKeyboardMarkup,
     InputFile,
     InputMediaPhoto,
@@ -220,22 +220,6 @@ async def react(bot: Bot, chat_id: int, message_id: int | None, emoji: str, big:
         LOGGER.info("Reaction %s not allowed in %s: %s", emoji, chat_id, error)
 
 
-class SendEphemeralMessage(TelegramMethod[dict]):
-    """sendMessage with Bot API 10.3 ephemeral_message_parameters (newer than aiogram 3.20).
-
-    The result is read as a plain dict so a newer Message shape can't break parsing.
-    """
-
-    __returning__ = dict
-    __api_method__ = "sendMessage"
-
-    chat_id: int
-    text: str
-    parse_mode: str = "HTML"
-    ephemeral_message_parameters: dict
-    reply_markup: InlineKeyboardMarkup | None = None
-
-
 async def send_ephemeral(
     bot: Bot,
     chat_id: int,
@@ -245,17 +229,15 @@ async def send_ephemeral(
     markup: InlineKeyboardMarkup | None = None,
 ) -> bool:
     """A group message only `user_id` sees. False if Telegram refused, so callers can fall back."""
-    parameters: dict = {"receiver_user_id": user_id}
-    if callback_query_id:
-        parameters["callback_query_id"] = callback_query_id
     try:
-        await bot(
-            SendEphemeralMessage(
-                chat_id=chat_id,
-                text=text,
-                ephemeral_message_parameters=parameters,
-                reply_markup=markup,
-            )
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            ephemeral_message_parameters=EphemeralMessageParameters(
+                receiver_user_id=user_id, callback_query_id=callback_query_id
+            ),
         )
         return True
     except TelegramAPIError as error:

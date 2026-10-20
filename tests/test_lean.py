@@ -56,8 +56,9 @@ class LeanAiogramTest(unittest.TestCase):
         contents = [
             {"sticker": {"file_id": "s", "file_unique_id": "u", "type": "regular", "width": 1, "height": 1,
                          "is_animated": False, "is_video": False}},
-            {"poll": {"id": "p", "question": "?", "options": [{"text": "a", "voter_count": 0}], "total_voter_count": 0,
-                      "is_closed": False, "is_anonymous": True, "type": "regular", "allows_multiple_answers": False}},
+            {"poll": {"id": "p", "question": "?", "options": [{"text": "a", "voter_count": 0, "persistent_id": "o"}],
+                      "total_voter_count": 0, "is_closed": False, "is_anonymous": True, "type": "regular",
+                      "allows_multiple_answers": False, "allows_revoting": False, "members_only": False}},
             {"location": {"latitude": 1.0, "longitude": 2.0}},
             {"dice": {"emoji": "🎲", "value": 3}},
             {"forward_origin": {"type": "user", "date": 0, "sender_user": USER}, "text": "fwd"},

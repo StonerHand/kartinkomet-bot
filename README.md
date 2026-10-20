@@ -17,7 +17,7 @@
   <a href="https://github.com/StonerHand/kartinkomet-bot/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/StonerHand/kartinkomet-bot/ci.yml?branch=main&amp;style=flat-square&amp;label=CI&amp;color=E53935" alt="Статус CI"></a>
   <a href="https://github.com/StonerHand/kartinkomet-bot/releases"><img src="https://img.shields.io/github/v/release/StonerHand/kartinkomet-bot?style=flat-square&amp;color=E53935&amp;label=release" alt="Последний релиз"></a>
   <a href=".python-version"><img src="https://img.shields.io/badge/Python-3.12-E53935?style=flat-square" alt="Python 3.12"></a>
-  <a href="https://docs.aiogram.dev"><img src="https://img.shields.io/badge/aiogram-3.20-E53935?style=flat-square" alt="aiogram 3.20"></a>
+  <a href="https://docs.aiogram.dev"><img src="https://img.shields.io/badge/aiogram-3.31-E53935?style=flat-square" alt="aiogram 3.31"></a>
   <a href="https://railway.com"><img src="https://img.shields.io/badge/Deploy-Railway-E53935?style=flat-square" alt="Работает на Railway"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-E53935?style=flat-square" alt="Лицензия MIT"></a>
 </p>
@@ -119,7 +119,7 @@ python -m bot
 
 Inline-режим включается один раз в @BotFather: `/setinline`. Часовой пояс событий — `BOT_TZ_OFFSET` (по умолчанию `3`, Москва).
 
-Для продакшена: Railway, worker `python -m bot` и volume под базу. Бот держится примерно в 65 МБ памяти (aiogram загружается лениво, см. `bot/lean.py`) и укладывается в бесплатный тариф.
+Для продакшена: Railway, worker `python -m bot` и volume под базу. Бот держится примерно в 70 МБ памяти (aiogram загружается лениво, см. `bot/lean.py`) и укладывается в бесплатный тариф.
 
 ## 🧩 Как устроено
 
@@ -133,7 +133,7 @@ Telegram ──▶ aiogram (long polling) ──▶ bot/tg         роутер�
                                  bot/db/repo ──▶ SQLite (WAL) на volume
 ```
 
-Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт; после долгого простоя бот не отвечает разом на накопившиеся старые команды. CI гоняет линтер и 207 тестов, включая сквозные сценарии с фейковым Telegram и проверку вёрстки каждого сообщения. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
+Картинки бот не хранит — только Telegram `file_id`, рейтинги и статистику. Активные бои и суды живут в базе и переживают рестарт; после долгого простоя бот не отвечает разом на накопившиеся старые команды. CI гоняет линтер и 211 тестов, включая сквозные сценарии с фейковым Telegram и проверку вёрстки каждого сообщения. Подробности — в [архитектуре](docs/ARCHITECTURE.md), изменения — в [релизах](https://github.com/StonerHand/kartinkomet-bot/releases).
 
 ## 📄 Лицензия
 
