@@ -18,16 +18,14 @@ def court_card(trial: Court, remaining: int, uploader: str) -> str:
         f"🪓 Казнить · <b>{kill}</b>{bar(kill, leader, '🟥')}",
         f"🕊 Помиловать · <b>{spare}</b>{bar(spare, leader, '🟩')}",
     ]
-    status = [
-        f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>",
-        "<i>Повторный суд: для казни нужно 3 голоса «казнить» и большинство</i>" if trial.appeal else "",
-    ]
+    status = f"<i>{escape(pick(court_texts.STATUS, trial.chat_id))}</i>"
+    rule = "⚖️ Для казни нужно 3 голоса «казнить» и большинство" if trial.appeal else ""
     if trial.last_word:
         intro = bare(pick(court_texts.LAST_WORD_INTRO, trial.chat_id))
         word = f"🗣 <b>Последнее слово</b>\n<i>{escape(intro)}</i>\n{cited(trial.last_word).rstrip()}"
     else:
         word = f"🗣 <i>{who(uploader)}, ответь на это сообщение — это будет последнее слово</i>"
-    return card(f"{head} · <b>{timer(remaining)}</b>", trial.title or None, votes, status, word)
+    return card(f"{head} · <b>{timer(remaining)}</b>", trial.title or None, votes, rule, status, word)
 
 
 def court_result(report: CourtReport, uploader: str, extras: list[str] | None = None) -> str:

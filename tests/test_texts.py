@@ -113,26 +113,43 @@ class HtmlBalance(HTMLParser):
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50\u2B06\u2194-\u21FF\u2300-\u23FF]")
 NOT_COUNTED = set("\U0001F3FB\U0001F3FC🟥🟦🟩🟨")  # skin tones and vote bars
 PHONE_LINE = 40  # characters that fit one line of a message on a phone
+TITLE = re.compile(r"^(\S+ )?<b>")  # "🎁 <b>Title</b>…": the head of an item
 
 
 def layout_problems(text: str) -> list[str]:
     """The message layout rules (see bot/tg/views/layout.py), as checks:
-    one emoji per line and at its start; a list item that has neighbours fits one phone line."""
-    plain = re.sub(r"<[^>]+>", "", text).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    lines = plain.split("\n")
+
+    - one emoji per line, and at its start;
+    - a line too long for one phone line wraps, so it must not merge with its neighbours: it
+      stands in a paragraph of its own, or it is the description under its item's title
+      ("🎁 <b>Title</b>" first, no other item in the paragraph).
+    The header and its flavour line are one unit and are not checked for length."""
+    raw_lines = text.split("\n")
+    lines = [re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+             for line in raw_lines]
     problems = []
-    for index, line in enumerate(lines):
+    for line in lines:
         emoji = [char for char in EMOJI.findall(line) if char not in NOT_COUNTED]
         if len(emoji) > 1:
             problems.append(f"several emoji: {line}")
         elif emoji and not EMOJI.match(line.lstrip("▫️✅ ")) and not EMOJI.match(line):
             problems.append(f"emoji inside a line: {line}")
-        starts_with_emoji = bool(EMOJI.match(line))
-        neighbour = (index + 1 < len(lines) and lines[index + 1].strip()) or (
-            index and lines[index - 1].strip() and EMOJI.match(lines[index - 1])
+    paragraphs: list[list[int]] = [[]]
+    for index, line in enumerate(lines):
+        if line.strip():
+            paragraphs[-1].append(index)
+        elif paragraphs[-1]:
+            paragraphs.append([])
+    for number, paragraph in enumerate(paragraphs):
+        if number == 0 or len(paragraph) < 2:
+            continue  # the header block, or a line standing alone
+        first = paragraph[0]
+        titled = bool(TITLE.match(raw_lines[first])) and len(lines[first]) <= PHONE_LINE and not any(
+            EMOJI.match(lines[index]) for index in paragraph[1:]
         )
-        if starts_with_emoji and len(line) > PHONE_LINE and neighbour:
-            problems.append(f"list line wraps on a phone: {line}")
+        for index in paragraph:
+            if len(lines[index]) > PHONE_LINE and not (titled and index != first):
+                problems.append(f"long line glued to a neighbour: {lines[index]}")
     return problems
 
 

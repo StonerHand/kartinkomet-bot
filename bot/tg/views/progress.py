@@ -13,8 +13,12 @@ from bot.tg.views.layout import bare, card, money, num, plural, who
 def task_line(task: TaskState) -> str:
     name = progress_texts.quest_name(task.kind, task.target)
     if task.finished:
-        return f"✅ <s>{escape(name)}</s>\n<i>готово · +{num(task.reward)} монет</i>"
-    return f"▫️ {escape(name)}\n<i>{min(task.done, task.target)} из {task.target} · награда {num(task.reward)} монет</i>"
+        return f"✅ <s>{escape(name)}</s>\n<i>готово · +{coins(task.reward)}</i>"
+    return f"▫️ {escape(name)}\n<i>{min(task.done, task.target)} из {task.target} · награда {coins(task.reward)}</i>"
+
+
+def coins(amount: int) -> str:
+    return f"{num(amount)} {plural(amount, 'монета', 'монеты', 'монет')}"
 
 
 def quests_screen(
@@ -31,7 +35,7 @@ def quests_screen(
     )
     owned = [(tier, count) for tier, count in chests.items() if count]
     backpack = (
-        "🎁 <b>Сундуки:</b> " + " · ".join(f"{progress_texts.CHESTS[tier][1].lower()} — {count}" for tier, count in owned)
+        "🎁 <b>Сундуки:</b> " + " · ".join(f"{progress_texts.CHESTS[tier][1].split()[0].lower()} — {count}" for tier, count in owned)
         if owned
         else "🎁 <i>Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
     )
@@ -89,16 +93,16 @@ def day_event_line(code: str | None) -> str | None:
 
 def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) -> str:
     name, rule = day_texts.NAMES[code], day_texts.RULES[code]
-    facts = [f"<b>Что меняется:</b> {escape(rule[0].lower() + rule[1:])}."]
+    report = []
     if code == "tax" and tax:
         total, share, people = tax
-        facts += [
+        report = [
             f"🧾 Собрано с богачей: {money(total)}",
             f"🤲 По {money(share)} получили {people} {plural(people, 'бедняк', 'бедняка', 'бедняков')}",
         ]
     return card(
         f"📰 <b>СОБЫТИЕ ДНЯ: {escape(bare(name)).upper()}</b>",
         pick(day_texts.FLAVOUR[code], chat_id),
-        facts,
-        "<i>Действует до полуночи</i>",
+        ["⚡ <b>Что меняется</b>", f"{escape(rule)}. <i>До полуночи</i>"],
+        report,
     )

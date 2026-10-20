@@ -140,7 +140,7 @@ async def end(bot: Bot, chat_id: int, user_id: int, cancelled: bool) -> None:
         await send.send_with_effect(
             bot,
             chat_id,
-            f"🎉 <b>+{session.added}</b> на склад. Они уже в рандоме",
+            f"🎉 <b>+{session.added}</b> на склад. " + ("Она уже в рандоме" if session.added == 1 else "Они уже в рандоме"),
             send.EFFECT_PARTY,
         )
 

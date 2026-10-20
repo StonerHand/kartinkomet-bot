@@ -53,8 +53,10 @@ def profile(
         lines.append(f"🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд на складе")
     owned_chests = [(tier, count) for tier, count in (wallet.chests or {}).items() if count]
     if owned_chests:
-        names = {"wood": "деревянных", "rare": "редких", "legend": "легендарных"}
-        lines.append("🎁 Сундуки: " + " · ".join(f"{names[tier]} {count}" for tier, count in owned_chests))
+        total = sum(count for _, count in owned_chests)
+        lines.append(
+            f"🎁 {total} {plural(total, 'сундук', 'сундука', 'сундуков')} {plural(total, 'ждёт', 'ждут', 'ждут')} в /quests"
+        )
     statuses = []
     for kind in wallet.crowns:
         badge, crown = economy.CROWNS[kind]
@@ -79,17 +81,19 @@ def profile(
         f" · <b>{stats.dislikes_received}</b> {plural(stats.dislikes_received, 'дизлайк', 'дизлайка', 'дизлайков')}"
     )
     if stats.legends or stats.best_streak > 1:
-        lines.append(f"🏛 <b>{stats.legends}</b> в зале славы · 🔥 лучшая серия <b>{stats.best_streak}</b>")
+        lines.append(f"🏛 <b>{stats.legends}</b> в зале славы · лучшая серия <b>{stats.best_streak}</b>")
     title_code = rules.upload_title_code(stats.uploads)
     goal = rules.next_upload_goal(stats.uploads)
-    if title_code and goal:
-        left = goal.threshold - stats.uploads
-        lines.append(
-            f"<i>Титул «{escape(bare(ACHIEVEMENTS[title_code][0]))}», до «{escape(bare(ACHIEVEMENTS[goal.code][0]))}» "
-            f"ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}</i>"
-        )
-    elif title_code:
-        lines.append(f"<i>{escape(ACHIEVEMENTS[title_code][0])}</i>")
+    if title_code:  # the uploader title: its own item, "📦 <b>Title</b>" over the way to the next one
+        badge, _, name = ACHIEVEMENTS[title_code][0].partition(" ")
+        lines += ["", f"{badge} <b>{escape(name)}</b>"]
+        if goal:
+            left = goal.threshold - stats.uploads
+            lines.append(
+                f"<i>до «{escape(bare(ACHIEVEMENTS[goal.code][0]))}» ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}</i>"
+            )
+        else:
+            lines.append("<i>высший титул загрузчика</i>")
 
     voice = economy.people_voice(wallet.right_guesses, wallet.wrong_guesses)
     if voice or wallet.nemesis or stats.kill_votes or stats.spare_votes:

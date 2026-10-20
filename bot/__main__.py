@@ -132,6 +132,9 @@ async def main() -> None:
     starters = game.give_starters()
     if starters:
         LOGGER.info("Gave the v4 starter bonus to %s players", starters)
+    gifted = game.give_gifts()
+    if gifted:
+        LOGGER.info("Handed out one-time gifts to %s players", gifted)
     backfilled = game.backfill_achievements()
     if backfilled:
         LOGGER.info("Silently granted %s already-earned achievements", backfilled)

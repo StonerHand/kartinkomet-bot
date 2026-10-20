@@ -52,6 +52,9 @@ class ScreensTest(BotHarness):
                 game.vote_battle(battle.id, voter, 0)
             self.clock.advance(DUEL_SECONDS + 1)
             game.finish_battle(battle.id)
+        # Enough history for the hall of fame and the bottom: both list only experienced pics.
+        repo.db.execute("UPDATE pics SET games = games + 5, wins = wins + 4, best_streak = 3, dislikes = 2")
+        repo.db.commit()
         for pic in repo.pics_of(ADMIN, limit=2, weakest=True):
             repo.remove_pic(pic.id, "executed", "court", game.now())
         repo.marry(ADMIN, 2, game.now() - 5 * 86400)
@@ -132,3 +135,42 @@ class ScreensTest(BotHarness):
             self.assert_layout(views.announcement(granted))
         for level in economy.LEVELS:
             self.assert_layout(views.announcement([("kcifekzhue", Granted(1, [], level.name))]))
+
+    def test_live_cards_in_every_state(self) -> None:
+        """Battle and court cards with every optional line, over every status phrase: a live test
+        shows one random phrase and rarely a twist day or a full bet pool."""
+        from dataclasses import replace
+        from unittest import mock
+
+        from bot.texts import arena as arena_texts
+        from bot.texts import court as court_texts
+        from bot.tg.views import arena as arena_views
+        from bot.tg.views import court as court_views
+
+        game = self.game
+        duel = game.start_duel(-100).battle
+        game.finish_battle(duel.id)
+        tournament = game.start_tournament(-100).battle
+        fighters = views.challenge_names({"from_user": 1, "to_user": 6, "stake": 1500}, NAMES)
+        duels = [
+            replace(duel, votes={3: 0, 4: 1}, bets={3: (0, 50), 4: (1, 600)}),
+            replace(duel, streak=4, votes={3: 0}),
+            replace(duel, extended=True),
+            replace(duel, mode="challenge", bets={}),
+        ]
+        cards = []
+        for phrase in (*arena_texts.DUEL_STATUS, *arena_texts.TOURNAMENT_STATUS):
+            with mock.patch.object(arena_views, "pick", lambda pool, *args: phrase):
+                for battle in duels:
+                    cards.append(views.battle_card(battle, 14, fighters if battle.mode else None, flipped=True))
+                    cards.append(views.battle_card(battle, 14))
+                bets = {user: (user % 4, 50 * user) for user in NAMES}
+                cards.append(views.battle_card(replace(tournament, bets=bets, votes={3: 0, 4: 1, 5: 3}), 75))
+        pic = game.draw_pic(-100)[0]
+        trial = game.start_court(-100, pic.id, "bottom", None).court
+        for phrase in court_texts.STATUS:
+            with mock.patch.object(court_views, "pick", lambda pool, *args: phrase):
+                for state in (trial, replace(trial, appeal=True), replace(trial, appeal=True, last_word="я не виновата")):
+                    cards.append(views.court_card(state, 50, "stoner_hand"))
+        for text in cards:
+            self.assert_layout(text)

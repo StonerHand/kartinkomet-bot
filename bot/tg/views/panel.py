@@ -36,7 +36,7 @@ def hall(pics: list[Pic], labels: list[str], record: int) -> str:
         lines.append("Пока пусто. Устройте пару дуэлей — тут появятся герои")
     for index, (pic, label) in enumerate(zip(pics, labels)):
         place = MEDALS[index] if index < 3 else f"{index + 1}."
-        streak = f" · 🔥{pic.best_streak}" if pic.best_streak > 1 else ""
+        streak = f" · серия {pic.best_streak}" if pic.best_streak > 1 else ""
         lines.append(f"{place} <b>{rating(pic.rating)}</b>  {who(label)}  <i>{pic.wins}–{pic.losses}{streak}</i>")
     if record:
         lines += ["", f"<i>👑 Рекорд серии в чате: {record}</i>"]
@@ -48,7 +48,8 @@ def bottom(pics: list[Pic], labels: list[str]) -> str:
     if not pics:
         lines.append("Дно пустое. Подозрительно")
     for index, (pic, label) in enumerate(zip(pics, labels), start=1):
-        lines.append(f"{index}. <b>{rating(pic.rating)}</b>  {who(label)}  <i>🖕🏻 {pic.dislikes}</i>")
+        dislikes = plural(pic.dislikes, "дизлайк", "дизлайка", "дизлайков")
+        lines.append(f"{index}. <b>{rating(pic.rating)}</b>  {who(label)}  <i>{pic.dislikes} {dislikes}</i>")
     return "\n".join(lines)
 
 

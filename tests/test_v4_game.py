@@ -37,6 +37,19 @@ class EconomyTest(V4Case):
         self.assertFalse(self.game.give_starter(5))
         self.assertEqual(self.game.repo.player(5), (STARTER_BONUS, 0, 0))
 
+    def test_gift_once_to_existing_players_only(self) -> None:
+        repo = self.game.repo
+        for user_id in (5, 6):
+            repo.remember_user(user_id, f"u{user_id}", f"u{user_id}", None, self.game.now())
+        gifts = (("gift_test", 1_000_000),)
+        self.assertEqual(self.game.give_gifts(gifts), len(repo.all_user_ids()))
+        self.assertEqual(self.coins(5), 1_000_000)
+        self.assertEqual(repo.player(5)[1], 0)  # not earned: levels stay where they were
+        repo.remember_user(777, "newbie", "newbie", None, self.game.now())
+        self.assertEqual(self.game.give_gifts(gifts), 0)  # second start: nobody, newcomers neither
+        self.assertEqual(self.coins(5), 1_000_000)
+        self.assertEqual(self.coins(777), 0)
+
     def test_spend_is_all_or_nothing(self) -> None:
         self.fund(5, 100)
         self.assertFalse(self.game.repo.spend(5, 101, "x", self.game.now()))

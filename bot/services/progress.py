@@ -7,6 +7,9 @@ from bot.services.types import Granted, Note
 
 STARTER_BONUS = 1111
 STARTER_KEY = "starter_v4"
+# One-time gifts to everyone already playing, (key, coins): each is handed out once, at the first
+# start after it is added. Players who come later don't get it.
+GIFTS = (("gift_2026_10_20", 1_000_000),)
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,21 @@ class ProgressMixin:
 
     def give_starters(self) -> int:
         return sum(self.give_starter(user_id) for user_id in self.repo.all_user_ids())
+
+    def give_gifts(self, gifts=GIFTS) -> int:
+        """Every gift once per existing player; the per-player mark keeps a crash mid-way from
+        paying anyone twice. Doesn't count towards levels. Returns how many players got one."""
+        given = 0
+        for key, amount in gifts:
+            if self.repo.meta_str(f"gift:{key}"):
+                continue
+            for user_id in self.repo.all_user_ids():
+                if not self.repo.counter(user_id, key):
+                    self.repo.set_counter(user_id, key, 1)
+                    self.repo.add_coins(user_id, amount, "gift", self.now(), earn=False)
+                    given += 1
+            self.repo.set_meta(f"gift:{key}", self.now())
+        return given
 
     # ── event of the day ───────────────────────────────────────────────
 

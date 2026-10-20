@@ -28,7 +28,7 @@ def boss_card(boss: dict, labels: dict[int, str], remaining: int, chat_id: int) 
         [
             f"🗡 <i>Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
             f"🔥 <i>Супер-удар — {boss_rules.SUPER_PRICE} монет, бьёт сильнее</i>",
-            "💰 <i>Добычу делят по нанесённому урону</i>",
+            "🤝 <i>Добычу делят по нанесённому урону</i>",
         ],
     )
 
@@ -49,7 +49,7 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
     for index, (user, amount) in enumerate(sorted(report.payouts.items(), key=lambda item: -item[1])[:8]):
         place = MEDALS[index] if index < 3 else f"{index + 1}."
         dealt = boss["damage"].get(user, 0)
-        loot.append(f"{place} {who(labels.get(user, '?'))} — <b>+{num(amount)}</b> <i>({dealt} урона)</i>")
+        loot.append(f"{place} {who(labels.get(user, '?'))} — <b>+{num(amount)}</b> · <i>урон {dealt}</i>")
     honours = [
         f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})"
         if report.last_hit is not None else "",

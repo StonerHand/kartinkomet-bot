@@ -45,8 +45,10 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
         head = "⚔️ <b>ДУЭЛЬ</b>" if is_duel else "🏟 <b>ТУРНИР ЧЕТЫРЁХ</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
     marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
-    # An evolved pic shows its stage in front: "🐉 A · 3 🟥🟥🟥" (the only emoji on the line).
-    votes = [line if mark == "🥚" else f"{mark} {line}" for line, mark in zip(vote_lines(counts, labels), marks)]
+    # Stages stand in front of every line or of none ("🥚 A · 1" over "🐉 B · 3"), so the
+    # counts stay in one column; a fight of eggs shows no stages at all.
+    evolved = any(mark != marks[0] for mark in marks) or marks[0] != "🥚"
+    votes = [f"{mark} {line}" if evolved else line for line, mark in zip(vote_lines(counts, labels), marks)]
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")
     if battle.extended and not total:
@@ -55,12 +57,9 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
         status = "<i>Голосуют только зрители</i>"
     else:
         status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
-    footer = [
-        "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else "",
-        bets_line(battle) or f"💰 Ставок пока нет · по {casino.BET_STEP} монет",
-        status,
-    ]
-    return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, footer)
+    twist = "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else ""
+    bets = bets_line(battle) or f"💰 Ставок пока нет · по {casino.BET_STEP} монет"
+    return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, bets, status)
 
 
 def battle_result(
@@ -111,7 +110,7 @@ def battle_result(
         table.append(f"{marker} <b>{labels[slot]}</b> · {name}{votes}\n<i>рейтинг {rating(report.rating_after[slot])} ({change})</i>")
     if guessers:
         reward = report.guess_reward or economy.GUESS + economy.VOTE
-        table.append(f"🎯 Угадали: {', '.join(who(name) for name in guessers)} <i>(+{reward} монет)</i>")
+        table.append(f"🎯 Угадали: {', '.join(who(name) for name in guessers)} <i>(+{reward} {plural(reward, 'монета', 'монеты', 'монет')})</i>")
     if report.flipped:
         table.append("🙃 <i>Перевёртыш: победила пикча с меньшим числом голосов</i>")
 
@@ -145,8 +144,10 @@ def bets_result(report, labels: dict[int, str]) -> list[str]:
     elif winners:
         winners.sort(key=lambda item: -item[1])
         lines.append(", ".join(f"{who(labels.get(user, '?'))} <b>+{profit}</b>" for user, profit in winners))
+    elif report.bets_burned:
+        lines.append("<i>На победителя никто не ставил — банк сгорел</i>")
     else:
-        lines.append(f"<i>На победителя никто не ставил — {num(report.bets_burned)} монет сгорели</i>")
+        lines.append("<i>Против победителя никто не ставил — ставки просто вернулись</i>")
     return lines
 
 
@@ -192,7 +193,7 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
 
 def challenge_names(challenge: dict, labels: dict[int, str]) -> str:
     first, second = (who(labels.get(challenge[key], "?")) for key in ("from_user", "to_user"))
-    return f"🤺 <b>{first}</b> против <b>{second}</b>\n💰 На кону {money(challenge['stake'] * 2)}"
+    return f"🥊 <b>{first}</b> против <b>{second}</b>\n🏆 На кону {money(challenge['stake'] * 2)}"
 
 
 def battle_report(report: BattleReport, labels: dict[int, str]) -> str:

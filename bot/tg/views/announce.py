@@ -57,7 +57,8 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
         rarity = RARITY_WORDS[rules.rarity(code)]
         emoji, _, title = name.partition(" ")
         blocks.append(f"{emoji} <b>{escape(title)}</b>\n{people}{rarity}\n<i>{escape(description)}</i>")
-    return card(f"🏅 <b>{escape(bare(pick(UNLOCKED)))}</b>", None, *blocks, *notes)
+    head = f"🏅 <b>{escape(bare(pick(UNLOCKED)))}</b>" if by_code else "🎉 <b>Есть повышение</b>"
+    return card(head, None, *blocks, *notes)
 
 
 def has_legendary(granted: list[Granted]) -> bool:
