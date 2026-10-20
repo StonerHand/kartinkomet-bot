@@ -1,9 +1,10 @@
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
+from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats, CallbackQuery
 
 from bot.config import load_config
 from bot.db.repo import Repo
@@ -14,6 +15,7 @@ from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
 
 LOGGER = logging.getLogger("kartinkomet")
+STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
 
 GROUP_COMMANDS = [
     BotCommand(command="menu", description="🎛 пульт: всё в одном месте"),
@@ -64,6 +66,33 @@ async def set_up_profile(bot: Bot) -> None:
         await bot.set_my_description(DESCRIPTION)
     except TelegramAPIError:
         LOGGER.warning("Could not update bot commands/description", exc_info=True)
+
+
+async def drop_stale_backlog(bot: Bot) -> int:
+    """After a long outage Telegram still holds every command and button press of it. Replaying
+    them all at once would spam the chat and spend coins on bets nobody remembers making, so a
+    stale backlog is dropped; a short one (a deploy) is processed as usual. Returns the dropped count."""
+    try:
+        pending = (await bot.get_webhook_info()).pending_update_count
+        if not pending:
+            return 0
+        oldest = await bot.get_updates(limit=1, timeout=0)  # without an offset nothing is confirmed
+        if not oldest:
+            return 0
+        try:
+            event = getattr(oldest[0], oldest[0].event_type)
+        except LookupError:
+            event = None
+        if isinstance(event, CallbackQuery):  # a press has no date; its message is at least as old
+            event = event.message
+        sent = getattr(event, "date", None)
+        if sent is not None and (datetime.now(UTC) - sent).total_seconds() < STALE_BACKLOG_SECONDS:
+            return 0
+        await bot.delete_webhook(drop_pending_updates=True)
+        return pending
+    except TelegramAPIError:
+        LOGGER.warning("Could not check the update backlog", exc_info=True)
+        return 0
 
 
 def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispatcher:
@@ -117,6 +146,9 @@ async def main() -> None:
         restored = live.restore()
         if restored:
             LOGGER.info("Resumed %s live battles/courts", restored)
+        dropped = await drop_stale_backlog(bot)
+        if dropped:
+            LOGGER.info("Dropped %s stale updates left from downtime", dropped)
         events.start()
         await dispatcher.start_polling(bot)
     finally:

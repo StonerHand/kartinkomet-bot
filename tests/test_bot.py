@@ -1,5 +1,6 @@
 """End-to-end handler tests against a fake Telegram session that records every request."""
 
+import json
 import unittest
 from datetime import UTC, datetime
 from itertools import count
@@ -14,8 +15,10 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     Message,
     PhotoSize,
+    TelegramObject,
     Update,
     User,
+    WebhookInfo,
 )
 
 from bot.__main__ import build_dispatcher
@@ -40,6 +43,7 @@ class FakeSession(BaseSession):
         super().__init__()
         self.requests: list[TelegramMethod] = []
         self.ids = count(1000)
+        self.pending: list[Update] = []  # the update queue Telegram holds for the bot
 
     async def close(self) -> None:
         pass
@@ -62,6 +66,11 @@ class FakeSession(BaseSession):
 
     async def make_request(self, bot, method, timeout=None):
         self.requests.append(method)
+        result = self.reply(method)
+        # Parsed by aiogram exactly like a real reply, so tests catch what would break in prod.
+        return self.check_response(bot, method, 200, json.dumps({"ok": True, "result": wire(result)})).result
+
+    def reply(self, method: TelegramMethod):
         name = type(method).__name__
         if name in getattr(self, "refuse", set()):
             from aiogram.exceptions import TelegramBadRequest
@@ -81,12 +90,27 @@ class FakeSession(BaseSession):
             return [self.message(int(method.chat_id)) for _ in method.media]
         if name == "GetMe":
             return BOT_USER
+        if name == "GetWebhookInfo":
+            return WebhookInfo(url="", has_custom_certificate=False, pending_update_count=len(self.pending))
+        if name == "GetUpdates":
+            return self.pending[: method.limit or 100]
+        if name == "DeleteWebhook" and method.drop_pending_updates:
+            self.pending = []
         if name == "GetFile":
             return File(file_id=method.file_id, file_unique_id="x", file_path="photos/x.jpg" if self.image else None)
         return True
 
     def of(self, name: str) -> list[TelegramMethod]:
         return [request for request in self.requests if type(request).__name__ == name]
+
+
+def wire(value):
+    """A reply as Telegram would send it: plain JSON."""
+    if isinstance(value, list):
+        return [wire(item) for item in value]
+    if isinstance(value, TelegramObject):
+        return value.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return value
 
 
 def user(user_id: int) -> User:

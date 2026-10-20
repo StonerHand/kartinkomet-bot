@@ -45,8 +45,10 @@ def load_aiogram() -> None:
         BaseModel.model_rebuild = classmethod(original)
     # API methods are built eagerly and fail to resolve the types that are still deferred; give
     # them the same namespace, and pydantic completes each one the first time it is sent.
+    # Every API reply is parsed as Response[ReturnType], a generic model pydantic creates on the
+    # fly; it inherits Response's namespace, so Response needs it too or getUpdates fails.
     methods = importlib.import_module("aiogram.methods")
-    for name in getattr(methods, "__all__", ()):
-        method = getattr(methods, name, None)
-        if isinstance(method, type) and issubclass(method, BaseModel) and not method.__pydantic_complete__:
-            method.__pydantic_parent_namespace__ = {**namespace, **(method.__pydantic_parent_namespace__ or {})}
+    incomplete = [getattr(methods, name, None) for name in getattr(methods, "__all__", ())]
+    incomplete = [m for m in incomplete if isinstance(m, type) and issubclass(m, BaseModel) and not m.__pydantic_complete__]
+    for model in [*incomplete, importlib.import_module("aiogram.methods.base").Response]:
+        model.__pydantic_parent_namespace__ = {**namespace, **(model.__pydantic_parent_namespace__ or {})}

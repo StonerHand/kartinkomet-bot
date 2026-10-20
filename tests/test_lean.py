@@ -1,10 +1,37 @@
 """bot/lean.py: aiogram models are built on first use, and every kind of update still parses."""
 
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 import aiogram.types as types
 from aiogram.methods import SendMessage
 from aiogram.types import Update
+
+# A fresh process, like the bot at startup: the very first thing it parses is Telegram's reply to
+# getUpdates, before any model has been built by anything else.
+FIRST_REPLIES = """
+import json
+import bot
+from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.methods import AnswerCallbackQuery, GetMe, GetUpdates, SendMessage, SendPhoto
+
+telegram = Bot("1:x", session=AiohttpSession())
+user = {"id": 1, "is_bot": False, "first_name": "a"}
+message = {"message_id": 1, "date": 0, "chat": {"id": -100, "type": "supergroup"}, "from": user, "text": "x"}
+photo = {**message, "photo": [{"file_id": "p", "file_unique_id": "u", "width": 1, "height": 1}]}
+callback = {"id": "1", "from": user, "chat_instance": "c", "data": "x", "message": photo}
+for method, result in [
+    (GetUpdates(), [{"update_id": 1, "message": message}, {"update_id": 2, "callback_query": callback}]),
+    (SendMessage(chat_id=-100, text="x"), message),
+    (SendPhoto(chat_id=-100, photo="p"), photo),
+    (GetMe(), {**user, "is_bot": True}),
+    (AnswerCallbackQuery(callback_query_id="1"), True),
+]:
+    telegram.session.check_response(telegram, method, 200, json.dumps({"ok": True, "result": result}))
+"""
 
 USER = {"id": 1, "is_bot": False, "first_name": "a"}
 CHAT = {"id": -100, "type": "supergroup", "title": "чат"}
@@ -15,6 +42,11 @@ def message(**extra) -> dict:
 
 
 class LeanAiogramTest(unittest.TestCase):
+    def test_first_replies_parse_in_a_fresh_process(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        run = subprocess.run([sys.executable, "-c", FIRST_REPLIES], cwd=root, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr[-2000:])
+
     def test_unused_models_stay_unbuilt(self) -> None:
         self.assertFalse(types.Giveaway.__pydantic_complete__)
         self.assertFalse(types.PaidMediaInfo.__pydantic_complete__)

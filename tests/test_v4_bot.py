@@ -1,5 +1,7 @@
 """v4 end to end: handlers against the fake Telegram session."""
 
+import asyncio
+
 from aiogram.types import Message
 
 from bot.core import court
@@ -207,6 +209,17 @@ class V4BotTest(BotHarness):
         self.assertTrue(any("ПОВЕРЖЕН" in text for text in self.texts()))
         await self.send("/boss", sender=3)
         self.assertIn("через", self.session.of("SendMessage")[-1].text)
+
+    async def test_boss_without_a_card_is_dropped_on_restart(self) -> None:
+        """The card failed to post: on restart the boss neither escapes nor grows stronger."""
+        _, boss = self.game.summon_boss(-100, "Тест", forced=True)
+        pic_rating = self.game.repo.get_pic(boss["pic_id"]).rating
+        self.clock.advance(3600)
+        self.live.restore()
+        await asyncio.sleep(0)
+        self.assertIsNone(self.game.repo.get_boss(boss["id"]))
+        self.assertEqual(self.game.repo.get_pic(boss["pic_id"]).rating, pic_rating)
+        self.assertEqual(self.session.requests, [])
 
     # ── court appeal ───────────────────────────────────────────────────
 

@@ -53,6 +53,12 @@ class Live:
         ))
 
     def watch_boss(self, boss_id: str) -> None:
+        boss = self.game.repo.get_boss(boss_id)
+        if boss is not None and boss["status"] == "active" and boss["message_id"] is None:
+            # Its card never made it to the chat, so nobody could fight it: no escape, no reward.
+            self.game.repo.drop_boss(boss_id)
+            return
+
         def deadline() -> int | None:
             boss = self.game.repo.get_boss(boss_id)
             if boss is None or boss["status"] != "active":
