@@ -40,8 +40,10 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
     notes = [note_line(label, note) for label, granted in items for note in granted.notes]
     if not any(granted.codes or granted.level_up for _, granted in items):
         return card(*notes) if len(notes) == 1 else "\n\n".join(notes)
+    # Every block: a short emoji line, then details — long names and lists of people never wrap
+    # into the next item.
     blocks = [
-        f"⬆️ <b>{who(label)}</b> — новый уровень «{escape(bare(granted.level_up))}»\n<i>{escape(pick(LEVEL_UP))}</i>"
+        f"⬆️ <b>Новый уровень</b> · {who(label)}\n<i>«{escape(bare(granted.level_up))}». {escape(pick(LEVEL_UP))}</i>"
         for label, granted in items
         if granted.level_up
     ]
@@ -53,8 +55,9 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
         name, description = ACHIEVEMENTS.get(code, (code, ""))
         people = ", ".join(who(label) for label in by_code[code])
         rarity = RARITY_WORDS[rules.rarity(code)]
-        blocks.append(f"<b>{escape(name)}</b>{rarity} — {people}\n<i>{escape(description)}</i>")
-    return card(f"<b>{escape(pick(UNLOCKED))}</b>", None, *blocks, *notes)
+        emoji, _, title = name.partition(" ")
+        blocks.append(f"{emoji} <b>{escape(title)}</b>\n{people}{rarity}\n<i>{escape(description)}</i>")
+    return card(f"🏅 <b>{escape(bare(pick(UNLOCKED)))}</b>", None, *blocks, *notes)
 
 
 def has_legendary(granted: list[Granted]) -> bool:

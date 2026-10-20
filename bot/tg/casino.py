@@ -69,13 +69,15 @@ async def play(
     await asyncio.sleep(info.animation * ANIMATION_SCALE)
     result = game.settle_casino(user_id, code, stake, values)
     label = game.repo.user_label(user_id)
-    await send.send_text(
+    sent = await send.send_text(
         bot,
         chat_id,
         views.casino_result(label, result, values, chat_id),
         keyboards.casino_again(code, max(casino.STAKE_MIN, min(stake, max(result.balance, casino.STAKE_MIN)))),
         reply_to=first.message_id,
     )
+    if result.profit >= result.stake * 5 and sent is not None:  # a big win deserves fireworks
+        await send.react(bot, chat_id, sent.message_id, "🔥", big=True)
     await live.announce(chat_id, result.granted)
     return None
 

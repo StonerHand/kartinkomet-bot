@@ -387,7 +387,6 @@ class StatusesTest(unittest.TestCase):
         self.assertEqual(crowns["uploader"][0], 1)
         self.assertEqual(crowns["oracle"][0], 5)
         self.assertIn("oracle", self.game.crowns_of(5))
-        self.assertEqual(self.game.badges(1), " 👑")
         self.clock.advance(8 * 86400)
         self.assertEqual(self.game.crowns_of(5), [])
 

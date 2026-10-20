@@ -6,7 +6,6 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
 from bot.config import load_config
-from bot.db.migrate import migrate_if_needed
 from bot.db.repo import Repo
 from bot.game import Game
 from bot.tg import admin, arena, boss, casino, court, fallback, games, inline, panel, pics, progress, shop, social, upload
@@ -98,8 +97,6 @@ async def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     config = load_config()
-    if migrate_if_needed(config.legacy_database_path, config.database_path):
-        LOGGER.info("Created %s from %s", config.database_path, config.legacy_database_path)
 
     repo = Repo(config.database_path)
     game = Game(repo, tz_offset_hours=config.tz_offset_hours)

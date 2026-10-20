@@ -120,3 +120,15 @@ class ScreensTest(BotHarness):
             self.assert_layout(views.spin_result("stoner_hand", spin, pic, 1234, -100))
         for milestone in (3, 5, 10):
             self.assert_layout(views.streak_announcement(milestone, milestone, -100))
+
+    def test_every_achievement_and_level_announcement(self) -> None:
+        """Checked one by one: in a live test only a random few of them would come up."""
+        from bot.core import achievements, economy
+        from bot.services.types import Granted
+
+        many = [(name, Granted(index, [])) for index, name in enumerate(NAMES.values())]
+        for code in achievements.ALL_CODES:
+            granted = [(label, Granted(item.user_id, [code])) for label, item in many]
+            self.assert_layout(views.announcement(granted))
+        for level in economy.LEVELS:
+            self.assert_layout(views.announcement([("kcifekzhue", Granted(1, [], level.name))]))

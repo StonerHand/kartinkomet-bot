@@ -69,8 +69,11 @@ async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int,
     text = views.chest_opened(label, opened, chat_id)
     left = {key: value for key, value in game.chests_of(user_id).items() if key == tier and value}
     markup = keyboards.open_chests(list(left)) if left else None
+    shown = message
     if message is None or not await send.edit_text(bot, chat_id, message.message_id, text, markup):
-        await send.send_text(bot, chat_id, text, markup)
+        shown = await send.send_text(bot, chat_id, text, markup)
+    if shown is not None and (tier == "legend" or opened.loot.coins >= 1000):
+        await send.react(bot, chat_id, shown.message_id, "🎉", big=True)
     await live.announce(chat_id, opened.granted)
     return True
 

@@ -227,10 +227,7 @@ class V4BotTest(BotHarness):
 
     # ── schedule ───────────────────────────────────────────────────────
 
-    async def test_day_event_and_release_note(self) -> None:
-        self.game.repo.set_meta("release_note_v4", "")
-        self.game.repo.db.execute("DELETE FROM meta WHERE key = 'release_note_v4'")
-        self.game.repo.db.commit()
+    async def test_day_event(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
         from datetime import UTC, datetime
 
@@ -238,7 +235,6 @@ class V4BotTest(BotHarness):
         self.clock.value = day_start.timestamp()
         await Events(self.bot, self.game, self.live, frozenset({ADMIN}), 0).tick()
         texts = self.texts()
-        self.assertTrue(any("КАРТИНКОМЕТ 4.0" in text for text in texts))
         self.assertTrue(any("СОБЫТИЕ ДНЯ" in text for text in texts))
         self.assertIsNotNone(self.game.day_event())
 

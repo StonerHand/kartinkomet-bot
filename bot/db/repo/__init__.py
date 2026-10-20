@@ -38,22 +38,7 @@ class Repo(MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, Gam
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self.db = connect(self.database_path)
         apply_schema(self.db)
-        self._fix_migrated_reaction_times()
         self._known_users: dict[int, tuple] = {}
-
-    def _fix_migrated_reaction_times(self) -> None:
-        """Early v2 migrations stamped v1 reactions with the migration time, which made them look
-        like this week's. They happened at an unknown time: reset them to 0, once."""
-        if self.meta_str("fixed_v1_reaction_times"):
-            return
-        migrated_at = self.meta_str("migrated_from_v1_at")
-        with self.db:
-            if migrated_at:
-                self.db.execute("UPDATE reactions SET at = 0 WHERE at = ?", (int(migrated_at),))
-            self.db.execute(
-                "INSERT INTO meta (key, value) VALUES ('fixed_v1_reaction_times', '1') "
-                "ON CONFLICT(key) DO NOTHING"
-            )
 
     def close(self) -> None:
         self.db.close()

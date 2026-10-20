@@ -58,6 +58,17 @@ def back(to: str = "m:home") -> list[InlineKeyboardButton]:
     return [button(BACK, to)]
 
 
+def more() -> InlineKeyboardButton:
+    """«🎲 ещё»: under almost every card, the one way to keep the chat going."""
+    return button("🎲 ещё", "pic", PRIMARY)
+
+
+def numbered(pic_ids: list[str], label: str, data: str, style: str | None = None) -> list[list[InlineKeyboardButton]]:
+    """«👀 1 … 👀 10» in rows of five."""
+    buttons = [button(f"{label} {index}", f"{data}:{pic_id}", style) for index, pic_id in enumerate(pic_ids, start=1)]
+    return [buttons[start : start + 5] for start in range(0, len(buttons), 5)]
+
+
 def home(is_admin: bool) -> InlineKeyboardMarkup:
     return markup(
         [button("🎲 Пикчу", "pic", PRIMARY), button("⚔️ Дуэль", "d:new", PRIMARY)],
@@ -129,7 +140,7 @@ def shop_menu() -> InlineKeyboardMarkup:
 
 
 def appeal(court_id: str) -> InlineKeyboardMarkup:
-    return markup([button("📜 Апелляция", f"ap:{court_id}", PRIMARY), button("🎲 ещё", "pic", PRIMARY)])
+    return markup([button("📜 Апелляция", f"ap:{court_id}", PRIMARY), more()])
 
 
 def quests_menu(daily_ready: bool, chests: dict[str, int], chat_id: int | None = None) -> InlineKeyboardMarkup:
@@ -163,18 +174,11 @@ def boss(boss_id: str, price: int) -> InlineKeyboardMarkup:
 
 
 def boss_over() -> InlineKeyboardMarkup:
-    return markup([button("🎲 ещё", "pic", PRIMARY), button("🎮 Игры", "m:games")])
+    return markup([more(), button("🎮 Игры", "m:games")])
 
 
 def proposal(proposal_id: str) -> InlineKeyboardMarkup:
     return markup([button("💍 Да", f"mr:y:{proposal_id}", SUCCESS), button("💔 Нет", f"mr:n:{proposal_id}", DANGER)])
-
-
-def release_v4() -> InlineKeyboardMarkup:
-    return markup(
-        [button("🎁 Бонус", "daily", SUCCESS), button("🎰 Казино", "m:casino", SUCCESS)],
-        [button("📜 Квесты", "m:quests"), button("🛒 Лавка", "m:shop")],
-    )
 
 
 def challenge(challenge_id: str) -> InlineKeyboardMarkup:
@@ -197,11 +201,11 @@ def gold(token: str) -> InlineKeyboardMarkup:
 
 
 def gold_taken(label: str) -> InlineKeyboardMarkup:
-    return markup([button(f"🏆 {label[:10]}", "gold:taken"), button("🎲 ещё", "pic", PRIMARY)])
+    return markup([button(f"🏆 {label[:10]}", "gold:taken"), more()])
 
 
 def after_wheel() -> InlineKeyboardMarkup:
-    return markup([button("🎰 В казино", "m:casino", SUCCESS), button("🎲 ещё", "pic", PRIMARY)])
+    return markup([button("🎰 В казино", "m:casino", SUCCESS), more()])
 
 
 def pic_actions(pic_id: str, likes: int, dislikes: int) -> InlineKeyboardMarkup:
@@ -210,17 +214,17 @@ def pic_actions(pic_id: str, likes: int, dislikes: int) -> InlineKeyboardMarkup:
             button(f"🤙🏻 {likes}", f"r:+:{pic_id}", SUCCESS),
             button(f"🖕🏻 {dislikes}", f"r:-:{pic_id}", DANGER),
             button("🛒", f"pm:{pic_id}"),
-            button("🎲 ещё", "pic", PRIMARY),
+            more(),
         ]
     )
 
 
 def on_trial() -> InlineKeyboardMarkup:
-    return markup([button("⚖️ Идёт суд", "trial", DANGER), button("🎲 ещё", "pic", PRIMARY)])
+    return markup([button("⚖️ Идёт суд", "trial", DANGER), more()])
 
 
 def more_only() -> InlineKeyboardMarkup:
-    return markup([button("🎲 ещё", "pic", PRIMARY)])
+    return markup([more()])
 
 
 def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardMarkup:
@@ -255,42 +259,17 @@ def court_vote(court_id: str, kill: int, spare: int) -> InlineKeyboardMarkup:
 
 
 def hall(pic_ids: list[str]) -> InlineKeyboardMarkup:
-    rows = []
-    row: list[InlineKeyboardButton] = []
-    for index, pic_id in enumerate(pic_ids, start=1):
-        row.append(button(f"👀 {index}", f"show:{pic_id}"))
-        if len(row) == 5:
-            rows.append(row)
-            row = []
-    rows.append(row)
-    rows.append(back("m:top:uploads"))
-    return markup(*rows)
+    return markup(*numbered(pic_ids, "👀", "show"), back("m:top:uploads"))
 
 
 def bottom(pic_ids: list[str]) -> InlineKeyboardMarkup:
-    rows = []
-    row: list[InlineKeyboardButton] = []
-    for index, pic_id in enumerate(pic_ids, start=1):
-        row.append(button(f"⚖️ {index}", f"c:go:{pic_id}", DANGER))
-        if len(row) == 5:
-            rows.append(row)
-            row = []
-    rows.append(row)
-    rows.append(back("m:top:uploads"))
-    return markup(*rows)
+    return markup(*numbered(pic_ids, "⚖️", "c:go", DANGER), back("m:top:uploads"))
 
 
 def graveyard(pic_ids: list[str], is_admin: bool) -> InlineKeyboardMarkup:
-    rows = [[button(f"🧟 {index}", f"res:{pic_id}") for index, pic_id in enumerate(pic_ids, start=1)]]
-    if is_admin:
-        rows.append(
-            [
-                button(f"🕊 {index}", f"adm:spare:{pic_id}", SUCCESS)
-                for index, pic_id in enumerate(pic_ids, start=1)
-            ]
-        )
-    rows.append(back("m:top:uploads"))
-    return markup(*rows)
+    revive = numbered(pic_ids, "🧟", "res")
+    spare = numbered(pic_ids, "🕊", "adm:spare", SUCCESS) if is_admin else []
+    return markup(*revive, *spare, back("m:top:uploads"))
 
 
 def tops(active: str) -> InlineKeyboardMarkup:

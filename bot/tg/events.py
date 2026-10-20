@@ -23,7 +23,6 @@ from bot.core import days, economy
 from bot.game import Game
 from bot.texts import events as texts
 from bot.texts.pick import pick
-from bot.texts import ui
 from bot.tg import keyboards, send, views
 from bot.tg.boss import summon
 from bot.tg.court import open_court
@@ -51,7 +50,6 @@ JOBS = (
     Job("auto_court", 19, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
 )
-RELEASE_KEY = "release_note_v4"
 
 
 class Events:
@@ -91,7 +89,6 @@ class Events:
         return datetime.fromtimestamp(self.game.now(), UTC) + self.offset
 
     async def tick(self) -> None:
-        await self.release_note()
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:
@@ -114,14 +111,6 @@ class Events:
         return self.game.repo.event_chats(self.game.now() - ACTIVE_CHAT_DAYS * 86400)
 
     # ── jobs ───────────────────────────────────────────────────────────
-
-    async def release_note(self) -> None:
-        """Once per chat after the v4 deploy: what's new and the starter coins."""
-        if self.game.repo.meta_str(RELEASE_KEY):
-            return
-        self.game.repo.set_meta(RELEASE_KEY, self.game.now())
-        for chat_id in self.chats():
-            await send.send_text(self.bot, chat_id, ui.RELEASE_V4, keyboards.release_v4())
 
     async def day_event(self, chat_id: int) -> bool:
         code, _ = self.game.roll_day_event()

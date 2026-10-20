@@ -30,7 +30,6 @@ EXPECTED_SIZES = {
     (court, "LAST_WORD_INTRO"): 40,
     (tops, "FIRST_PLACE"): 20,
     (tops, "PODIUM"): 20,
-    (tops, "MIDDLE"): 20,
     (tops, "LAST_PLACE"): 20,
     (toasts, "LIKE"): 20,
     (toasts, "DISLIKE"): 20,

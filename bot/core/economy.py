@@ -11,8 +11,6 @@ UPLOAD = 1
 CAPTION_WIN = 15
 GOLD = 25
 
-COIN = "🪙"
-
 
 @dataclass(frozen=True)
 class Level:

@@ -22,13 +22,6 @@ class StatusMixin:
             if holder == str(user_id)
         ]
 
-    def badges(self, user_id: int | None) -> str:
-        """Crown emojis to show next to a name, e.g. ' 👑🪓'."""
-        if user_id is None:
-            return ""
-        marks = "".join(economy.CROWNS[kind][0] for kind in self.crowns_of(user_id))
-        return f" {marks}" if marks else ""
-
 
     BACKFILL_KEY = "achievements_backfilled_v4"  # bump when new metric achievements are added
 

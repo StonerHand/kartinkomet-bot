@@ -109,7 +109,6 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         pics._last_drop.clear()
         games.DICE_ANIMATION_SECONDS = 0
         self.session.dice_values = []
-        self.game.repo.set_meta("release_note_v4", 1)  # tested separately
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()
