@@ -1,5 +1,7 @@
-# aiogram 3.20 on purpose: 3.31 needs ~235 MB RAM vs ~107 MB, which would double the Railway bill.
+# aiogram 3.20 on purpose: 3.31 needs ~235 MB RAM; 3.20 + bot/lean.py runs in ~65 MB.
 # Button "style" still works on 3.20 (sent as an extra field).
 aiogram==3.20.0
 python-dotenv==1.2.4
 Pillow==12.3.0
+# Pinned with aiogram: bot/lean.py loads aiogram lazily through pydantic internals.
+pydantic==2.11.10
