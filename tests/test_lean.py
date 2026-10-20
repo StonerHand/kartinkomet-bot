@@ -16,7 +16,10 @@ import json
 import bot
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.methods import AnswerCallbackQuery, GetMe, GetUpdates, SendMessage, SendPhoto
+from aiogram.methods import (
+    AnswerCallbackQuery, AnswerInlineQuery, DeleteWebhook, EditMessageCaption, EditMessageText, GetFile, GetMe,
+    GetUpdates, GetWebhookInfo, SendDice, SendMediaGroup, SendMessage, SendPhoto, SetMessageReaction,
+)
 
 telegram = Bot("1:x", session=AiohttpSession())
 user = {"id": 1, "is_bot": False, "first_name": "a"}
@@ -29,6 +32,15 @@ for method, result in [
     (SendPhoto(chat_id=-100, photo="p"), photo),
     (GetMe(), {**user, "is_bot": True}),
     (AnswerCallbackQuery(callback_query_id="1"), True),
+    (EditMessageText(chat_id=-100, message_id=1, text="x"), message),
+    (EditMessageCaption(chat_id=-100, message_id=1, caption="x"), True),
+    (SendMediaGroup(chat_id=-100, media=[{"type": "photo", "media": "p"}]), [photo, photo]),
+    (SendDice(chat_id=-100), {**message, "dice": {"emoji": "🎲", "value": 4}}),
+    (GetFile(file_id="p"), {"file_id": "p", "file_unique_id": "u", "file_path": "photos/p.jpg"}),
+    (GetWebhookInfo(), {"url": "", "has_custom_certificate": False, "pending_update_count": 3}),
+    (DeleteWebhook(drop_pending_updates=True), True),
+    (SetMessageReaction(chat_id=-100, message_id=1, reaction=[{"type": "emoji", "emoji": "🔥"}]), True),
+    (AnswerInlineQuery(inline_query_id="1", results=[]), True),
 ]:
     telegram.session.check_response(telegram, method, 200, json.dumps({"ok": True, "result": result}))
 """

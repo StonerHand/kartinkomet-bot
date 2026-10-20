@@ -44,6 +44,7 @@ class FakeSession(BaseSession):
         self.requests: list[TelegramMethod] = []
         self.ids = count(1000)
         self.pending: list[Update] = []  # the update queue Telegram holds for the bot
+        self.errors: dict[str, list[Exception]] = {}  # raised one by one before a request succeeds
 
     async def close(self) -> None:
         pass
@@ -80,6 +81,8 @@ class FakeSession(BaseSession):
 
     def reply(self, method: TelegramMethod):
         name = self.kind(method)
+        if self.errors.get(name):
+            raise self.errors[name].pop(0)
         if name in getattr(self, "refuse", set()):
             from aiogram.exceptions import TelegramBadRequest
 
