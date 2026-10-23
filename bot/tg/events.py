@@ -1,5 +1,6 @@
-"""Scheduled events: event of the day, pic of the day, the daily boss, evening auto-court,
-weekly digest, daily backup, plus a one-time v4 release note.
+"""Scheduled events: event of the day, pic of the day, the daily boss (a raid on Saturdays),
+evening auto-court, weekly digest, daily backup, and the monthly season: a warning on its last
+day, results and the coin reset on the first tick of the new month.
 
 A loop wakes every minute, works in the chats' local time (BOT_TZ_OFFSET) and marks each
 job done in `meta`, so a restart never repeats or skips a day. A job only fires within
@@ -19,8 +20,10 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile
 
+from bot.core import boss as boss_rules
 from bot.core import days, economy
 from bot.game import Game
+from bot.services.economy import STARTER_COINS
 from bot.texts import events as texts
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
@@ -49,6 +52,7 @@ JOBS = (
     Job("boss", 16, None, per_chat=True),
     Job("auto_court", 19, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
+    Job("season_warning", 12, None, per_chat=True),  # posts only on the last day of a month
 )
 
 
@@ -67,6 +71,7 @@ class Events:
             "weekly": self.weekly,
             "day_event": self.day_event,
             "boss": self.daily_boss,
+            "season_warning": self.season_warning,
         }
 
     def start(self) -> None:
@@ -89,6 +94,7 @@ class Events:
         return datetime.fromtimestamp(self.game.now(), UTC) + self.offset
 
     async def tick(self) -> None:
+        await self.close_season()
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:
@@ -110,6 +116,32 @@ class Events:
     def chats(self) -> list[int]:
         return self.game.repo.event_chats(self.game.now() - ACTIVE_CHAT_DAYS * 86400)
 
+    # ── seasons ────────────────────────────────────────────────────────
+
+    def podium_labels(self, podium: list[tuple[int, int]]) -> list[tuple[str, int]]:
+        return [(self.game.repo.user_label(user_id), score) for user_id, score in podium]
+
+    async def close_season(self) -> None:
+        """Not a scheduled job: the month may change while the bot is down, and the reset must
+        still happen once, on the first tick after it."""
+        report = self.game.roll_season()
+        if report is None:
+            return
+        LOGGER.info("Season %s closed: %s balances reset", report.season, report.reset)
+        podium = self.podium_labels(report.podium)
+        for chat_id in self.chats():
+            text = views.season_results(report.season, podium, STARTER_COINS, chat_id)
+            message = await send.send_text(self.bot, chat_id, text, keyboards.season_over())
+            if message is not None:
+                await send.react(self.bot, chat_id, message.message_id, "🏆", big=True)
+
+    async def season_warning(self, chat_id: int) -> bool:
+        if not self.game.season_last_day():
+            return False
+        podium = self.podium_labels(self.game.season_top(3))
+        text = views.season_warning(self.game.season(), podium, STARTER_COINS, chat_id)
+        return await send.send_text(self.bot, chat_id, text, keyboards.season_over()) is not None
+
     # ── jobs ───────────────────────────────────────────────────────────
 
     async def day_event(self, chat_id: int) -> bool:
@@ -124,7 +156,8 @@ class Events:
         return True
 
     async def daily_boss(self, chat_id: int) -> bool:
-        return await summon(self.bot, self.game, self.live, chat_id, forced=True) == "started"
+        raid = self.local_now().weekday() == boss_rules.RAID_WEEKDAY
+        return await summon(self.bot, self.game, self.live, chat_id, forced=True, raid=raid) == "started"
 
     async def pic_of_the_day(self, chat_id: int) -> bool:
         repo = self.game.repo

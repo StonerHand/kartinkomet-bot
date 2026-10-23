@@ -13,6 +13,17 @@ CAPTION_MAX_LENGTH = 100
 GOLD_CHANCE = 0.01
 GOLD_COOLDOWN_SECONDS = 3600
 
+# "Whose pic?": guess the uploader among up to four names
+WHOSE_SECONDS = 30
+WHOSE_OPTIONS = 4
+WHOSE_REWARD = 10
+WHOSE_COOLDOWN_SECONDS = 120
+
+# "Higher or lower": which of two pics has the higher rating; played in private chat
+HL_REWARD = 2
+HL_PAID_PER_DAY = 25  # correct answers that pay; the streak and the record count on regardless
+HL_MIN_GAP = 5  # pairs closer in rating than this are skipped: a coin flip isn't a guess
+
 
 def caption_winner(entries: list[dict], votes: dict[int, int]) -> int | None:
     """Author with most votes; a tie goes to whoever wrote first. None if nobody voted."""
@@ -32,12 +43,18 @@ def caption_winner(entries: list[dict], votes: dict[int, int]) -> int | None:
 # each 0 = BAR, 1 = grapes, 2 = lemon, 3 = seven. 64 is 7-7-7.
 @dataclass(frozen=True)
 class Spin:
-    kind: str  # jackpot | triple | pair | small | loss | curse | bless | legend
+    kind: str  # jackpot | triple | pair | small | loss | curse | bless | legend | chest | title
     coins: int
+    prize: str = ""  # the title won, for kind == 'title'
 
 
-SPIN_WEIGHTS = (("small", 35), ("loss", 20), ("curse", 15), ("bless", 15), ("legend", 15))
-SPIN_COINS = {"jackpot": 100, "triple": 40, "pair": 10, "small": 3, "loss": -10, "curse": 0, "bless": 0, "legend": 0}
+SPIN_WEIGHTS = (
+    ("small", 32), ("loss", 18), ("curse", 14), ("bless", 14), ("legend", 12), ("chest", 7), ("title", 3),
+)
+SPIN_COINS = {
+    "jackpot": 100, "triple": 40, "pair": 10, "small": 3, "loss": -10,
+    "curse": 0, "bless": 0, "legend": 0, "chest": 0, "title": 0,
+}
 CURSE_RATING = -20
 BLESS_RATING = 20
 

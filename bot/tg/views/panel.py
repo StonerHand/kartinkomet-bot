@@ -3,6 +3,7 @@
 from html import escape
 
 from bot.core import economy
+from bot.core import games as game_rules
 from bot.db.repo import Pic
 from bot.texts import tops as top_texts
 from bot.texts import ui
@@ -68,10 +69,14 @@ def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
     return "\n".join(lines)
 
 
-def top(board: str, rows: list[tuple[str, int]]) -> str:
+def top(board: str, rows: list[tuple[str, int]], week: bool = False) -> str:
+    """week: the board counted over the last seven days (only boards in WEEK_SUBTITLES have one)."""
     title, subtitle = top_texts.BOARD_TITLES[board].split(": ", 1)
     emoji, _, name = title.partition(" ")
-    lines = [f"{emoji} <b>{escape(name).upper()}</b>", f"<i>{escape(subtitle.capitalize())}</i>", ""]
+    head = f"{emoji} <b>{escape(name).upper()}</b>"
+    if week:
+        head, subtitle = f"{head} · неделя", top_texts.WEEK_SUBTITLES[board]
+    lines = [head, f"<i>{escape(subtitle[0].upper() + subtitle[1:])}</i>", ""]
     if not rows:
         lines.append(escape(pick(top_texts.BOARD_EMPTY)))
         return "\n".join(lines)
@@ -116,9 +121,10 @@ def admin(totals: dict[str, int], users: int, database: str) -> str:
             "💾 04:00 — бэкап админам",
             "📰 10:00 — событие дня",
             "🌅 12:00 — пикча дня",
-            "👹 16:00 — босс",
+            "👹 16:00 — босс, в субботу рейд",
             "⚖️ 19:00 — суд над худшей",
             "📅 Вс 18:00 — итоги недели",
+            "🏁 1-е число — итоги сезона",
         ],
     )
 
@@ -129,7 +135,7 @@ GAMES_SCREEN = (
     "\n"
     "👹 <b>Босс</b> · /boss\n"
     "Пикча-чудовище на 10 минут. Чат бьёт его кнопками, добыча делится по урону. "
-    "Приходит сам в 16:00, призвать можно раз в 3 часа\n"
+    "Приходит сам в 16:00, призвать можно раз в 3 часа. По субботам — рейд до полуночи\n"
     "\n"
     "🖋 <b>Подпиши пикчу</b> · /caption\n"
     f"Минута на подпись ответом на пикчу, потом анонимное голосование. Победителю +{economy.CAPTION_WIN} монет\n"
@@ -140,6 +146,45 @@ GAMES_SCREEN = (
     "🔮 <b>Гороскоп</b> · /horoscope\n"
     "Личная пикча и предсказание, раз в день\n"
     "\n"
+    "🕵️ <b>Чья пикча?</b> · /whose\n"
+    f"Пикча и четыре имени: угадай, кто её загрузил. Полминуты, за верный ответ +{game_rules.WHOSE_REWARD} монет\n"
+    "\n"
+    "🎯 <b>Выше-ниже</b> · /higher\n"
+    "Две пикчи, угадай, у какой рейтинг выше. Играется в личке с ботом, рекорд серии — в рейтингах\n"
+    "\n"
     "⚡ <b>Золотая пикча</b>\n"
     f"Иногда выпадает в рандоме. Кто первый нажмёт — тому +{economy.GOLD} монет"
 )
+
+
+def admin_stats(usage: dict[str, int]) -> str:
+    """The admin's weekly picture: who plays and which mechanics live."""
+
+    def n(key: str) -> str:
+        return f"<b>{num(usage.get(key, 0))}</b>"
+
+    return card(
+        "📊 <b>СТАТИСТИКА · 7 ДНЕЙ</b>",
+        "Чем живёт чат",
+        [
+            f"👥 Игроки: сегодня {n('players_today')} · за неделю {n('players_week')}",
+            f"📥 Загрузок {n('uploads')} · лайков {n('likes')}",
+            f"🎁 Бонус дня забирали {n('daily')} раз",
+        ],
+        [
+            f"⚔️ Дуэли {n('duels')} · турниры {n('tournaments')}",
+            f"⚖️ Суды {n('courts')}",
+            f"👹 Боссы {n('bosses')} · рейды {n('raids')} · побед {n('bosses_won')}",
+            f"🤺 Вызовы на дуэль {n('challenges')} · на костях {n('dice_duels')}",
+        ],
+        [
+            f"🎰 Ставки в казино {n('casino')}",
+            f"🎡 Колесо {n('spin')} · гороскоп {n('horoscope')}",
+            f"🖋 Подписи {n('captions')} · чья пикча {n('whose')}",
+            f"🎯 Выше-ниже: ответов {n('higher')}",
+        ],
+        [
+            f"🛒 Покупки {n('purchases')} · подарки {n('gifts')}",
+            f"🕵️ Ограбления {n('robberies')}",
+        ],
+    )

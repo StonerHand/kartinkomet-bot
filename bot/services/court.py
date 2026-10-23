@@ -140,7 +140,8 @@ class CourtMixin:
             return CourtStart("not_owner")
         if not self.can_appeal(trial) or trial.pic.status != "executed":
             return CourtStart("late")
-        if not self.repo.spend(user_id, court.APPEAL_BAIL, "bail", self.now()):
+        bail = self.appeal_bail()
+        if not self.repo.spend(user_id, bail, "bail", self.now()):
             return CourtStart("broke")
         self.repo.set_meta(f"appealed:{trial.id}", self.now())
         self.repo.revive_pic(trial.pic.id, 0)
@@ -154,7 +155,7 @@ class CourtMixin:
             court.APPEAL_SECONDS,
             title=title,
             appeal=True,
-            bail=court.APPEAL_BAIL,
+            bail=bail,
         )
         return CourtStart("started", self.repo.get_court(new_id))
 

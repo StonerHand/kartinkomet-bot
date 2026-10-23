@@ -7,8 +7,11 @@ them except "dice vs bot", which is fair: the chat should lose slowly and have f
 from dataclasses import dataclass
 
 STAKE_MIN = 10
-STAKE_PRESETS = (50, 100, 250, 500)
-DEFAULT_STAKE = 50
+# Stakes are a share of the player's balance, so the buttons mean the same with 1 000 coins and
+# with a million. A number typed after a command (/spin 300) is a fixed stake instead.
+STAKE_SHARES = (10, 25, 50)
+DEFAULT_SHARE = 10
+DEFAULT_STAKE = 50  # when a button's stake can't be read
 COOLDOWN_SECONDS = 3.0  # per player: dice animations take a few seconds anyway
 LUCKY_DAY_BONUS = 1.5  # "lucky day" multiplies every winning payout
 
@@ -99,6 +102,10 @@ def payout(stake: int, roll: Roll, lucky: bool = False) -> int:
     if lucky and multiplier > 1:
         multiplier *= LUCKY_DAY_BONUS
     return int(stake * multiplier + 1e-9)  # 100 × 2.3 is 229.999… in floats
+
+
+def share_stake(balance: int, share: int) -> int:
+    return max(STAKE_MIN, balance * share // 100)
 
 
 def parse_stake(raw: str, balance: int, default: int) -> int | None:

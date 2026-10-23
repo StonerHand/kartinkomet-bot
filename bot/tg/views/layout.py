@@ -23,7 +23,10 @@ def fits(line: str) -> bool:
 
 
 def timer(seconds: int) -> str:
+    """'0:45', '9:59', '7:59:59' (hours appear only when needed: raids last all evening)."""
     seconds = max(0, seconds)
+    if seconds >= 3600:
+        return f"{seconds // 3600}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 

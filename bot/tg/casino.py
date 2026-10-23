@@ -138,14 +138,21 @@ async def bowling_command(message: Message, command: CommandObject, bot: Bot, ga
 @router.callback_query(F.data.startswith("cs:"))
 async def set_stake(callback: CallbackQuery, game: Game) -> None:
     raw = callback.data.split(":", 1)[1]
+    user_id = callback.from_user.id
+    balance = game.repo.player(user_id)[0]
     if raw == "all":
-        game.set_stake(callback.from_user.id, None)
-        balance = game.repo.player(callback.from_user.id)[0]
-        await callback.answer(f"🃏 Ва-банк: ставишь всё, сейчас это {balance} 🪙. {pick(texts.STAKE_SET)}")
+        game.set_stake(user_id, None)
+        await callback.answer(f"🃏 Ва-банк: ставишь всё, сейчас это {views.num(balance)} 🪙. {pick(texts.STAKE_SET)}")
         return
-    amount = int(raw) if raw.isdigit() else casino.DEFAULT_STAKE
-    game.set_stake(callback.from_user.id, amount)
-    await callback.answer(f"🎟 Ставка {amount} 🪙. {pick(texts.STAKE_SET)}")
+    if raw.startswith("p") and raw[1:].isdigit():
+        share = int(raw[1:])
+        game.set_stake_share(user_id, share)
+        stake = casino.share_stake(balance, share)
+        await callback.answer(f"🎟 Ставка {share}% баланса, сейчас это {views.num(stake)} 🪙. {pick(texts.STAKE_SET)}")
+        return
+    amount = int(raw) if raw.isdigit() else casino.DEFAULT_STAKE  # buttons of older messages
+    game.set_stake(user_id, amount)
+    await callback.answer(f"🎟 Ставка {views.num(amount)} 🪙. {pick(texts.STAKE_SET)}")
 
 
 async def play_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live, code: str, stake: int) -> None:

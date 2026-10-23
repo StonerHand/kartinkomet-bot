@@ -14,7 +14,7 @@ from bot.game import Game
 from bot.texts import ui
 from bot.tg import keyboards, views
 
-BOARDS = {"uploads", "loved", "killers", "streaks", "rich"}
+BOARDS = {"uploads", "loved", "killers", "streaks", "rich", "season", "hl"}
 SHOP_ITEMS = ("shield", "boost", "court", "uncurse", "resurrect", "title")
 Screen = tuple[str, InlineKeyboardMarkup]
 
@@ -63,9 +63,25 @@ def grave(ctx: Ctx) -> Screen:
 
 
 def top(ctx: Ctx) -> Screen:
-    board = ctx.arg if ctx.arg in BOARDS else "uploads"
-    rows = [(ctx.repo.user_label(user), value) for user, value in ctx.repo.top_users(board)]
-    return views.top(board, rows), keyboards.tops(board)
+    board, _, period = (ctx.arg or "").partition(":")
+    board = board if board in BOARDS else "uploads"
+    week = period == "w" and board in keyboards.WEEKLY_BOARDS
+    if board == "season":
+        raw = ctx.game.season_top(10)
+    else:
+        raw = ctx.repo.top_users(board, since=ctx.game.now() - 7 * 86400 if week else None)
+    rows = [(ctx.repo.user_label(user), value) for user, value in raw]
+    return views.top(board, rows, week), keyboards.tops(board, week)
+
+
+def seasons_screen(ctx: Ctx) -> Screen:
+    game = ctx.game
+    live = [(ctx.repo.user_label(user), score) for user, score in game.season_top(3)]
+    past = [
+        (season, [(ctx.repo.user_label(user), score) for user, score in podium])
+        for season, podium in ctx.repo.podiums(6)
+    ]
+    return views.seasons_hall(game.season(), live, past), keyboards.markup(keyboards.back("m:top:season"))
 
 
 def me(ctx: Ctx) -> Screen:
@@ -91,6 +107,11 @@ def me(ctx: Ctx) -> Screen:
         title=repo.title_of(user_id),
         chests=game.chests_of(user_id),
         jailed=max(0, repo.counter(user_id, "jail_until") - now),
+        season=(game.season(), *game.season_standing(user_id)),
+        podiums=tuple(repo.podiums_of(user_id)),
+        casino=repo.casino_stats(user_id),
+        best_pic=best_pic(repo, user_id),
+        records=records(repo, user_id),
     )
     text = views.profile(
         repo.user_label(user_id),
@@ -101,7 +122,29 @@ def me(ctx: Ctx) -> Screen:
         repo.achievement_owners(),
         max(1, repo.count_users()),
     )
-    return text, keyboards.markup(keyboards.back())
+    best = best_pic(repo, user_id)
+    return text, keyboards.profile(best[0] if best else None)
+
+
+RECORDS = (
+    ("best_daily_streak", "Бонус дня подряд"),
+    ("best_active_streak", "Дней подряд на складе"),
+    ("hl_best", "Серия в «Выше-ниже»"),
+    ("caption_wins", "Побед в «Подпиши пикчу»"),
+    ("whose_right", "Угадано в «Чья пикча?»"),
+)
+
+
+def records(repo, user_id: int) -> tuple[tuple[str, int], ...]:
+    counters = repo.counters_of(user_id)
+    return tuple((what, counters[key]) for key, what in RECORDS if counters.get(key, 0) > 1)
+
+
+def best_pic(repo, user_id: int) -> tuple[str, float, int, int] | None:
+    pics = repo.pics_of(user_id, limit=1)
+    if not pics or pics[0] is None:
+        return None
+    return pics[0].id, pics[0].rating, pics[0].wins, pics[0].losses
 
 
 def games(ctx: Ctx) -> Screen:
@@ -110,20 +153,27 @@ def games(ctx: Ctx) -> Screen:
 
 def casino_screen(ctx: Ctx) -> Screen:
     game = ctx.game
+    mode, value = game.stake_mode(ctx.user_id)
     text = views.casino_screen(
         ctx.repo.user_label(ctx.user_id),
         ctx.repo.player(ctx.user_id)[0],
         game.stake_for_play(ctx.user_id),
         ctx.chat_id,
         game.day_is("lucky_day"),
+        mode,
+        value,
     )
-    return text, keyboards.casino_menu(casino.STAKE_PRESETS)
+    current = {"all": "all", "share": f"p{value}"}.get(mode, "")
+    return text, keyboards.casino_menu(casino.STAKE_SHARES, current)
 
 
 def shop(ctx: Ctx) -> Screen:
     prices = {item: ctx.game.price(item) for item in SHOP_ITEMS}
+    prices["bounty"] = ctx.game.bounty_amounts()[0]
     balance = ctx.repo.player(ctx.user_id)[0]
-    text = views.shop_screen(ctx.repo.user_label(ctx.user_id), balance, prices, ctx.chat_id, ctx.game.day_event())
+    text = views.shop_screen(
+        ctx.repo.user_label(ctx.user_id), balance, prices, ctx.chat_id, ctx.game.day_event(), ctx.game.wealth()
+    )
     return text, keyboards.shop_menu()
 
 
@@ -174,6 +224,7 @@ SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "bottom": bottom,
     "grave": grave,
     "top": top,
+    "seasons": seasons_screen,
     "me": me,
     "games": games,
     "casino": casino_screen,
@@ -203,7 +254,8 @@ def live_now(game: Game, chat_id: int) -> list[str]:
         lines.append(f"⚖️ Суд · ещё {views.timer(min(courts) - now)}{extra}")
     boss = game.repo.active_boss(chat_id)
     if boss and boss["ends_at"] > now:
-        lines.append(f"👹 Босс · здоровье {boss['hp']}/{boss['max_hp']} · ещё {views.timer(boss['ends_at'] - now)}")
+        kind = "Рейд" if boss["raid"] else "Босс"
+        lines.append(f"👹 {kind} · {boss['hp']}/{boss['max_hp']} · ещё {views.timer(boss['ends_at'] - now)}")
     if game.repo.active_challenge_battle(chat_id):
         lines.append("🤺 Идёт вызов")
     return lines

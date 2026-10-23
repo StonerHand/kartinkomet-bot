@@ -82,8 +82,74 @@ def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int
             facts.append(f"⭐ Твоя пикча: {sign}{abs(change)} рейтинга\n<i>теперь {rating(pic.rating + change)}</i>")
             if spin.kind == "curse":
                 hint = "<i>Порчу можно снять за сутки — в лавке под пикчей</i>"
+    if spin.kind == "chest":
+        facts.append("🟫 +1 деревянный сундук")
+        hint = "<i>Открыть — в /quests</i>"
+    if spin.kind == "title":
+        facts.append(f"🏷 Титул «{escape(spin.prize)}»")
+        hint = "<i>Он теперь в твоём профиле</i>"
     return card(f"🎡 <b>КОЛЕСО: {title}</b> · {who(label)}", flavour, facts, hint)
 
 
 def horoscope(label: str, chat_id: int) -> str:
     return card(f"🔮 <b>ГОРОСКОП · {who(label).upper()}</b>", None, escape(pick(game_texts.HOROSCOPE, chat_id)))
+
+
+# ── whose pic? ─────────────────────────────────────────────────────────
+
+
+def whose_card(game: dict, remaining: int, chat_id: int) -> str:
+    answered = len(game["votes"])
+    return card(
+        f"🕵️ <b>ЧЬЯ ПИКЧА?</b> · <b>{timer(remaining)}</b>",
+        pick(game_texts.WHOSE_INTRO, chat_id),
+        f"Угадай, кто её загрузил. Верный ответ — +{money(game_rules.WHOSE_REWARD)}, ответ один",
+        f"✍️ Ответили: <b>{answered}</b>" if answered else "",
+    )
+
+
+def whose_result(author: str, right: list[str], wrong: int, chat_id: int) -> str:
+    if right:
+        verdict = [f"✅ <b>Угадали</b> · каждому +{money(game_rules.WHOSE_REWARD)}", ", ".join(who(name) for name in right)]
+    else:
+        verdict = [f"<i>{escape(pick(game_texts.WHOSE_NOBODY, chat_id))}</i>"]
+    return card(
+        "🕵️ <b>ЧЬЯ ПИКЧА?</b> · ответ",
+        pick(game_texts.WHOSE_REVEAL, chat_id),
+        f"📥 Это пикча <b>{who(author)}</b>",
+        verdict,
+        f"❌ Мимо: {wrong}" if wrong else "",
+    )
+
+
+# ── higher or lower ────────────────────────────────────────────────────
+
+
+def hl_reveal(first: Pic, second: Pic) -> str:
+    return f"A — <b>{rating(first.rating)}</b> · B — <b>{rating(second.rating)}</b>"
+
+
+def hl_card(streak: int, record: int, last=None) -> str:
+    """A round; `last` is the answer just given (shown as a line above the new question)."""
+    previous = f"✅ Верно: {hl_reveal(last.first, last.second)}" if last is not None else ""
+    paid = f"<i>+{money(last.paid)} за ответ</i>" if last is not None and last.paid else ""
+    return card(
+        f"🎯 <b>ВЫШЕ-НИЖЕ</b> · серия <b>{streak}</b>",
+        game_texts.HL_QUESTION,
+        [previous, paid],
+        f"🏆 Рекорд: <b>{record}</b>" if record else "",
+    )
+
+
+def hl_over(answer, chat_id: int) -> str:
+    beaten = answer.streak > answer.record_before
+    best = max(answer.streak, answer.record_before)
+    return card(
+        "🎯 <b>ВЫШЕ-НИЖЕ</b> · конец",
+        pick(game_texts.HL_RECORD if beaten else game_texts.HL_OVER, chat_id),
+        f"❌ Мимо: {hl_reveal(answer.first, answer.second)}",
+        [
+            f"🏁 Серия: <b>{answer.streak}</b> · рекорд <b>{best}</b>",
+            f"<i>За верный ответ +{num(game_rules.HL_REWARD)} монеты, до {game_rules.HL_PAID_PER_DAY} ответов в день</i>",
+        ],
+    )

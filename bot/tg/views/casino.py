@@ -9,7 +9,18 @@ from bot.texts.pick import pick
 from bot.tg.views.layout import card, money, num, who
 
 
-def casino_screen(label: str, balance: int, stake: int, chat_id: int, lucky: bool) -> str:
+def stake_words(mode: str, value: int, stake: int) -> str:
+    """'10% · 111 монет', 'ва-банк · 1 111 монет', '300 монет'."""
+    if mode == "all":
+        return f"ва-банк · {money(stake)}"
+    if mode == "share":
+        return f"{value}% · {money(stake)}"
+    return money(stake)
+
+
+def casino_screen(
+    label: str, balance: int, stake: int, chat_id: int, lucky: bool, mode: str = "fixed", value: int = 0
+) -> str:
     games = [
         f"{game.emoji} <b>{game.name}</b> · /{game.command}\n<i>{escape(casino_texts.RULES[game.code])}</i>"
         for game in casino.GAMES.values()
@@ -18,12 +29,14 @@ def casino_screen(label: str, balance: int, stake: int, chat_id: int, lucky: boo
         "🎰 <b>КАЗИНО</b>",
         pick(casino_texts.HEADERS, chat_id),
         [
-            f"💼 <b>{who(label)}</b>: {money(balance)} · ставка {money(stake)}",
+            f"💼 <b>{who(label)}</b>: {money(balance)}",
+            f"🎟 Ставка: {stake_words(mode, value, stake)}",
             "🍀 <b>Счастливый день:</b> выигрыши ×1.5" if lucky else "",
         ],
         *games,
-        "<i>Ставка у каждого своя: кнопки 50…500 и «ва-банк» меняют её тому, кто нажал. "
+        "<i>Ставка у каждого своя: кнопки с процентами и «ва-банк» меняют её тому, кто нажал. "
         "Своей суммой — /spin 300, /dice все</i>",
+        "🤝 <b>1 на 1</b> · /pvp\n<i>Кости, дартс или боулинг против человека, без казино: /pvp 200 дартс</i>",
     )
 
 

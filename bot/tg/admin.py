@@ -88,6 +88,11 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
         await send.edit_text(
             bot, chat_id, message.message_id, health_text(game), keyboards.markup(keyboards.back("m:adm"))
         )
+    elif action == "stats":
+        await callback.answer()
+        await send.edit_text(
+            bot, chat_id, message.message_id, views.admin_stats(game.usage()), keyboards.markup(keyboards.back("m:adm"))
+        )
     elif action == "backup":
         await callback.answer("Собираю бэкап")
         with tempfile.TemporaryDirectory(prefix="kartinkomet-") as temp_dir:

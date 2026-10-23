@@ -87,6 +87,65 @@ async def caption_reply(message: Message, bot: Bot, game: Game, live: Live) -> b
     return True
 
 
+# ── whose pic? ─────────────────────────────────────────────────────────
+
+
+async def start_whose(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
+    """'started' | 'active' | 'cooldown' | 'shortage' | 'failed'."""
+    status, round_ = game.start_whose(chat_id)
+    if status == "active" and round_ is not None and round_["phase_ends_at"] <= game.now():
+        await live.advance_game(round_["id"])
+        status, round_ = game.start_whose(chat_id)
+    if status != "started" or round_ is None:
+        return status
+    pic = game.repo.get_pic(round_["pic_id"])
+    labels = [game.repo.user_label(user) for user in round_["options"]]
+    message = await send.send_photo(
+        bot,
+        chat_id,
+        pic.file_id,
+        views.whose_card(round_, round_["phase_ends_at"] - game.now(), chat_id),
+        keyboards.whose(round_["id"], labels),
+    )
+    if message is None:
+        game.repo.drop_game(round_["id"])
+        return "failed"
+    game.repo.set_game_message(round_["id"], message.message_id)
+    live.watch_game(round_["id"])
+    return "started"
+
+
+WHOSE_REFUSALS = {
+    "active": "🕵️ Раунд уже идёт — отвечай на пикчу выше",
+    "cooldown": "🕵️ Следующий раунд чуть позже: детектив курит",
+    "shortage": "🕵️ Нужны пикчи хотя бы от двух человек",
+    "failed": "🕵️ Telegram не дал показать пикчу. Попробуй ещё раз",
+}
+
+
+@router.message(Command("whose"))
+async def whose_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    status = await start_whose(bot, game, live, message.chat.id)
+    if status != "started":
+        await message.reply(WHOSE_REFUSALS[status])
+
+
+@router.callback_query(F.data.startswith("wh:"))
+async def whose_guess(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, game_id, raw = callback.data.split(":", 2)
+    status = game.guess_whose(game_id, callback.from_user.id, int(raw) if raw.isdigit() else -1)
+    answers = {
+        "ok": "🕵️ Ответ записан. Узнаешь через полминуты",
+        "same": "Ответ уже принят. Переобуваться нельзя",
+        "own": "Это твоя пикча. Не подсказывай",
+        "closed": "Раунд уже закончился",
+        "gone": "Этого раунда уже нет",
+    }
+    await callback.answer(answers[status], show_alert=status in ("own", "gone"))
+    if status == "ok":
+        live.request_refresh_game(game_id)
+
+
 # ── golden pic ─────────────────────────────────────────────────────────
 
 
@@ -186,9 +245,15 @@ async def horoscope_command(message: Message, bot: Bot, game: Game, live: Live) 
 # ── panel buttons ──────────────────────────────────────────────────────
 
 
-@router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo"}), F.message)
+@router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo", "gm:whose"}), F.message)
 async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     chat_id = callback.message.chat.id
+    if callback.data == "gm:whose":
+        await send.answer_quietly(callback, "🕵️ Ищу улику…")
+        status = await start_whose(bot, game, live, chat_id)
+        if status != "started":
+            await send.send_text(bot, chat_id, WHOSE_REFUSALS[status])
+        return
     if callback.data == "gm:caption":
         await send.answer_quietly(callback, "🖋 Ищу пикчу без подписи…")
         if await start_caption(bot, game, live, chat_id) == "active":

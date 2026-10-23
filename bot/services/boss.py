@@ -15,6 +15,8 @@ class HitResult:
     hp: int = 0
     counter_victim: int | None = None  # the boss struck back at this player
     killed: bool = False
+    fine: int = 0  # coins the counterattack took from the victim
+    phase: str = "calm"  # the raid phase this hit landed in
 
 
 @dataclass(frozen=True)
@@ -25,12 +27,15 @@ class BossReport:
     top: int | None = None
     last_hit: int | None = None
     granted: list[Granted] = field(default_factory=list)
+    chests: int = 0  # raids: wooden chests handed to everyone who dealt RAID_CHEST_DAMAGE
 
 
 class BossMixin:
     _boss_hit_at: dict[tuple[str, int], float]
 
-    def summon_boss(self, chat_id: int, title: str, double: bool = False, forced: bool = False) -> tuple[str, dict | None]:
+    def summon_boss(
+        self, chat_id: int, title: str, double: bool = False, forced: bool = False, raid: bool = False
+    ) -> tuple[str, dict | None]:
         """('ok' | 'active' | 'cooldown' | 'shortage', boss). `forced` skips the cooldown (schedule, events)."""
         active = self.repo.active_boss(chat_id)
         if active:
@@ -44,9 +49,11 @@ class BossMixin:
         pic = pool[self.rng.randrange(len(pool))]
         players = self.repo.active_players(self.now() - 7 * 86400)
         hp = rules.max_hp(players, double)
-        boss_id = self.repo.create_boss(
-            chat_id, pic.id, title, hp, rules.loot(hp, double), self.now(), self.now() + rules.DURATION_SECONDS
-        )
+        loot = rules.loot(hp, double)
+        duration = rules.DURATION_SECONDS
+        if raid:
+            hp, loot, duration = hp * rules.RAID_HP_FACTOR, loot * rules.RAID_LOOT_FACTOR, rules.RAID_SECONDS
+        boss_id = self.repo.create_boss(chat_id, pic.id, title, hp, loot, self.now(), self.now() + duration, raid)
         return "ok", self.repo.get_boss(boss_id)
 
     def boss_cooldown_left(self, chat_id: int) -> int:
@@ -62,29 +69,47 @@ class BossMixin:
         moment = monotonic()
         if not super_hit and moment - self._boss_hit_at.get(key, 0.0) < rules.HIT_COOLDOWN_SECONDS:
             return HitResult("cooldown", hp=boss["hp"])
+        price = self.super_price()
         if super_hit:
-            if not self.repo.spend(user_id, rules.SUPER_PRICE, "boss_super", self.now()):
+            if not self.repo.spend(user_id, price, "boss_super", self.now()):
                 return HitResult("broke", hp=boss["hp"])
-            self.repo.add_boss_loot(boss_id, rules.SUPER_PRICE)
+            self.repo.add_boss_loot(boss_id, price)
         self._boss_hit_at[key] = moment
-        blow = rules.hit(self.rng, super_hit)
-        applied = self.repo.hit_boss(boss_id, user_id, blow.damage)
+        current = rules.phase(boss["hp"], boss["max_hp"], bool(boss["raid"]))
+        blow = rules.hit(self.rng, super_hit, current)
+        applied = self.repo.hit_boss(boss_id, user_id, blow.damage, self.now())
         if applied is None:
             if super_hit:
-                self.repo.add_coins(user_id, rules.SUPER_PRICE, "boss_refund", self.now(), earn=False)
+                self.repo.add_coins(user_id, price, "boss_refund", self.now(), earn=False)
             return HitResult("over", hp=0)
         hp, hits = applied
         self.progress(user_id, "boss_hit")
         self.progress(user_id, "boss_damage", blow.damage)
-        victim = None
-        if hp > 0 and hits % rules.COUNTER_EVERY == 0:
+        victim, taken = None, 0
+        enraged = current in ("rage", "shield")
+        every = rules.RAGE_COUNTER_EVERY if enraged else rules.COUNTER_EVERY
+        if hp > 0 and hits % every == 0:
             fighters = list(self.repo.get_boss(boss_id)["damage"])
             victim = fighters[self.rng.randrange(len(fighters))] if fighters else None
             if victim is not None:
-                taken = min(rules.COUNTER_FINE, self.repo.player(victim)[0])
+                fine = rules.COUNTER_FINE * (2 if enraged else 1)
+                taken = min(fine, self.repo.player(victim)[0])
                 if taken and self.repo.spend(victim, taken, "boss_counter", self.now()):
                     self.repo.add_boss_loot(boss_id, taken)
-        return HitResult("ok", blow.damage, blow.crit, hp, victim, killed=hp == 0)
+                else:
+                    taken = 0
+        return HitResult("ok", blow.damage, blow.crit, hp, victim, killed=hp == 0, fine=taken, phase=current)
+
+    def heal_idle_raid(self, boss_id: str) -> int:
+        """A raid boss nobody hit for HEAL_IDLE_SECONDS regains HEAL_SHARE of its health.
+        Returns the hp healed (0 most of the time)."""
+        boss = self.repo.get_boss(boss_id)
+        if boss is None or not boss["raid"] or boss["status"] != "active" or boss["hp"] <= 0:
+            return 0
+        if self.now() - (boss["last_hit_at"] or boss["started_at"]) < rules.HEAL_IDLE_SECONDS:
+            return 0
+        amount = max(1, int(boss["max_hp"] * rules.HEAL_SHARE))
+        return self.repo.heal_boss(boss_id, amount, self.now()) - boss["hp"]
 
     def finish_boss(self, boss_id: str) -> BossReport | None:
         boss = self.repo.get_boss(boss_id)
@@ -112,7 +137,14 @@ class BossMixin:
         top = next(iter(damage), None)  # ordered by damage
         if top is not None:
             events.setdefault(top, []).append("boss_slayer")
-            self.grant_chest(top, "rare")
+            self.grant_chest(top, "legend" if boss["raid"] else "rare")
+        chests = 0
+        if boss["raid"]:
+            for user_id, dealt in damage.items():
+                if dealt >= rules.RAID_CHEST_DAMAGE and user_id != top:
+                    self.grant_chest(user_id, "wood")
+                    chests += 1
         if isinstance(last, int):
             events.setdefault(last, []).append("last_hit")
-        return BossReport(boss, True, payouts, top, last, self.check_achievements(list(damage), events))
+        granted = self.check_achievements(list(damage), events)
+        return BossReport(boss, True, payouts, top, last, granted, chests)

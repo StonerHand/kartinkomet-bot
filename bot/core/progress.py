@@ -95,16 +95,25 @@ RANDOM_CHEST_CHANCE = 0.03  # on a vote or a like, at most one random chest per 
 
 @dataclass(frozen=True)
 class Loot:
-    kind: str  # empty | coins | boost | shield | chest
+    kind: str  # empty | coins | boost | shield | chest | frame | title
     coins: int = 0
+    prize: str = ""  # the frame or the title won
 
 
 # tier → [(weight, kind, coins range)]
 LOOT = {
     WOOD: ((15, "empty", (0, 0)), (60, "coins", (40, 150)), (15, "coins", (150, 300)), (10, "boost", (0, 0))),
-    RARE: ((5, "empty", (0, 0)), (55, "coins", (200, 500)), (20, "coins", (500, 900)), (10, "shield", (0, 0)),
-           (10, "chest", (0, 0))),
-    LEGEND: ((50, "coins", (1000, 2500)), (25, "coins", (2500, 5000)), (25, "shield", (0, 0))),
+    RARE: ((5, "empty", (0, 0)), (50, "coins", (200, 500)), (17, "coins", (500, 900)), (10, "shield", (0, 0)),
+           (10, "chest", (0, 0)), (8, "frame", (0, 0))),
+    LEGEND: ((40, "coins", (1000, 2500)), (20, "coins", (2500, 5000)), (15, "shield", (0, 0)), (15, "frame", (0, 0)),
+             (10, "title", (0, 0))),
+}
+# Cosmetic frames drawn around a pic in battles: code → (adjective for texts, RGB).
+FRAMES = {
+    "gold": ("золотой", (255, 196, 0)),
+    "neon": ("неоновой", (0, 229, 255)),
+    "fire": ("огненной", (255, 87, 34)),
+    "rose": ("розовой", (236, 64, 122)),
 }
 CHEST_BOOST_RATING = 30
 CHEST_SHIELD_SECONDS = 3 * 86400

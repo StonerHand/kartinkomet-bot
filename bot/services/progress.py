@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from bot.core import days, progress, shop
+from bot.core import days, progress
 from bot.services.types import Granted, Note
 
 STARTER_BONUS = 1111
@@ -107,6 +107,7 @@ class ProgressMixin:
         self.repo.forget_counters("q:", f"q:{today}:")
         self.repo.forget_counters("w:", f"w:{self.local_week()}:")
         self.repo.forget_meta("pm:")  # 🛒 menus and title prompts don't outlive a day
+        self.repo.forget_usage(today - 14)  # the admin's stats look one week back
         self.repo.forget_meta("title_prompt:")
         return code, True
 
@@ -219,6 +220,17 @@ class ProgressMixin:
                 self.repo.set_immunity(pic.id, until)
         elif loot.kind == "chest":
             self.repo.incr_counter(user_id, f"chest_{progress.WOOD}")
+        elif loot.kind == "frame":
+            pic = next((candidate for candidate in self.repo.pics_of(user_id, limit=5) if not candidate.frame), None)
+            if pic is None:
+                loot = progress.Loot("coins", 300)
+            else:
+                frame = sorted(progress.FRAMES)[self.rng.randrange(len(progress.FRAMES))]
+                self.repo.set_frame(pic.id, frame)
+                loot = progress.Loot("frame", prize=frame)
+        elif loot.kind == "title":
+            title = self.give_prize_title(user_id)
+            loot = progress.Loot("title", prize=title) if title else progress.Loot("coins", 1000)
         elif loot.kind == "empty":
             events.append("empty_chest")
         if loot.coins:
@@ -252,12 +264,3 @@ class ProgressMixin:
         events = self.touch_activity(user_id)
         return Daily("ok", reward, streak, chest, family, self.check_achievements([user_id], {user_id: events}))
 
-    # ── shop prices bent by the day ────────────────────────────────────
-
-    def price(self, item: str) -> int:
-        return shop.price(
-            item,
-            inflation=self.day_is("inflation"),
-            sale=self.day_is("black_friday"),
-            dead_day_price=days.DEAD_DAY_RESURRECTION if self.day_is("dead_day") else None,
-        )

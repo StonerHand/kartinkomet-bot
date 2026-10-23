@@ -14,6 +14,7 @@ from bot.services.arena import ArenaMixin
 from bot.services.boss import BossMixin
 from bot.services.casino import CasinoMixin
 from bot.services.court import CourtMixin
+from bot.services.economy import EconomyMixin
 from bot.services.minigames import MiniGamesMixin
 from bot.services.pics import PicsMixin
 from bot.services.progress import STARTER_BONUS, ProgressMixin
@@ -38,7 +39,10 @@ __all__ = [
 ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 
 
-class Game(PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin, SocialMixin, BossMixin):
+class Game(
+    PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
+    SocialMixin, BossMixin, EconomyMixin,
+):
 
     def __init__(
         self,
@@ -60,6 +64,9 @@ class Game(PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, StatusMixin, Progr
         self.quests_enabled = True
         self.starter_bonus = STARTER_BONUS
         self._boss_hit_at: dict[tuple[str, int], float] = {}
+        # Admins test everything: their coins survive the season reset and don't count as chat wealth.
+        self.admins: frozenset[int] = frozenset()
+        self._wealth: tuple[int, float] | None = None
         # Local 00:00–04:59 expressed in UTC hours, for night-upload achievements.
         self.night_hours_utc = [(hour - tz_offset_hours) % 24 for hour in range(0, 5)]
 
@@ -86,6 +93,15 @@ class Game(PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, StatusMixin, Progr
         self.repo.raise_counter(user_id, "best_active_streak", streak)
         self.repo.set_counter(user_id, "last_active_day", today)
         return events
+
+    def track(self, name: str) -> None:
+        """Count a use of a mechanic for the admin's weekly stats."""
+        self.repo.track(name, self.local_day())
+
+    def usage(self, days: int = 7) -> dict[str, int]:
+        today = self.local_day()
+        day_start = today * 86400 - self.tz_offset_hours * 3600
+        return self.repo.usage(self.now() - days * 86400, day_start, today - days + 1)
 
     def pay(self, user_id: int | None, amount: int, reason: str, earn: bool = True) -> None:
         if not isinstance(user_id, int) or not amount:

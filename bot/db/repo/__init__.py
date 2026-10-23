@@ -11,6 +11,7 @@ from bot.db.repo.economy import EconomyRepo
 from bot.db.repo.games import GamesRepo
 from bot.db.repo.chats import ChatsRepo
 from bot.db.repo.people import PeopleRepo
+from bot.db.repo.seasons import SeasonsRepo
 from bot.db.repo.models import (
     LEGEND_POOL_SIZE,
     MIN_EXPERIENCE,
@@ -31,7 +32,9 @@ __all__ = [
 ]
 
 
-class Repo(MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, GamesRepo, ChatsRepo, PeopleRepo):
+class Repo(
+    MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, GamesRepo, ChatsRepo, PeopleRepo, SeasonsRepo
+):
 
     def __init__(self, database_path: Path | str) -> None:
         self.database_path = Path(database_path)

@@ -11,13 +11,13 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot import collage
-from bot.core import shop
+from bot.core import progress, shop
 
 from bot.game import Game
 from bot.texts import arena as arena_texts
 from bot.texts import toasts, ui
 from bot.texts.pick import pick
-from bot.tg import keyboards, send
+from bot.tg import keyboards, send, views
 from bot.tg.timers import Live
 
 LOGGER = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def launch_battle(bot: Bot, game: Game, live: Live, battle) -> str:
     """Send the collage card of a battle that already exists and start its timer."""
     chat_id = battle.chat_id
     duration = battle.ends_at - battle.started_at
-    markup = keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts())
+    markup = keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts(), game.bet_step())
     card = None
     await send.chat_action(bot, chat_id, "upload_photo")
     image = await build_collage(bot, battle.pics)
@@ -120,7 +120,8 @@ async def build_collage(bot: Bot, pics) -> bytes | None:
         if any(image is None for image in images):
             return None
         stages = [shop.stage(pic.wins).index for pic in pics]
-        return await asyncio.to_thread(collage.build, list(images), stages)
+        frames = [progress.FRAMES[pic.frame][1] if pic.frame in progress.FRAMES else None for pic in pics]
+        return await asyncio.to_thread(collage.build, list(images), stages, frames)
     except Exception:  # any failure here just means "no collage", the album fallback still works
         LOGGER.warning("Collage failed, falling back to album", exc_info=True)
         return None
@@ -215,8 +216,8 @@ BET_ANSWERS = {
     "closed": "Ставки закрыты, бой окончен",
     "fighter": "Участникам вызова ставить нельзя. Совесть, всё такое",
     "other_slot": "Твоя ставка уже стоит на другой пикче. Не жадничай",
-    "max": "Потолок — 1000 🪙 на бой",
-    "broke": "Не хватает монет. Ставка — 50 🪙",
+    "max": "Потолок — {max} 🪙 на бой",
+    "broke": "Не хватает монет. Ставка — {step} 🪙",
 }
 
 
@@ -228,7 +229,8 @@ async def bet(callback: CallbackQuery, game: Game, live: Live) -> None:
         return
     status, total = game.bet_battle(battle_id, callback.from_user.id, int(raw_slot))
     if status != "ok":
-        await callback.answer(BET_ANSWERS.get(status, "Не вышло"), show_alert=status not in ("max",))
+        answer = BET_ANSWERS.get(status, "Не вышло").format(step=views.num(game.bet_step()), max=views.num(game.bet_max()))
+        await callback.answer(answer, show_alert=status not in ("max",))
         return
     await callback.answer(f"💰 Ставка принята: всего {total} 🪙 на эту пикчу")
     live.request_refresh_battle(battle_id)

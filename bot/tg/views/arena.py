@@ -35,7 +35,13 @@ def bets_line(battle: Battle) -> str | None:
     return f"💰 Ставки: {money(total)} · " + " · ".join(parts)
 
 
-def battle_card(battle: Battle, remaining: int, fighters: str | None = None, flipped: bool = False) -> str:
+def battle_card(
+    battle: Battle,
+    remaining: int,
+    fighters: str | None = None,
+    flipped: bool = False,
+    bet_step: int = casino.BET_STEP,
+) -> str:
     """fighters: the 'A vs B, stake' line of a player challenge."""
     counts = battle.vote_counts()
     total = sum(counts)
@@ -62,7 +68,7 @@ def battle_card(battle: Battle, remaining: int, fighters: str | None = None, fli
     else:
         status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
     twist = "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else ""
-    bets = bets_line(battle) or f"💰 Ставок пока нет · по {casino.BET_STEP} монет"
+    bets = bets_line(battle) or f"💰 Ставок пока нет · по {money(bet_step)}"
     # The status is the caption of the bets line, unless a long bet line (a tournament) wraps.
     footer = [[bets, status]] if fits(bets) else [bets, status]
     return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, overtime, *footer)
@@ -180,6 +186,15 @@ def challenge_card(challenge: dict, labels: dict[int, str], chat_id: int, remain
     challenger = who(labels.get(challenge["from_user"], "?"))
     target = challenge["to_user"]
     opponent = f"<b>{who(labels.get(target, '?'))}</b>" if target else "любого смельчака"
+    if challenge.get("game"):
+        info = casino.GAMES[challenge["game"]]
+        return card(
+            f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · <b>{timer(remaining)}</b>",
+            pick(social_texts.DICE_DUEL_CALL, chat_id),
+            f"<b>{challenger}</b> ставит {money(challenge['stake'])} и ждёт {opponent}",
+            f"<i>Каждый бросает по разу, у кого больше — забирает {num(challenge['stake'] * 2)} монет. "
+            "Ничья — ставки вернутся</i>",
+        )
     return card(
         f"🤺 <b>ВЫЗОВ НА ДУЭЛЬ</b> · <b>{timer(remaining)}</b>",
         pick(social_texts.CHALLENGE_CALL, chat_id),
@@ -195,9 +210,33 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
         "declined": "Отказ. Ставка вернулась",
         "cancelled": "Вызов отозван. Ставка вернулась",
         "expired": "Никто не принял. Ставка вернулась",
-        "accepted": "Вызов принят — бой ниже",
+        "accepted": "Вызов принят — бой ниже" if not challenge.get("game") else "Вызов принят — бросаем",
     }[status]
     return card(f"🤺 <b>ВЫЗОВ</b> · {challenger} · {money(challenge['stake'])}", reason)
+
+
+def score_line(score: tuple[int, int]) -> str:
+    """'🤝 Личный счёт: 3 : 2', in the order the two players were named just above."""
+    return f"🤝 Личный счёт: <b>{score[0]} : {score[1]}</b>"
+
+
+def dice_duel_result(duel, labels: dict[int, str], chat_id: int) -> str:
+    challenge = duel.challenge
+    info = casino.GAMES[challenge["game"]]
+    players = (challenge["from_user"], challenge["to_user"])
+    names = tuple(labels.get(user, "?") for user in players)
+    throws = [f"{info.emoji} {who(name)} — <b>{value}</b>" for name, value in zip(names, duel.values)]
+    if duel.winner is None:
+        verdict, flavour = "↩️ Ничья: ставки вернулись", pick(social_texts.DICE_DUEL_DRAW, chat_id)
+    else:
+        verdict = f"🏆 <b>{who(labels.get(duel.winner, '?'))}</b> забирает {money(duel.pot)}"
+        flavour = pick(social_texts.DICE_DUEL_WIN, chat_id)
+    return card(
+        f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · итог",
+        flavour,
+        throws,
+        [verdict, score_line(duel.score)],
+    )
 
 
 def challenge_names(challenge: dict, labels: dict[int, str]) -> str:
@@ -205,19 +244,24 @@ def challenge_names(challenge: dict, labels: dict[int, str]) -> str:
     return f"🥊 <b>{first}</b> против <b>{second}</b>\n🏆 На кону {money(challenge['stake'] * 2)}"
 
 
-def battle_report(report: BattleReport, labels: dict[int, str]) -> str:
-    """The whole result card: the table plus every v4 block that applies."""
+def battle_report(report: BattleReport, labels: dict[int, str], score: tuple[int, int] | None = None) -> str:
+    """The whole result card: the table plus every v4 block that applies. score: the
+    head-to-head of a challenge's two players after this battle."""
     battle = report.battle
     extras = []
     if report.challenge:
-        extras.append("\n".join([challenge_names(report.challenge, labels), *challenge_result(report, labels)]))
+        extras.append("\n".join([challenge_names(report.challenge, labels), *challenge_result(report, labels, score)]))
     extras += ["\n".join(evolution_lines(report)), "\n".join(bets_result(report, labels)), bounty_line(report.bounty, labels)]
     uploaders = [labels.get(pic.added_by, "аноним") for pic in battle.pics]
     guessers = [labels.get(user, "?") for user in report.guessers]
     return battle_result(report, uploaders, guessers, [extra for extra in extras if extra])
 
 
-def challenge_result(report, labels: dict[int, str]) -> list[str]:
+def challenge_result(report, labels: dict[int, str], score: tuple[int, int] | None = None) -> list[str]:
     if report.champion is None:
-        return ["🤺 <i>Победителя нет — обе ставки вернулись</i>"]
-    return [f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {money(report.challenge['stake'] * 2)}"]
+        lines = ["🤺 <i>Победителя нет — обе ставки вернулись</i>"]
+    else:
+        lines = [f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {money(report.challenge['stake'] * 2)}"]
+    if score is not None:
+        lines.append(score_line(score))
+    return lines

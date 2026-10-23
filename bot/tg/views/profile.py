@@ -4,12 +4,13 @@ from html import escape
 from dataclasses import dataclass
 
 from bot.core import achievements as rules
-from bot.core import economy
+from bot.core import economy, seasons
 from bot.db.repo import UserStats
 from bot.texts import tops as top_texts
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick
-from bot.tg.views.layout import bare, money, num, plural, who
+from bot.tg.views.layout import bare, money, num, plural, rating, who
+from bot.tg.views.seasons import points, season_badges
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,11 @@ class Wallet:
     title: str | None = None
     chests: dict[str, int] | None = None
     jailed: int = 0  # seconds left
+    season: tuple[str, int, int | None] | None = None  # (season, score, place) of the running month
+    podiums: tuple[tuple[str, int], ...] = ()  # (season, place) of every podium, latest first
+    casino: tuple[int, int, int, int] | None = None  # (bets, staked, returned, biggest single win)
+    best_pic: tuple[str, float, int, int] | None = None  # (pic id, rating, wins, losses)
+    records: tuple[tuple[str, int], ...] = ()  # (what, best value), only the ones above zero
 
 
 def profile(
@@ -69,6 +75,12 @@ def profile(
     if statuses:
         lines += ["", *statuses]
 
+    if wallet.season and (wallet.season[1] or wallet.podiums):
+        season, score, standing = wallet.season
+        where = f" · {standing}-е место" if standing else ""
+        lines += ["", f"🏆 <b>Сезон</b> · {escape(seasons.name(season))}", f"{points(score)}{where}"]
+        lines += season_badges(list(wallet.podiums))
+
     rank = f" · {place}-е место" if place else ""
     lines += ["", f"📦 <b>Склад</b>{rank}"]
     alive = "все живы" if stats.pics_alive == stats.uploads else f"живых {stats.pics_alive}"
@@ -82,6 +94,9 @@ def profile(
     )
     if stats.legends or stats.best_streak > 1:
         lines.append(f"🏛 <b>{stats.legends}</b> в зале славы · лучшая серия <b>{stats.best_streak}</b>")
+    if wallet.best_pic:
+        _, best_rating, wins, losses = wallet.best_pic
+        lines.append(f"⭐ Лучшая пикча: рейтинг <b>{rating(best_rating)}</b> · {wins}–{losses}")
     title_code = rules.upload_title_code(stats.uploads)
     goal = rules.next_upload_goal(stats.uploads)
     if title_code:  # the uploader title: its own item, "📦 <b>Title</b>" over the way to the next one
@@ -99,7 +114,7 @@ def profile(
     if voice or wallet.nemesis or stats.kill_votes or stats.spare_votes:
         lines += ["", "⚔️ <b>Арена и суды</b>"]
         if stats.kill_votes or stats.spare_votes:
-            lines.append(f"🪓 казнил <b>{stats.kill_votes}</b> · 🕊 спас <b>{stats.spare_votes}</b>")
+            lines.append(f"⚖️ За казнь — <b>{stats.kill_votes}</b> · за помилование — <b>{stats.spare_votes}</b>")
         if voice:
             lines.append(f"🎯 Угадываешь в <b>{voice[0]}%</b> боёв · {escape(bare(voice[1]))}")
         if wallet.nemesis:
@@ -108,6 +123,18 @@ def profile(
                 f"😈 немезида — <b>{who(name)}</b> · {defeats} "
                 f"{plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч"
             )
+
+    if wallet.casino and wallet.casino[0]:
+        bets, staked, returned, biggest = wallet.casino
+        net = returned - staked
+        result = f"в плюсе на {money(net)}" if net > 0 else f"в минусе на {money(-net)}" if net < 0 else "по нулям"
+        lines += ["", "🎰 <b>Казино</b>", f"<b>{num(bets)}</b> {plural(bets, 'ставка', 'ставки', 'ставок')} · {result}"]
+        if biggest:
+            lines.append(f"<i>самый крупный выигрыш — {num(biggest)} {plural(biggest, 'монета', 'монеты', 'монет')}</i>")
+
+    if wallet.records:
+        lines += ["", "📈 <b>Рекорды</b>"]
+        lines += [f"{escape(what)} — <b>{num(value)}</b>" for what, value in wallet.records]
 
     hidden = len(rules.SECRET - owned)
     secret = f" · ещё {hidden} {plural(hidden, 'секретная', 'секретные', 'секретных')}" if hidden else ""

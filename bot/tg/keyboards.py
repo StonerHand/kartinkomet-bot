@@ -40,14 +40,32 @@ TOP_BOARDS = (
     ("killers", "🪓 Палачи"),
     ("streaks", "🔥 Серии"),
     ("rich", "💰 Богачи"),
+    ("season", "📅 Сезон"),
+    ("hl", "🎯 Выше-ниже"),
 )
+WEEKLY_BOARDS = {"uploads", "loved", "killers", "rich"}
 # Telegram truncates long labels on phones: keep ≤ 8 chars with 3 buttons in a row, ≤ 12 with 2.
+
+
+def short(amount: int) -> str:
+    """Prices on buttons: 1 500 → 1.5к, 2 000 000 → 2М. Labels have to stay short on phones."""
+    if amount >= 1_000_000:
+        return f"{amount / 1_000_000:.1f}".rstrip("0").rstrip(".") + "М"
+    if amount >= 10_000:
+        return f"{amount // 1000}к"
+    if amount >= 1000:
+        return f"{amount / 1000:.1f}".rstrip("0").rstrip(".") + "к"
+    return str(amount)
 
 
 def button(text: str, data: str, style: str | None = None) -> InlineKeyboardButton:
     if style:
         return InlineKeyboardButton(text=text, callback_data=data, style=style)
     return InlineKeyboardButton(text=text, callback_data=data)
+
+
+def link(text: str, url: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, url=url)
 
 
 def markup(*rows: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
@@ -84,6 +102,7 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
 
 def games_menu() -> InlineKeyboardMarkup:
     return markup(
+        [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
         [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
         [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
         back(),
@@ -102,10 +121,15 @@ CASINO_BUTTONS = (
 )
 
 
-def casino_menu(presets: tuple[int, ...]) -> InlineKeyboardMarkup:
+def casino_menu(shares: tuple[int, ...], current: str = "") -> InlineKeyboardMarkup:
+    """current: the active stake button's data ('p10', 'all'), marked with ✅."""
     games = [button(label, f"cg:{code}", SUCCESS if code == "slots" else None) for code, label in CASINO_BUTTONS]
-    stakes = [button(str(amount), f"cs:{amount}") for amount in presets]
-    return markup(games[:3], games[3:], stakes, [button("🃏 Ва-банк", "cs:all", DANGER)], back())
+
+    def stake(label: str, data: str, style: str | None = None) -> InlineKeyboardButton:
+        return button(f"✅ {label}" if data == current else label, f"cs:{data}", style)
+
+    stakes = [stake(f"{share}%", f"p{share}") for share in shares]
+    return markup(games[:3], games[3:], stakes, [stake("🃏 Ва-банк", "all", DANGER)], back())
 
 
 def casino_again(game: str, stake: int) -> InlineKeyboardMarkup:
@@ -119,16 +143,16 @@ def casino_again(game: str, stake: int) -> InlineKeyboardMarkup:
     )
 
 
-def pic_menu(token: str, cursed: bool, prices: dict[str, int]) -> InlineKeyboardMarkup:
+def pic_menu(token: str, cursed: bool, prices: dict[str, int], bounties: tuple[int, int] = (100, 500)) -> InlineKeyboardMarkup:
     """token: a short server-side key for (pic, buyer, chat) — see shop.menu_token."""
 
     def buy(label: str, item: str, code: str, style: str | None = None) -> InlineKeyboardButton:
-        return button(f"{label} {prices[item]}", f"sh:{code}:{token}", style)
+        return button(f"{label} {short(prices[item])}", f"sh:{code}:{token}", style)
 
     rows = [
         [buy("🛡 Щит", "shield", "s", SUCCESS), buy("⚡ Буст", "boost", "b", PRIMARY)],
-        [buy("⚖️ Суд", "court", "c", DANGER), button("🎯 +100", f"sh:h1:{token}")],
-        [button("🎯 +500", f"sh:h5:{token}")],
+        [buy("⚖️ Суд", "court", "c", DANGER), button(f"🎯 +{short(bounties[0])}", f"sh:h1:{token}")],
+        [button(f"🎯 +{short(bounties[1])}", f"sh:h5:{token}")],
     ]
     if cursed:
         rows[2].append(buy("🧿 Порча", "uncurse", "u", SUCCESS))
@@ -170,7 +194,11 @@ def open_chests(tiers: list[str]) -> InlineKeyboardMarkup | None:
 
 
 def boss(boss_id: str, price: int) -> InlineKeyboardMarkup:
-    return markup([button("🗡 Удар", f"bh:{boss_id}", DANGER), button(f"🔥 Супер {price}", f"bs:{boss_id}", PRIMARY)])
+    return markup([button("🗡 Удар", f"bh:{boss_id}", DANGER), button(f"🔥 Супер {short(price)}", f"bs:{boss_id}", PRIMARY)])
+
+
+def season_over() -> InlineKeyboardMarkup:
+    return markup([button("🏆 Сезоны", "m:seasons", PRIMARY), button("🎰 Казино", "m:casino", SUCCESS)])
 
 
 def boss_over() -> InlineKeyboardMarkup:
@@ -187,9 +215,39 @@ def challenge(challenge_id: str) -> InlineKeyboardMarkup:
     )
 
 
+def rematch(challenge_id: str, stake: int, dice: bool) -> InlineKeyboardMarkup:
+    second = button("🎰 Казино", "m:casino", SUCCESS) if dice else more()
+    return markup([button(f"🔁 Реванш {short(stake)}", f"rm:{challenge_id}", DANGER), second])
+
+
 def caption_vote(game_id: str, entries: int) -> InlineKeyboardMarkup:
     buttons = [button(f"{index + 1}", f"cv:{game_id}:{index}", PRIMARY) for index in range(entries)]
     return markup(buttons[:4], buttons[4:])
+
+
+def clip(label: str, limit: int = 11) -> str:
+    return label if len(label) <= limit else label[: limit - 1] + "…"
+
+
+def whose(game_id: str, labels: list[str]) -> InlineKeyboardMarkup:
+    buttons = [button(clip(label), f"wh:{game_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
+    return markup(buttons[:2], buttons[2:])
+
+
+def after_whose() -> InlineKeyboardMarkup:
+    return markup([button("🕵️ Ещё раунд", "gm:whose", PRIMARY), more()])
+
+
+def higher_lower(token: str) -> InlineKeyboardMarkup:
+    return markup([button("🅰️ Выше", f"hl:0:{token}", DANGER), button("🅱️ Выше", f"hl:1:{token}", PRIMARY)])
+
+
+def higher_lower_over() -> InlineKeyboardMarkup:
+    return markup([button("🔁 Ещё раз", "hl:new", SUCCESS), button("🏆 Рекорды", "m:top:hl")])
+
+
+def higher_lower_link(username: str) -> InlineKeyboardMarkup:
+    return markup([link("🎯 Играть в личке", f"https://t.me/{username}?start=hl")])
 
 
 def after_caption() -> InlineKeyboardMarkup:
@@ -227,13 +285,13 @@ def more_only() -> InlineKeyboardMarkup:
     return markup([more()])
 
 
-def battle_vote(battle_id: str, kind: str, counts: list[int]) -> InlineKeyboardMarkup:
+def battle_vote(battle_id: str, kind: str, counts: list[int], step: int = 50) -> InlineKeyboardMarkup:
     labels = DUEL_LABELS if kind == "duel" else TOURNAMENT_LABELS
     buttons = [
         button(f"{labels[slot]} {count}", f"v:{battle_id}:{slot}", SLOT_STYLES[slot])
         for slot, count in enumerate(counts)
     ]
-    stake = "+50" if len(counts) == 2 else ""
+    stake = f"+{short(step)}" if len(counts) == 2 else ""
     bets = [button(f"💰 {labels[slot]} {stake}".rstrip(), f"bt:{battle_id}:{slot}") for slot in range(len(counts))]
     return markup(buttons, bets)
 
@@ -272,13 +330,28 @@ def graveyard(pic_ids: list[str], is_admin: bool) -> InlineKeyboardMarkup:
     return markup(*revive, *spare, back("m:top:uploads"))
 
 
-def tops(active: str) -> InlineKeyboardMarkup:
-    tabs = [
-        button(("✅ " + label.split(" ", 1)[1]) if board == active else label, f"m:top:{board}")
-        for board, label in TOP_BOARDS
-    ]
+def tops(active: str, week: bool = False) -> InlineKeyboardMarkup:
+    """Board tabs keep the chosen period where the board has a weekly variant."""
+
+    def tab(board: str, label: str) -> InlineKeyboardButton:
+        suffix = ":w" if week and board in WEEKLY_BOARDS else ""
+        return button(("✅ " + label.split(" ", 1)[1]) if board == active else label, f"m:top:{board}{suffix}")
+
+    tabs = [tab(board, label) for board, label in TOP_BOARDS]
+    period = []
+    if active in WEEKLY_BOARDS:
+        period = [
+            button("✅ Неделя" if week else "📆 Неделя", f"m:top:{active}:w"),
+            button("♾ Всё время" if week else "✅ Всё время", f"m:top:{active}"),
+        ]
     pics = [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom"), button("⚰️ Морг", "m:grave")]
-    return markup(tabs[:2], tabs[2:4], tabs[4:], pics, back())
+    return markup(*(tabs[start : start + 2] for start in range(0, len(tabs), 2)), period, pics,
+                  [button("🏆 Сезоны", "m:seasons"), *back()])
+
+
+def profile(best_pic: str | None) -> InlineKeyboardMarkup:
+    show = [button("⭐ Лучшая пикча", f"show:{best_pic}", PRIMARY)] if best_pic else []
+    return markup(show, back())
 
 
 def upload_hub(is_private: bool) -> InlineKeyboardMarkup:
@@ -299,6 +372,7 @@ def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
         events_row = [button(label, "adm:events", SUCCESS if events_on else None)]
     return markup(
         [button("🩺 Health", "adm:health"), button("💾 Бэкап", "adm:backup")],
+        [button("📊 Статистика", "adm:stats", PRIMARY)],
         events_row,
         [button("🧨 Сбросить статистику", "adm:reset", DANGER)],
         back(),

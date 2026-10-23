@@ -161,14 +161,15 @@ class ArenaRepo:
             )
 
     def create_challenge(
-        self, chat_id: int, from_user: int, to_user: int | None, stake: int, now: int, expires_at: int
+        self, chat_id: int, from_user: int, to_user: int | None, stake: int, now: int, expires_at: int, game: str = ""
     ) -> str:
+        """game: '' for a pic duel, else the casino game of a duel on dice ('dice', 'darts', 'bowling')."""
         challenge_id = uuid4().hex[:12]
         with self.db:
             self.db.execute(
-                "INSERT INTO challenges (id, chat_id, from_user, to_user, stake, created_at, expires_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (challenge_id, chat_id, from_user, to_user, stake, now, expires_at),
+                "INSERT INTO challenges (id, chat_id, from_user, to_user, stake, created_at, expires_at, game) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (challenge_id, chat_id, from_user, to_user, stake, now, expires_at, game),
             )
         return challenge_id
 
@@ -210,6 +211,28 @@ class ArenaRepo:
                 (opponent, challenge_id),
             )
         return cursor.rowcount == 1
+
+    def set_challenge_winner(self, challenge_id: str, winner: int | None) -> None:
+        with self.db:
+            self.db.execute("UPDATE challenges SET winner = ? WHERE id = ?", (winner, challenge_id))
+
+    def unsettled_dice_duels(self) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT * FROM challenges WHERE status = 'accepted' AND game != '' AND winner IS NULL"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def head_to_head(self, first: int, second: int) -> tuple[int, int]:
+        """(wins of first, wins of second) over every settled challenge between the two."""
+        row = self.db.execute(
+            """
+            SELECT COALESCE(SUM(winner = :first), 0), COALESCE(SUM(winner = :second), 0) FROM challenges
+            WHERE status = 'accepted' AND winner IS NOT NULL
+              AND ((from_user = :first AND to_user = :second) OR (from_user = :second AND to_user = :first))
+            """,
+            {"first": first, "second": second},
+        ).fetchone()
+        return row[0], row[1]
 
     def active_challenge_battle(self, chat_id: int) -> str | None:
         row = self.db.execute(

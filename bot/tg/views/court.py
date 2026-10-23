@@ -7,7 +7,7 @@ from bot.db.repo import Court
 from bot.services.types import CourtReport
 from bot.texts import court as court_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import bar, bare, card, cited, money, timer, who
+from bot.tg.views.layout import bar, bare, card, cited, money, num, timer, who
 
 
 def court_card(trial: Court, remaining: int, uploader: str) -> str:
@@ -46,8 +46,8 @@ def court_result(report: CourtReport, uploader: str, extras: list[str] | None = 
     return card(head, pick(pool, trial.chat_id), facts, word, *(extras or []), footer)
 
 
-def appeal_hint(uploader: str) -> str:
+def appeal_hint(uploader: str, bail: int = court.APPEAL_BAIL) -> str:
     return (
-        f"<i>{who(uploader)} может подать апелляцию за {court.APPEAL_BAIL} монет в течение "
+        f"<i>{who(uploader)} может подать апелляцию за {num(bail)} монет в течение "
         f"{court.APPEAL_WINDOW // 60} минут. На повторном суде для казни нужно 3 голоса</i>"
     )

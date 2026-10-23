@@ -5,7 +5,6 @@ from html import escape
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import court
 from bot.game import Game
 from bot.texts import court as court_texts
 from bot.texts import toasts
@@ -115,12 +114,12 @@ async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         "final": "Это и была апелляция. Приговор окончательный",
         "not_owner": "Апелляцию подаёт только тот, кто загрузил пикчу",
         "late": "Срок апелляции вышел. Пять минут — и всё",
-        "broke": f"Залог — {court.APPEAL_BAIL} 🪙. Столько у тебя нет",
+        "broke": f"Залог — {views.num(game.appeal_bail())} 🪙. Столько у тебя нет",
     }
     if result.status != "started" or result.court is None:
         await callback.answer(answers.get(result.status, "Не вышло"), show_alert=True)
         return
-    await callback.answer(f"📜 Апелляция подана. Залог {court.APPEAL_BAIL} 🪙")
+    await callback.answer(f"📜 Апелляция подана. Залог {views.num(result.court.bail)} 🪙")
     if callback.message is not None:
         filed = (callback.message.caption or callback.message.text or "").split("\n")[0]
         note = "📜 <b>Подана апелляция</b> — повторный суд ниже"

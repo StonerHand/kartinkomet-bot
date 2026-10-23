@@ -46,9 +46,13 @@ STAGE_FRAMES = {2: (192, 199, 207), 3: (255, 196, 0), 4: (170, 90, 255)}
 STAGE_FRAME_WIDTH = 8
 
 
-def build(images: list[bytes], stages: list[int] | None = None) -> bytes:
+COSMETIC_FRAME_WIDTH = 14
+
+
+def build(images: list[bytes], stages: list[int] | None = None, frames: list[tuple | None] | None = None) -> bytes:
     """2 images → 1×2 duel strip, 4 images → 2×2 grid. Returns JPEG bytes.
-    stages: evolution stage per pic; evolved pics get a coloured frame."""
+    stages: evolution stage per pic; evolved pics get a coloured frame.
+    frames: a cosmetic frame colour per pic (from a chest), wider and drawn over the stage frame."""
     if len(images) not in (2, 4):
         raise ValueError("collage needs 2 or 4 images")
     pictures = [_fit(image) for image in images]
@@ -68,9 +72,12 @@ def build(images: list[bytes], stages: list[int] | None = None) -> bytes:
             y = top + (row_heights[row_index] - picture.height) // 2
             canvas.paste(picture, (x, y))
             frame = STAGE_FRAMES.get(stages[slot]) if stages else None
+            width = STAGE_FRAME_WIDTH
+            if frames and frames[slot]:
+                frame, width = frames[slot], COSMETIC_FRAME_WIDTH
             if frame:
                 ImageDraw.Draw(canvas).rectangle(
-                    (x, y, x + picture.width - 1, y + picture.height - 1), outline=frame, width=STAGE_FRAME_WIDTH
+                    (x, y, x + picture.width - 1, y + picture.height - 1), outline=frame, width=width
                 )
             badge = _badge(slot, badges[slot])
             canvas.paste(badge, (x + BADGE_MARGIN, y + BADGE_MARGIN), badge)

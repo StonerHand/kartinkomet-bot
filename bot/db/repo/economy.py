@@ -168,3 +168,17 @@ class EconomyRepo:
             row[0]: row[1]
             for row in self.db.execute("SELECT code, COUNT(*) FROM achievements GROUP BY code")
         }
+
+    def casino_stats(self, user_id: int) -> tuple[int, int, int, int]:
+        """(bets, coins staked, coins returned incl. refunds, biggest single payout)."""
+        row = self.db.execute(
+            """
+            SELECT COALESCE(SUM(reason = 'casino_bet'), 0),
+                   COALESCE(-SUM(CASE WHEN reason = 'casino_bet' THEN amount END), 0),
+                   COALESCE(SUM(CASE WHEN reason IN ('casino_win', 'casino_refund') THEN amount END), 0),
+                   COALESCE(MAX(CASE WHEN reason = 'casino_win' THEN amount END), 0)
+            FROM ledger WHERE user_id = ? AND reason IN ('casino_bet', 'casino_win', 'casino_refund')
+            """,
+            (user_id,),
+        ).fetchone()
+        return row[0], row[1], row[2], row[3]

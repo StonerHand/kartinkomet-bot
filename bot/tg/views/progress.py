@@ -80,6 +80,8 @@ def chest_opened(label: str, opened, chat_id: int) -> str:
         f"🛡 Щит на {progress.CHEST_SHIELD_SECONDS // 86400} дня самой слабой твоей пикче"
         if loot.kind == "shield" and opened.pic else "",
         "🎁 +1 деревянный сундук" if loot.kind == "chest" else "",
+        f"🖼 Лучшая пикча теперь в {progress.FRAMES[loot.prize][0]} рамке" if loot.kind == "frame" else "",
+        f"🏷 Титул «{escape(loot.prize)}»" if loot.kind == "title" else "",
     ]
     return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.LOOT[loot.kind], chat_id), facts)
 

@@ -1,7 +1,7 @@
 """The live control panel: one message per chat, redrawn in place. Screens live in screens.py."""
 
 from aiogram import Bot, F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
@@ -40,7 +40,12 @@ async def show_personal(bot: Bot, ctx: Ctx, name: str, callback_id: str | None =
 
 
 @router.message(CommandStart())
-async def start(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
+async def start(message: Message, command: CommandObject, bot: Bot, game: Game, admins: frozenset[int]) -> None:
+    if command.args == "hl" and message.from_user is not None:  # the "play in private" link
+        from bot.tg.higher import deal  # local: higher imports arena, which imports this package
+
+        await deal(bot, game, message.chat.id, message.from_user.id)
+        return
     await message.answer(ui.START, parse_mode="HTML")
     await open_panel(message, bot, game, admins)
 
@@ -84,7 +89,7 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
         return
     parts = callback.data.split(":")
     name = parts[1] if len(parts) > 1 else "home"
-    arg = parts[2] if len(parts) > 2 else None
+    arg = ":".join(parts[2:]) or None  # "m:top:uploads:w" → "uploads:w"
     ctx = Ctx(game, message.chat.id, callback.from_user.id, callback.from_user.id in admins,
               message.chat.type == "private", arg)
     if name == "adm" and not ctx.is_admin:

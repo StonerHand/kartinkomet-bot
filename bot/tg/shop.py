@@ -17,7 +17,7 @@ from bot.tg.timers import Live
 
 router = Router(name="shop")
 ITEM_CODES = {"s": "shield", "b": "boost", "c": "court", "u": "uncurse"}
-BOUNTY_CODES = {"h1": shop.BOUNTY_AMOUNTS[0], "h5": shop.BOUNTY_AMOUNTS[1]}
+BOUNTY_CODES = {"h1": 0, "h5": 1}  # index into game.bounty_amounts()
 CONFIRM_SECONDS = 10.0
 _confirm: dict[tuple[int, str], float] = {}
 
@@ -77,7 +77,7 @@ async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse")}
     chat_id = callback.message.chat.id
     token = menu_token(game, pic.id, user_id, chat_id, callback.message.message_id)
-    markup = keyboards.pic_menu(token, bool(cursed), prices)
+    markup = keyboards.pic_menu(token, bool(cursed), prices, game.bounty_amounts())
     if callback.message.chat.type != "private" and await send.send_ephemeral(
         bot, chat_id, user_id, text, callback.id, markup
     ):
@@ -101,7 +101,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         return
     label = game.repo.user_label(user_id)
     if code in BOUNTY_CODES:
-        amount = BOUNTY_CODES[code]
+        amount = game.bounty_amounts()[BOUNTY_CODES[code]]
         status, total = game.put_bounty(user_id, pic_id, amount)
         if status != "ok":
             await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)

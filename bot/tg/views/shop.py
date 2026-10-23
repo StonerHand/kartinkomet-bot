@@ -10,13 +10,15 @@ from bot.tg.views.layout import card, duration, money, rating, who
 from bot.tg.views.progress import day_event_line
 
 
-def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, event: str | None) -> str:
+def shop_screen(
+    label: str, balance: int, prices: dict[str, int], chat_id: int, event: str | None, wealth: float = 1.0
+) -> str:
     items = [
         f"{emoji} <b>{name}</b> — {money(prices[code])}\n<i>{escape(about)}</i>"
         for code, (emoji, name, about) in shop_texts.ITEMS.items()
     ]
     bounty = (
-        f"🎯 <b>Награда за голову</b> — от {shop.BOUNTY_AMOUNTS[0]} монет\n"
+        f"🎯 <b>Награда за голову</b> — от {money(prices.get('bounty', shop.BOUNTY_AMOUNTS[0]))}\n"
         "<i>получат те, кто казнит пикчу</i>"
     )
     return card(
@@ -25,6 +27,7 @@ def shop_screen(label: str, balance: int, prices: dict[str, int], chat_id: int, 
         [
             f"💼 <b>{who(label)}</b>: {money(balance)}",
             day_event_line(event) if event in ("inflation", "black_friday", "dead_day") else "",
+            f"📈 Цены ×{wealth:.0f}: в чате много денег" if wealth >= 1.5 else "",
         ],
         *items,
         bounty,

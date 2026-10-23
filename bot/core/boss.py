@@ -3,6 +3,10 @@
 Free hits do 1–3 damage (10% crit ×2), a paid super hit 6–10. Every COUNTER_EVERY hits the
 boss strikes back and takes coins from a random fighter into the loot. Win: the loot is split
 by damage share. Escape: the loot burns and the boss pic gets stronger.
+
+On Saturdays the daily boss comes as a raid: six times the health, five times the loot, all
+evening long, with phases (rage below half health, a shield below a fifth) and healing when the
+chat stops hitting it.
 """
 
 import random
@@ -23,6 +27,30 @@ COUNTER_FINE = 15
 ESCAPE_RATING_BONUS = 30
 
 
+# Raid: a weekly boss for the whole evening, with phases.
+RAID_WEEKDAY = 5  # Saturday: the daily boss slot brings a raid instead
+RAID_SECONDS = 8 * 3600
+RAID_HP_FACTOR = 6
+RAID_LOOT_FACTOR = 5
+RAGE_SHARE = 0.5  # at or below half health the raid boss strikes back twice as often, twice as hard
+SHIELD_SHARE = 0.2  # at or below a fifth, free hits only scratch: 1 damage; super hits go through
+RAGE_COUNTER_EVERY = 8
+HEAL_IDLE_SECONDS = 1800  # nobody hit it for half an hour: it heals
+HEAL_SHARE = 0.05
+RAID_CHEST_DAMAGE = 10  # a wooden chest for everyone who dealt at least this much
+
+
+def phase(hp: int, max_hp: int, raid: bool) -> str:
+    """'calm' | 'rage' | 'shield'. Only raids have phases."""
+    if not raid or max_hp <= 0:
+        return "calm"
+    if hp <= max_hp * SHIELD_SHARE:
+        return "shield"
+    if hp <= max_hp * RAGE_SHARE:
+        return "rage"
+    return "calm"
+
+
 def max_hp(active_players: int, double: bool = False) -> int:
     hp = max(MIN_HP, BASE_HP + HP_PER_PLAYER * active_players)
     return hp * 2 if double else hp
@@ -39,9 +67,11 @@ class Hit:
     crit: bool
 
 
-def hit(rng: random.Random, super_hit: bool = False) -> Hit:
+def hit(rng: random.Random, super_hit: bool = False, current_phase: str = "calm") -> Hit:
     if super_hit:
         return Hit(rng.randint(6, 10), False)
+    if current_phase == "shield":
+        return Hit(1, False)
     damage = rng.randint(1, 3)
     if rng.random() < 0.1:
         return Hit(damage * 2, True)

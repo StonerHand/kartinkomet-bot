@@ -234,3 +234,72 @@ class ScreensTest(BotHarness):
             texts.append(views.purchase_notice(item, "stoner_hand", pic, -100))
         for text in texts:
             self.assert_layout(text)
+
+    def test_v5_cards_in_every_state(self) -> None:
+        """Seasons, the new games, dice duels, raids, prizes and the admin stats; prices as a very
+        rich chat sees them, so long numbers still fit."""
+        from bot.core import boss as boss_rules
+        from bot.core import games as game_rules
+        from bot.core import progress as progress_rules
+        from bot.services.minigames import HLAnswer
+        from bot.services.social import DiceDuel
+
+        game, repo = self.game, self.game.repo
+        for user_id in NAMES:
+            game.pay(user_id, 3, "vote")
+            repo.add_coins(user_id, 5_000_000, "test", game.now(), earn=False)
+        game._wealth = None
+        self.assertGreater(game.wealth(), 100)
+        texts = []
+        podium = [("stoner_hand", 123_456), ("kcifekzhue", 9_999), ("Михаил", 1)]
+        texts += [
+            views.season_results("2026-10", podium, 1111, -100),
+            views.season_results("2026-12", [], 1111, -100),
+            views.season_warning("2026-10", podium, 1111, -100),
+            views.seasons_hall("2026-11", podium[:2], [("2026-10", podium), ("2026-09", podium[:1])]),
+            views.seasons_hall("2026-11", [], []),
+        ]
+        pic = game.draw_pic(-100)[0]
+        whose = {"votes": {2: 1, 3: 1}, "phase_ends_at": 0}
+        texts += [
+            views.whose_card(whose, 30, -100),
+            views.whose_card({"votes": {}}, 30, -100),
+            views.whose_result("stoner_hand", list(NAMES.values()), 3, -100),
+            views.whose_result("stoner_hand", [], 0, -100),
+        ]
+        higher = HLAnswer("right", pic, game.draw_pic(-100)[0], 12, 30, game_rules.HL_REWARD)
+        texts += [
+            views.hl_card(0, 0),
+            views.hl_card(12, 30, higher),
+            views.hl_over(HLAnswer("wrong", pic, pic, 31, 30), -100),
+            views.hl_over(HLAnswer("wrong", pic, pic, 0, 30), -100),
+        ]
+        for code in ("dice", "darts", "bowling"):
+            challenge = {"from_user": 1, "to_user": 6, "stake": 5_000_000, "game": code, "expires_at": 0}
+            texts.append(views.challenge_card({**challenge, "to_user": None}, NAMES, -100, 180))
+            texts.append(views.challenge_card(challenge, NAMES, -100, 180))
+            texts.append(views.challenge_closed(challenge, NAMES, "accepted"))
+            for values, winner in (((6, 1), 1), ((3, 3), None)):
+                duel = DiceDuel(challenge, values, winner, 10_000_000, (12, 11))
+                texts.append(views.dice_duel_result(duel, NAMES, -100))
+        _, raid = game.summon_boss(-100, "Пожиратель лайков", forced=True, raid=True)
+        for share in (1.0, 0.5, 0.1):
+            boss = {**repo.get_boss(raid["id"]), "hp": int(raid["max_hp"] * share), "hits": 3}
+            texts.append(views.boss_card(boss, NAMES, 7 * 3600 + 59, -100, game.super_price()))
+        for kind in ("frame", "title"):
+            loot = progress_rules.Loot(kind, prize="gold" if kind == "frame" else "Пиксельное величие")
+            opened = Opened("legend", loot, pic, [])
+            texts.append(views.chest_opened("stoner_hand", opened, -100))
+        for kind in ("chest", "title"):
+            spin = game_rules.Spin(kind, 0, "Пиксельное величие" if kind == "title" else "")
+            texts.append(views.spin_result("stoner_hand", spin, None, 5_000_000, -100))
+        texts.append(views.admin_stats({key: 12345 for key in ("players_today", "duels", "spin", "higher")}))
+        texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (
+            "shield", "boost", "court", "uncurse", "resurrect", "title")} | {"bounty": game.bounty_amounts()[0]},
+            -100, None, game.wealth()))
+        texts.append(views.battle_card(game.start_duel(-100).battle, 14, bet_step=game.bet_step()))
+        texts.append(views.appeal_hint("stoner_hand", game.appeal_bail()))
+        self.assertGreater(boss_rules.RAID_HP_FACTOR, 1)
+        for text in texts:
+            self.assertNotIn("\n\n\n", text)
+            self.assert_layout(text)

@@ -2,7 +2,7 @@
 
 from html import escape
 
-from bot.core import shop
+from bot.core import progress, shop
 from bot.db.repo import Pic
 from bot.texts import captions
 from bot.texts.pick import pick
@@ -18,6 +18,8 @@ def pic_footer(pic: Pic, uploader: str | None, bounty: int = 0) -> str:
         parts.append(f"от {who(uploader)}")
     if bounty:
         parts.append(f"за голову {num(bounty)}")
+    if pic.frame in progress.FRAMES:
+        parts.append(f"в {progress.FRAMES[pic.frame][0]} рамке")
     return f"<i>{' · '.join(parts)}</i>"
 
 

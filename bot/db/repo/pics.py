@@ -262,6 +262,10 @@ class PicsRepo:
         ).fetchall()
         return [self.get_pic(row[0]) for row in rows]  # type: ignore[attr-defined]
 
+    def set_frame(self, pic_id: str, frame: str | None) -> None:
+        with self.db:
+            self.db.execute("UPDATE pics SET frame = ? WHERE id = ?", (frame, pic_id))
+
     def set_rating(self, pic_id: str, rating: float) -> None:
         with self.db:
             self.db.execute("UPDATE pics SET rating = ? WHERE id = ?", (rating, pic_id))

@@ -86,3 +86,24 @@ def people_voice(right: int, wrong: int) -> tuple[int, str] | None:
     else:
         verdict = "🦄 уникальный вкус"
     return share, verdict
+
+
+# ── prices that follow the chat's wealth ───────────────────────────────
+# Shop prices are set for a chat where a typical player holds ~2 000 coins. When the median
+# balance of active players is higher, prices grow with it, so a rich chat still has something
+# to save for. Rewards stay fixed: raising them too would only feed the inflation.
+BASE_WEALTH = 2000
+WEALTH_ACTIVE_DAYS = 14
+
+
+def wealth_factor(median_balance: int) -> float:
+    return max(1.0, median_balance / BASE_WEALTH)
+
+
+def scaled(price: int, factor: float) -> int:
+    """Price × factor rounded to two significant digits: 300 × 7.31 → 2 200."""
+    if factor <= 1:
+        return price
+    value = price * factor
+    step = 10 ** max(0, len(str(int(value))) - 2)
+    return int(round(value / step) * step)

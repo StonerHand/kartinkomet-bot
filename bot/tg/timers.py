@@ -11,7 +11,6 @@ from collections.abc import Awaitable, Callable
 
 from aiogram import Bot
 
-from bot.core import boss as boss_rules
 from bot.game import Game, Granted
 from bot.tg import keyboards, send, views
 
@@ -198,7 +197,7 @@ class Live:
             if challenge:
                 fighters = views.challenge_names(challenge, self.labels([challenge["from_user"], challenge["to_user"]]))
         flipped = battle.kind == "duel" and battle.mode == "" and self.game.day_is("upside_down")
-        return views.battle_card(battle, remaining, fighters, flipped)
+        return views.battle_card(battle, remaining, fighters, flipped, self.game.bet_step())
 
     async def refresh_battle(self, battle_id: str) -> None:
         battle = self.game.repo.get_battle(battle_id)
@@ -210,7 +209,7 @@ class Live:
             battle.chat_id,
             battle.message_id,
             self.battle_text(battle, battle.ends_at - self.game.now()),
-            keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts()),
+            keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts(), self.game.bet_step()),
         )
 
     async def finish_battle(self, battle_id: str) -> None:
@@ -218,7 +217,11 @@ class Live:
         if report is None:
             return
         battle = report.battle
-        if battle.mode == "challenge":
+        score = None
+        if battle.mode == "challenge" and report.challenge and report.challenge["to_user"]:
+            markup = keyboards.rematch(report.challenge["id"], report.challenge["stake"], dice=False)
+            score = self.game.head_to_head(report.challenge["from_user"], report.challenge["to_user"])
+        elif battle.mode == "challenge":
             markup = keyboards.more_only()
         elif battle.kind == "duel":
             markup = keyboards.after_duel(battle.id, battle.winner_slot is not None)
@@ -227,7 +230,7 @@ class Live:
         people = [*report.bets, *report.bounty, *report.guessers, *(pic.added_by for pic in battle.pics)]
         if report.challenge:
             people += [report.challenge["from_user"], report.challenge["to_user"]]
-        text = views.battle_report(report, self.labels(people))
+        text = views.battle_report(report, self.labels(people), score)
         card_id = await self._settle_card(battle.chat_id, battle.message_id, text, markup, battle.card_is_photo)
         if report.counted and report.winner is not None:
             await send.react(self.bot, battle.chat_id, card_id, "🏆")
@@ -267,7 +270,7 @@ class Live:
         extras = [views.bounty_line(report.bounty, self.labels(report.bounty))]
         markup = None
         if report.verdict == "executed" and self.game.can_appeal(trial) and isinstance(trial.pic.added_by, int):
-            extras.append(views.appeal_hint(uploader))
+            extras.append(views.appeal_hint(uploader, self.game.appeal_bail()))
             markup = keyboards.appeal(trial.id)
         text = views.court_result(report, uploader, [extra for extra in extras if extra])
         card_id = await self._settle_card(trial.chat_id, trial.message_id, text, markup, photo=True)
@@ -298,6 +301,16 @@ class Live:
         game = self.game.repo.get_game(game_id)
         if game is None or game["phase"] == "done" or game["message_id"] is None:
             return
+        if game["kind"] == "whose":
+            game = self.game.with_options(game)
+            await send.edit_caption(
+                self.bot,
+                game["chat_id"],
+                game["message_id"],
+                views.whose_card(game, game["phase_ends_at"] - self.game.now(), game["chat_id"]),
+                keyboards.whose(game_id, [self.game.repo.user_label(user) for user in game["options"]]),
+            )
+            return
         markup = keyboards.caption_vote(game_id, len(game["entries"])) if game["phase"] == "vote" else None
         await send.edit_caption(
             self.bot,
@@ -308,6 +321,10 @@ class Live:
         )
 
     async def advance_game(self, game_id: str) -> None:
+        current = self.game.repo.get_game(game_id)
+        if current is not None and current["kind"] == "whose":
+            await self.finish_whose(game_id)
+            return
         outcome, game, granted = self.game.advance_caption(game_id)
         if game is None or outcome == "noop" or game["message_id"] is None:
             return
@@ -325,9 +342,23 @@ class Live:
                 await send.react(self.bot, chat_id, message_id, "🏆")
             await self.announce(chat_id, granted)
 
+    async def finish_whose(self, game_id: str) -> None:
+        game, right, granted = self.game.finish_whose(game_id)
+        if game is None or game["message_id"] is None:
+            return
+        pic = self.game.repo.get_pic(game["pic_id"])
+        author = self.game.repo.user_label(pic.added_by if pic else None)
+        labels = self.labels(right)
+        text = views.whose_result(author, [labels[user] for user in right], len(game["votes"]) - len(right), game["chat_id"])
+        await send.edit_caption(self.bot, game["chat_id"], game["message_id"], text, keyboards.after_whose())
+        if right:
+            await send.react(self.bot, game["chat_id"], game["message_id"], "👀")
+        await self.announce(game["chat_id"], granted)
+
     # ── bosses ─────────────────────────────────────────────────────────
 
     async def refresh_boss(self, boss_id: str) -> None:
+        self.game.heal_idle_raid(boss_id)
         boss = self.game.repo.get_boss(boss_id)
         if boss is None or boss["status"] != "active" or boss["message_id"] is None:
             return
@@ -335,8 +366,11 @@ class Live:
             self.bot,
             boss["chat_id"],
             boss["message_id"],
-            views.boss_card(boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"]),
-            keyboards.boss(boss_id, boss_rules.SUPER_PRICE),
+            views.boss_card(
+                boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"],
+                self.game.super_price(),
+            ),
+            keyboards.boss(boss_id, self.game.super_price()),
         )
 
     async def finish_boss(self, boss_id: str) -> None:

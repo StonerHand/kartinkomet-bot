@@ -5,10 +5,20 @@ from html import escape
 from bot.core import boss as boss_rules
 from bot.texts import boss as boss_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import MEDALS, card, hp_bar, money, num, timer, who
+from bot.tg.views.layout import MEDALS, card, hp_bar, money, num, plural, timer, who
 
 
-def boss_card(boss: dict, labels: dict[int, str], remaining: int, chat_id: int) -> str:
+PHASES = {
+    "rage": "😡 <b>Ярость:</b> отвечает чаще и бьёт по кошелькам вдвое больнее",
+    "shield": "🛡 <b>Щит:</b> обычный удар снимает 1, пробивают только супер-удары",
+}
+
+
+def boss_card(
+    boss: dict, labels: dict[int, str], remaining: int, chat_id: int, super_price: int = boss_rules.SUPER_PRICE
+) -> str:
+    raid = bool(boss.get("raid"))
+    current = boss_rules.phase(boss["hp"], boss["max_hp"], raid)
     health = [
         f"❤️ <b>{boss['hp']}</b> / {boss['max_hp']}",
         f"<code>{hp_bar(boss['hp'], boss['max_hp'])}</code>",
@@ -20,16 +30,25 @@ def boss_card(boss: dict, labels: dict[int, str], remaining: int, chat_id: int) 
         for index, (user, dealt) in enumerate(list(boss["damage"].items())[:5]):
             place = MEDALS[index] if index < 3 else f"{index + 1}."
             damage.append(f"{place} {who(labels.get(user, '?'))} — <b>{dealt}</b>")
+    kind = "РЕЙД" if raid else "БОСС"
+    rules = [
+        f"🗡 <i>Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
+        f"🔥 <i>Супер-удар: {num(super_price)} монет, сильнее</i>",
+        "🤝 <i>Добычу делят по нанесённому урону</i>",
+    ]
+    raid_rules = [
+        f"🩹 <i>Без ударов полчаса лечится на {boss_rules.HEAL_SHARE:.0%}</i>",
+        "🎁 <i>Лучшему — легендарный сундук</i>",
+        f"🟫 <i>Всем с {boss_rules.RAID_CHEST_DAMAGE}+ урона — деревянный</i>",
+    ] if raid else []
     return card(
-        f"👹 <b>БОСС: {escape(boss['title']).upper()}</b> · <b>{timer(remaining)}</b>",
+        f"👹 <b>{kind}: {escape(boss['title']).upper()}</b> · <b>{timer(remaining)}</b>",
         pick(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, chat_id),
         health,
+        PHASES.get(current, ""),
         damage,
-        [
-            f"🗡 <i>Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
-            f"🔥 <i>Супер-удар — {boss_rules.SUPER_PRICE} монет, бьёт сильнее</i>",
-            "🤝 <i>Добычу делят по нанесённому урону</i>",
-        ],
+        rules,
+        raid_rules,
     )
 
 
@@ -50,9 +69,13 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
         place = MEDALS[index] if index < 3 else f"{index + 1}."
         dealt = boss["damage"].get(user, 0)
         loot.append(f"{place} {who(labels.get(user, '?'))} — <b>+{num(amount)}</b> · <i>урон {dealt}</i>")
+    raid = bool(boss.get("raid"))
+    top_chest = "Легендарный" if raid else "Редкий"
     honours = [
         f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})"
         if report.last_hit is not None else "",
-        f"🎁 Редкий сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
+        f"🎁 {top_chest} сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
+        f"🟫 Деревянный сундук ещё {report.chests} {plural(report.chests, 'игроку', 'игрокам', 'игрокам')}"
+        if report.chests else "",
     ]
     return card(f"🏆 <b>БОСС ПОВЕРЖЕН · {title}</b>", pick(boss_texts.WIN, chat_id), loot, honours)

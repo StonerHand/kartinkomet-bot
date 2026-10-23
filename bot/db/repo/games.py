@@ -88,6 +88,14 @@ class GamesRepo:
             )
         return True
 
+    def uploaders(self) -> list[int]:
+        """Everyone who has a living pic on the warehouse."""
+        return [
+            row[0] for row in self.db.execute(
+                "SELECT DISTINCT added_by FROM pics WHERE status = 'alive' AND added_by IS NOT NULL ORDER BY added_by"
+            )
+        ]
+
     def create_gold(self, chat_id: int, pic_id: str, now: int) -> str:
         token = uuid4().hex[:12]
         with self.db:
@@ -120,14 +128,14 @@ class GamesRepo:
             self.db.execute("UPDATE pics SET rating = rating + ? WHERE id = ?", (delta, pic_id))
 
     def create_boss(
-        self, chat_id: int, pic_id: str, title: str, hp: int, loot: int, now: int, ends_at: int
+        self, chat_id: int, pic_id: str, title: str, hp: int, loot: int, now: int, ends_at: int, raid: bool = False
     ) -> str:
         boss_id = uuid4().hex[:12]
         with self.db:
             self.db.execute(
-                "INSERT INTO bosses (id, chat_id, pic_id, title, hp, max_hp, loot, started_at, ends_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (boss_id, chat_id, pic_id, title, hp, hp, loot, now, ends_at),
+                "INSERT INTO bosses (id, chat_id, pic_id, title, hp, max_hp, loot, started_at, ends_at, raid, last_hit_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (boss_id, chat_id, pic_id, title, hp, hp, loot, now, ends_at, int(raid), now),
             )
         return boss_id
 
@@ -165,13 +173,14 @@ class GamesRepo:
         with self.db:
             self.db.execute("DELETE FROM bosses WHERE id = ?", (boss_id,))
 
-    def hit_boss(self, boss_id: str, user_id: int, damage: int) -> tuple[int, int] | None:
+    def hit_boss(self, boss_id: str, user_id: int, damage: int, now: int = 0) -> tuple[int, int] | None:
         """Apply damage to a live boss. Returns (hp left, total hits) or None if it's over."""
         with self.db:
             cursor = self.db.execute(
-                "UPDATE bosses SET hp = MAX(0, hp - ?), hits = hits + 1, last_hit_by = ? "
+                "UPDATE bosses SET hp = MAX(0, hp - ?), hits = hits + 1, last_hit_by = ?, "
+                "last_hit_at = COALESCE(NULLIF(?, 0), last_hit_at) "
                 "WHERE id = ? AND status = 'active' AND hp > 0",
-                (damage, user_id, boss_id),
+                (damage, user_id, now, boss_id),
             )
             if cursor.rowcount != 1:
                 return None
@@ -182,6 +191,16 @@ class GamesRepo:
             )
         row = self.db.execute("SELECT hp, hits FROM bosses WHERE id = ?", (boss_id,)).fetchone()
         return row[0], row[1]
+
+    def heal_boss(self, boss_id: str, amount: int, now: int) -> int:
+        """Restore up to `amount` hp of a live boss and restart its idle clock. Returns hp now."""
+        with self.db:
+            self.db.execute(
+                "UPDATE bosses SET hp = MIN(max_hp, hp + ?), last_hit_at = ? WHERE id = ? AND status = 'active' AND hp > 0",
+                (amount, now, boss_id),
+            )
+        row = self.db.execute("SELECT hp FROM bosses WHERE id = ?", (boss_id,)).fetchone()
+        return row[0] if row else 0
 
     def add_boss_loot(self, boss_id: str, amount: int) -> None:
         with self.db:

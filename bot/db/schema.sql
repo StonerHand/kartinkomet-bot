@@ -280,3 +280,16 @@ CREATE TABLE IF NOT EXISTS titles (
     user_id INTEGER PRIMARY KEY,
     title TEXT NOT NULL
 );
+
+-- ── v5 ─────────────────────────────────────────────────────────────────
+
+-- Season podiums: the top three of every finished month keep their place forever.
+CREATE TABLE IF NOT EXISTS seasons (
+    season TEXT NOT NULL,
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    score INTEGER NOT NULL,
+    PRIMARY KEY (season, place)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger(user_id, at);

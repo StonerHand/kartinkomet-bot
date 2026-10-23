@@ -25,19 +25,38 @@ class CasinoResult:
 
 
 class CasinoMixin:
-    def stake_of(self, user_id: int) -> int:
-        return self.repo.counter(user_id, "stake") or casino.DEFAULT_STAKE
-
     def set_stake(self, user_id: int, amount: int | None) -> None:
-        """None means all-in: every game takes the whole balance until a number is chosen."""
+        """A fixed stake (a number typed after a command); None means all-in: every game takes
+        the whole balance until something else is chosen."""
         self.repo.set_counter(user_id, "stake_all", int(amount is None))
+        self.repo.set_counter(user_id, "stake_share", 0)
         if amount is not None:
             self.repo.set_counter(user_id, "stake", max(casino.STAKE_MIN, amount))
 
-    def stake_for_play(self, user_id: int) -> int:
+    def set_stake_share(self, user_id: int, share: int) -> None:
+        """Stake a share of whatever the balance is at the moment of each game."""
+        self.repo.set_counter(user_id, "stake_all", 0)
+        self.repo.set_counter(user_id, "stake", 0)
+        self.repo.set_counter(user_id, "stake_share", share)
+
+    def stake_mode(self, user_id: int) -> tuple[str, int]:
+        """('all', 0) | ('share', percent) | ('fixed', coins). Newcomers stake DEFAULT_SHARE."""
         if self.repo.counter(user_id, "stake_all"):
-            return self.repo.player(user_id)[0]
-        return self.stake_of(user_id)
+            return "all", 0
+        fixed = self.repo.counter(user_id, "stake")
+        share = self.repo.counter(user_id, "stake_share")
+        if fixed and not share:
+            return "fixed", fixed
+        return "share", share or casino.DEFAULT_SHARE
+
+    def stake_for_play(self, user_id: int) -> int:
+        mode, value = self.stake_mode(user_id)
+        balance = self.repo.player(user_id)[0]
+        if mode == "all":
+            return balance
+        if mode == "share":
+            return casino.share_stake(balance, value)
+        return value
 
     def place_casino_bet(self, user_id: int, stake: int) -> str:
         """'ok' | 'small' | 'broke'. Takes the stake up front."""
@@ -85,7 +104,7 @@ class CasinoMixin:
     # ── arena bets ─────────────────────────────────────────────────────
 
     def bet_battle(self, battle_id: str, user_id: int, slot: int) -> tuple[str, int]:
-        """Raise your bet on a slot by BET_STEP. ('ok' | 'gone' | 'closed' | 'other_slot' |
+        """Raise your bet on a slot by one step (BET_STEP, scaled with the chat's wealth). ('ok' | 'gone' | 'closed' | 'other_slot' |
         'max' | 'broke' | 'fighter', your total on the battle)."""
         battle = self.repo.get_battle(battle_id)
         if battle is None or not 0 <= slot < len(battle.pics):
@@ -100,14 +119,15 @@ class CasinoMixin:
         if current and current[0] != slot:
             return "other_slot", current[1]
         already = current[1] if current else 0
-        if already + casino.BET_STEP > casino.BET_MAX:
+        step = self.bet_step()
+        if already + step > self.bet_max():
             return "max", already
-        if not self.repo.spend(user_id, casino.BET_STEP, "bet", self.now()):
+        if not self.repo.spend(user_id, step, "bet", self.now()):
             return "broke", already
-        self.repo.place_bet(battle_id, user_id, slot, casino.BET_STEP)
+        self.repo.place_bet(battle_id, user_id, slot, step)
         if not current:
             self.progress(user_id, "arena_bet")
-        return "ok", already + casino.BET_STEP
+        return "ok", already + step
 
     def _settle_bets(self, battle, winner: int | None, counted: bool) -> tuple[dict[int, tuple[int, int]], int]:
         """Pay out bets. Returns (user → (staked, paid), coins burned)."""

@@ -9,7 +9,9 @@ from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandSc
 from bot.config import load_config
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import admin, arena, boss, casino, court, fallback, games, inline, panel, pics, progress, shop, social, upload
+from bot.tg import (
+    admin, arena, boss, casino, court, fallback, games, higher, inline, panel, pics, progress, shop, social, upload,
+)
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
 from bot.tg.timers import Live
@@ -31,6 +33,9 @@ GROUP_COMMANDS = [
     BotCommand(command="shop", description="🛒 лавка"),
     BotCommand(command="boss", description="👹 призвать босса"),
     BotCommand(command="challenge", description="🤺 вызов на дуэль за монеты"),
+    BotCommand(command="pvp", description="🎲 кости 1 на 1: /pvp 200"),
+    BotCommand(command="whose", description="🕵️ угадай, чья пикча"),
+    BotCommand(command="higher", description="🎯 выше-ниже: угадай рейтинг"),
     BotCommand(command="give", description="🎁 подарить монеты"),
     BotCommand(command="rob", description="🕵️ ограбить"),
     BotCommand(command="marry", description="💍 сделать предложение"),
@@ -109,6 +114,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         upload.router,
         admin.router,
         games.router,
+        higher.router,
         casino.router,
         shop.router,
         social.router,
@@ -130,9 +136,13 @@ async def main() -> None:
 
     repo = Repo(config.database_path)
     game = Game(repo, tz_offset_hours=config.tz_offset_hours)
+    game.admins = config.admin_user_ids
     starters = game.give_starters()
     if starters:
         LOGGER.info("Gave the v4 starter bonus to %s players", starters)
+    refunded = game.refund_unthrown_dice_duels()
+    if refunded:
+        LOGGER.info("Refunded %s dice duels left unthrown by a restart", refunded)
     gifted = game.give_gifts()
     if gifted:
         LOGGER.info("Handed out one-time gifts to %s players", gifted)

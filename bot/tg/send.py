@@ -98,6 +98,23 @@ async def edit_caption(
     )
 
 
+async def edit_photo(
+    bot: Bot, chat_id: int, message_id: int, photo: InputFile, caption: str, markup: InlineKeyboardMarkup | None
+) -> bool:
+    """Swap the picture of a photo message in place (the next round of a game)."""
+    return await _edit(
+        lambda: bot.edit_message_media(
+            chat_id=chat_id,
+            message_id=message_id,
+            media=InputMediaPhoto(media=photo, caption=caption, parse_mode="HTML"),
+            reply_markup=markup,
+        ),
+        "edit photo",
+        chat_id,
+        message_id,
+    )
+
+
 async def edit_markup(
     bot: Bot, chat_id: int, message_id: int, markup: InlineKeyboardMarkup | None
 ) -> None:

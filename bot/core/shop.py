@@ -26,6 +26,12 @@ RESURRECT_IMMUNITY = 3 * 86400
 CURSE_RATING = 40
 CURSE_SECONDS = 86400
 TITLE_MAX_LENGTH = 24
+# Rare titles the wheel and legendary chests hand out (a bought title is never replaced).
+PRIZE_TITLES = (
+    "Гроза склада", "Легенда рандома", "Икона кринжа", "Звезда арены", "Тень склада", "Ходячий мем",
+    "Чудо в пикселях", "Сила рандома", "Совесть склада", "Душа чата", "Гордость кладбища",
+    "Угроза рейтингу", "Магия JPEG", "Ужас модераторов", "Пиксельное величие",
+)
 BOUNTY_AMOUNTS = (100, 500)
 INFLATION, SALE = 2.0, 0.5
 

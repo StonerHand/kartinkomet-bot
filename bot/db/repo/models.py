@@ -14,7 +14,7 @@ MIN_EXPERIENCE = 3  # battles + reactions before a pic can be a legend or bottom
 PIC_COLUMNS = (
     "id, file_id, file_unique_id, added_by, added_at, visual_hash, status, removed_at, "
     "removed_reason, rating, games, wins, losses, loss_streak, best_streak, shown_count, "
-    "likes, dislikes, immune_until"
+    "likes, dislikes, immune_until, frame"
 )
 
 
@@ -39,6 +39,7 @@ class Pic:
     likes: int
     dislikes: int
     immune_until: int | None
+    frame: str | None = None  # a cosmetic frame from a chest: drawn around the pic in battles
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,20 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     for column in ("appeal", "bail"):  # v4: appeal courts and the bail paid for them
         if column not in court_columns:
             connection.execute(f"ALTER TABLE courts ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+    # v5: casino duels between players ride on challenges; raid bosses; cosmetic pic frames.
+    challenge_columns = {row[1] for row in connection.execute("PRAGMA table_info(challenges)")}
+    if "game" not in challenge_columns:  # '' = a pic duel, else the casino game ('dice', 'darts', 'bowling')
+        connection.execute("ALTER TABLE challenges ADD COLUMN game TEXT NOT NULL DEFAULT ''")
+    if "winner" not in challenge_columns:  # the player who took the pot, for head-to-head scores
+        connection.execute("ALTER TABLE challenges ADD COLUMN winner INTEGER")
+    boss_columns = {row[1] for row in connection.execute("PRAGMA table_info(bosses)")}
+    if "raid" not in boss_columns:
+        connection.execute("ALTER TABLE bosses ADD COLUMN raid INTEGER NOT NULL DEFAULT 0")
+    if "last_hit_at" not in boss_columns:
+        connection.execute("ALTER TABLE bosses ADD COLUMN last_hit_at INTEGER")
+    pic_columns = {row[1] for row in connection.execute("PRAGMA table_info(pics)")}
+    if "frame" not in pic_columns:
+        connection.execute("ALTER TABLE pics ADD COLUMN frame TEXT")
     # v1 kept per-side duel history ("duel:<chat>:left"); the migration filed it under pic scopes.
     connection.execute(
         "DELETE FROM deck_seen WHERE scope LIKE 'pic:duel:%' OR scope LIKE 'pic:tournament:%'"
