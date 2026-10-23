@@ -2,7 +2,7 @@
 
 from html import escape
 
-from bot.core import economy
+from bot.core import economy, seasons
 from bot.core import games as game_rules
 from bot.db.repo import Pic
 from bot.texts import tops as top_texts
@@ -11,7 +11,17 @@ from bot.texts.pick import pick
 from bot.tg.views.layout import MEDALS, ago, card, num, plural, rating, who
 
 
-def home(totals: dict[str, int], chat_id: int, live_now: list[str], today: str | None = None) -> str:
+def season_line(season: str, days_left: int) -> str:
+    """'🏆 Сезон · октябрь · ещё 8 дней' — how long until the podium and the coin reset."""
+    month = seasons.name(season).split()[0]
+    if days_left <= 1:
+        return f"🏆 Сезон · {month} · последний день"
+    return f"🏆 Сезон · {month} · ещё {days_left} {plural(days_left, 'день', 'дня', 'дней')}"
+
+
+def home(
+    totals: dict[str, int], chat_id: int, live_now: list[str], today: str | None = None, season: str | None = None
+) -> str:
     lines = [
         "🎛 <b>КАРТИНКОМЕТ</b>",
         f"<i>{escape(pick(ui.MENU_HEADERS, chat_id))}</i>",
@@ -19,6 +29,8 @@ def home(totals: dict[str, int], chat_id: int, live_now: list[str], today: str |
     ]
     if today:
         lines += [today, ""]
+    if season:
+        lines += [season, ""]
     lines += [
         f"📦 <b>{totals['alive']}</b> {plural(totals['alive'], 'пикча', 'пикчи', 'пикч')} в строю",
         f"⚰️ <b>{totals['executed']}</b> на кладбище",

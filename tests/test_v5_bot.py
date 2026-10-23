@@ -7,7 +7,7 @@ from aiogram.types import Chat
 from bot.core import boss as boss_rules
 from bot.core import games as game_rules
 from bot.tg import higher as higher_tg
-from bot.tg import social as social_tg
+from bot.tg import challenges as challenges_tg
 from bot.tg.events import Events
 from tests.test_bot import ADMIN
 from tests.test_v4_bot import V4BotTest
@@ -18,7 +18,7 @@ PRIVATE = Chat(id=5, type="private")
 class V5BotTest(V4BotTest):
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()
-        social_tg.DICE_ANIMATION_SCALE = 0
+        challenges_tg.DICE_ANIMATION_SCALE = 0
 
     # ── whose pic? ─────────────────────────────────────────────────────
 

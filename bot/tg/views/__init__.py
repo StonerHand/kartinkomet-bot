@@ -18,7 +18,7 @@ from bot.tg.views.court import court_card, court_result, appeal_hint
 from bot.tg.views.announce import NOTE_CHESTS, note_line, RARITY_WORDS, announcement, has_legendary
 from bot.tg.views.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
-    GAMES_SCREEN, admin_stats
+    GAMES_SCREEN, admin_stats, season_line
 )
 from bot.tg.views.profile import Wallet, profile
 from bot.tg.views.games import (
@@ -49,5 +49,5 @@ __all__ = [
     "quests_screen", "rating", "rejected", "robbery", "shop_screen", "slot_names", "spin_result",
     "streak_announcement", "task_line", "timer", "top", "upload_hub", "upload_progress", "vote_lines",
     "wanted_poster", "wedding", "who", "whose_card", "whose_result", "hl_card", "hl_over", "hl_reveal",
-    "dice_duel_result", "score_line", "admin_stats"
+    "dice_duel_result", "score_line", "admin_stats", "season_line"
 ]

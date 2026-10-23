@@ -37,8 +37,11 @@ class Ctx:
 
 
 def home(ctx: Ctx) -> Screen:
-    today = views.day_event_line(ctx.game.day_event())
-    text = views.home(ctx.repo.totals(), ctx.chat_id, live_now(ctx.game, ctx.chat_id), today)
+    game = ctx.game
+    today = views.day_event_line(game.day_event())
+    days_left = max(1, -(-(game.season_bounds()[1] - game.now()) // 86400))
+    season = views.season_line(game.season(), days_left)
+    text = views.home(ctx.repo.totals(), ctx.chat_id, live_now(game, ctx.chat_id), today, season)
     return text, keyboards.home(ctx.is_admin)
 
 

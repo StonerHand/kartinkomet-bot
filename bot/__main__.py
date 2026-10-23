@@ -10,7 +10,8 @@ from bot.config import load_config
 from bot.db.repo import Repo
 from bot.game import Game
 from bot.tg import (
-    admin, arena, boss, casino, court, fallback, games, higher, inline, panel, pics, progress, shop, social, upload,
+    admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, shop,
+    social, upload,
 )
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
@@ -118,6 +119,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         casino.router,
         shop.router,
         social.router,
+        challenges.router,
         progress.router,
         boss.router,
         inline.router,
