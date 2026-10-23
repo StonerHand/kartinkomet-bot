@@ -22,7 +22,7 @@ def robbery(robber: str, victim: str, result, chat_id: int) -> str:
             f"Добыча <b>{who(robber)}</b>: {money(result.amount)} из кармана <b>{who(victim)}</b>",
         )
     return card(
-        "🚔 <b>ПОПАЛСЯ</b>",
+        "🚔 <b>ОГРАБЛЕНИЕ СОРВАЛОСЬ</b>",
         pick(social_texts.ROB_FAIL, chat_id),
         f"<b>{who(robber)}</b> платит <b>{who(victim)}</b> штраф {money(result.amount)} и сидит {duration(result.wait)}",
     )

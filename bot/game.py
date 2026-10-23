@@ -13,11 +13,13 @@ from bot.db.repo import Repo
 from bot.services.arena import ArenaMixin
 from bot.services.boss import BossMixin
 from bot.services.casino import CasinoMixin
+from bot.services.challenges import ChallengesMixin
 from bot.services.court import CourtMixin
 from bot.services.economy import EconomyMixin
 from bot.services.minigames import MiniGamesMixin
 from bot.services.pics import PicsMixin
 from bot.services.progress import STARTER_BONUS, ProgressMixin
+from bot.services.quiz import QuizMixin
 from bot.services.shop import ShopMixin
 from bot.services.social import SocialMixin
 from bot.services.statuses import StatusMixin
@@ -40,8 +42,8 @@ ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 
 
 class Game(
-    PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
-    SocialMixin, BossMixin, EconomyMixin,
+    PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, QuizMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
+    SocialMixin, ChallengesMixin, BossMixin, EconomyMixin,
 ):
 
     def __init__(

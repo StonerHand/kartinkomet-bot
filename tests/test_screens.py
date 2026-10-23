@@ -241,8 +241,8 @@ class ScreensTest(BotHarness):
         from bot.core import boss as boss_rules
         from bot.core import games as game_rules
         from bot.core import progress as progress_rules
-        from bot.services.minigames import HLAnswer
-        from bot.services.social import DiceDuel
+        from bot.services.quiz import HLAnswer
+        from bot.services.challenges import DiceDuel
 
         game, repo = self.game, self.game.repo
         for user_id in NAMES:
