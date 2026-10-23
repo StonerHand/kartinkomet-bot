@@ -50,6 +50,14 @@ class EconomyTest(V4Case):
         self.assertEqual(self.coins(5), 1_000_000)
         self.assertEqual(self.coins(777), 0)
 
+    def test_grant_goes_to_one_player_once(self) -> None:
+        grants = (("grant_test", "Somebody", 3_000_000),)
+        self.assertEqual(self.game.give_grants(grants), [])  # not known yet: waits
+        self.game.repo.remember_user(42, "somebody", "S", None, self.game.now())
+        self.assertEqual(self.game.give_grants(grants), [("Somebody", 3_000_000)])
+        self.assertEqual(self.game.give_grants(grants), [])
+        self.assertEqual(self.game.repo.player(42), (3_000_000, 0, 0))  # not earned: no level
+
     def test_spend_is_all_or_nothing(self) -> None:
         self.fund(5, 100)
         self.assertFalse(self.game.repo.spend(5, 101, "x", self.game.now()))

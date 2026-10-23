@@ -10,6 +10,9 @@ STARTER_KEY = "starter_v4"
 # One-time gifts to everyone already playing, (key, coins): each is handed out once, at the first
 # start after it is added. Players who come later don't get it.
 GIFTS = (("gift_2026_10_20", 1_000_000),)
+# One-time grants to one player by username, (key, username, coins): paid at the first start
+# after the player is known to the bot, never twice.
+GRANTS = (("grant_2026_10_23_atrain", "ATrain580", 3_000_000),)
 
 
 @dataclass(frozen=True)
@@ -76,6 +79,21 @@ class ProgressMixin:
                     given += 1
             self.repo.set_meta(f"gift:{key}", self.now())
         return given
+
+    def give_grants(self, grants=GRANTS) -> list[tuple[str, int]]:
+        """Pay every grant whose player the bot knows; one that isn't found waits for a later
+        start. Doesn't count towards levels. Returns (username, coins) of what was paid now."""
+        paid = []
+        for key, username, amount in grants:
+            if self.repo.meta_str(f"grant:{key}"):
+                continue
+            user_id = self.repo.user_by_name(username)
+            if user_id is None:
+                continue
+            self.repo.set_meta(f"grant:{key}", self.now())  # marked first: a crash can't pay twice
+            self.repo.add_coins(user_id, amount, "gift", self.now(), earn=False)
+            paid.append((username, amount))
+        return paid
 
     # ── event of the day ───────────────────────────────────────────────
 

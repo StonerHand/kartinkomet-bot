@@ -148,6 +148,8 @@ async def main() -> None:
     gifted = game.give_gifts()
     if gifted:
         LOGGER.info("Handed out one-time gifts to %s players", gifted)
+    for username, amount in game.give_grants():
+        LOGGER.info("Granted %s coins to %s", amount, username)
     backfilled = game.backfill_achievements()
     if backfilled:
         LOGGER.info("Silently granted %s already-earned achievements", backfilled)
