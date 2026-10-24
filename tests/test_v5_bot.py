@@ -136,7 +136,7 @@ class V5BotTest(V4BotTest):
         self.assertIn("ИТОГИ СЕЗОНА", results.text)
         self.assertIn("m:seasons", self.buttons(results))
         await self.press("m:seasons")
-        self.assertIn("ЗАЛ СЕЗОНОВ", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("ЗАЛ СЕЗОНОВ", self.screen())
 
     # ── raids ──────────────────────────────────────────────────────────
 
@@ -158,7 +158,7 @@ class V5BotTest(V4BotTest):
     async def test_tops_weekly_toggle_and_new_boards(self) -> None:
         await self.send("/menu")
         await self.press("m:top:uploads:w")
-        weekly = self.session.of("EditMessageText")[-1]
+        weekly = self.shown()
         self.assertIn("неделя", weekly.text)
         self.assertIn("m:top:uploads", self.buttons(weekly))
         for board in ("season", "hl", "rich:w", "loved:w", "killers:w"):
@@ -175,7 +175,7 @@ class V5BotTest(V4BotTest):
         self.assertEqual(self.game.stake_for_play(3), 250)
         await self.send("/menu", sender=3)
         await self.press("m:casino", sender=3)
-        screen = self.session.of("EditMessageText")[-1]
+        screen = self.shown()
         self.assertIn("25%", screen.text)
         self.assertIn("cs:p25", self.buttons(screen))
 

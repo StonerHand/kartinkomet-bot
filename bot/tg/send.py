@@ -259,8 +259,10 @@ async def ephemeral(
     callback_query_id: str | None = None,
     markup: InlineKeyboardMarkup | None = None,
     reply_to_ephemeral: int | None = None,
+    replace: bool = False,
 ) -> Message | None:
-    """A group message only `user_id` sees, or None if Telegram refused, so callers can fall back."""
+    """A group message only `user_id` sees, or None if Telegram refused, so callers can fall back.
+    replace: shown to them in place of the message whose button they pressed."""
     triggered = callback_query_id is not None or reply_to_ephemeral is not None
     if not triggered and _no_ephemeral.get(chat_id, 0) > time.monotonic():
         return None
@@ -272,7 +274,9 @@ async def ephemeral(
             reply_markup=markup,
             reply_parameters=ReplyParameters(ephemeral_message_id=reply_to_ephemeral) if reply_to_ephemeral else None,
             ephemeral_message_parameters=EphemeralMessageParameters(
-                receiver_user_id=user_id, callback_query_id=callback_query_id
+                receiver_user_id=user_id,
+                callback_query_id=callback_query_id,
+                replace_callback_query_message=True if replace else None,
             ),
         )
     except TelegramAPIError as error:
@@ -280,6 +284,33 @@ async def ephemeral(
         if not triggered and isinstance(error, (TelegramBadRequest, TelegramForbiddenError)):
             _no_ephemeral[chat_id] = time.monotonic() + NO_EPHEMERAL_SECONDS  # a refusal, not a network blip
         return None
+
+
+async def edit_ephemeral(
+    bot: Bot, chat_id: int, user_id: int, ephemeral_id: int, text: str, markup: InlineKeyboardMarkup | None
+) -> bool:
+    try:
+        await bot.edit_ephemeral_message_text(
+            chat_id=chat_id,
+            receiver_user_id=user_id,
+            ephemeral_message_id=ephemeral_id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
+        return True
+    except TelegramAPIError as error:
+        if not_modified(error):
+            return True
+        LOGGER.info("Ephemeral edit refused in %s: %s", chat_id, error)
+        return False
+
+
+async def redraw(bot: Bot, message: Message, user_id: int, text: str, markup: InlineKeyboardMarkup | None) -> bool:
+    """Redraw the message a button was pressed on: someone's personal screen, or a shared one."""
+    if message.ephemeral_message_id:
+        return await edit_ephemeral(bot, message.chat.id, user_id, message.ephemeral_message_id, text, markup)
+    return await edit_text(bot, message.chat.id, message.message_id, text, markup)
 
 
 async def send_ephemeral(

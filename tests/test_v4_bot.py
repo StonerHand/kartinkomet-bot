@@ -62,7 +62,7 @@ class V4BotTest(BotHarness):
     async def test_casino_screen_and_stake_buttons(self) -> None:
         self.fund(3, 300)
         await self.press("m:casino", sender=3)
-        screen = self.session.of("EditMessageText")[-1]
+        screen = self.shown()
         self.assertIn("КАЗИНО", screen.text)
         await self.press("cs:all", sender=3)
         self.session.dice_values = [5]

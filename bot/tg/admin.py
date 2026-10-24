@@ -82,16 +82,14 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             show_alert=True,
         )
         text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
-        await send.edit_text(bot, chat_id, message.message_id, text, markup)
+        await send.redraw(bot, message, callback.from_user.id, text, markup)
     elif action == "health":
         await callback.answer()
-        await send.edit_text(
-            bot, chat_id, message.message_id, health_text(game), keyboards.markup(keyboards.back("m:adm"))
-        )
+        await send.redraw(bot, message, callback.from_user.id, health_text(game), keyboards.markup(keyboards.back("m:adm")))
     elif action == "stats":
         await callback.answer()
-        await send.edit_text(
-            bot, chat_id, message.message_id, views.admin_stats(game.usage()), keyboards.markup(keyboards.back("m:adm"))
+        await send.redraw(
+            bot, message, callback.from_user.id, views.admin_stats(game.usage()), keyboards.markup(keyboards.back("m:adm"))
         )
     elif action == "backup":
         await callback.answer("Собираю бэкап")
@@ -103,10 +101,10 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             )
     elif action == "reset":
         await callback.answer()
-        await send.edit_text(
+        await send.redraw(
             bot,
-            chat_id,
-            message.message_id,
+            message,
+            callback.from_user.id,
             "🧨 <b>СБРОСИТЬ СТАТИСТИКУ?</b>\n<i>Отменить будет нельзя</i>\n\n"
             "Обнулятся рейтинги, реакции, показы, серии и рекорды. "
             "Пикчи, кладбище и ачивки останутся.",
@@ -116,12 +114,12 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
         game.repo.reset_stats()
         await callback.answer("Стата обнулена", show_alert=True)
         text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
-        await send.edit_text(bot, chat_id, message.message_id, text, markup)
+        await send.redraw(bot, message, callback.from_user.id, text, markup)
     elif action.startswith("spare:"):
         pic_id = action.split(":", 1)[1]
         revived = game.pardon(pic_id)
         await callback.answer("🕊 Воскрешена" if revived else "Уже жива или не найдена", show_alert=True)
         text, markup = screens.render("grave", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
-        await send.edit_text(bot, chat_id, message.message_id, text, markup)
+        await send.redraw(bot, message, callback.from_user.id, text, markup)
     else:
         await callback.answer()

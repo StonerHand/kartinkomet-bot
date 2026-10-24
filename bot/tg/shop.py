@@ -53,9 +53,9 @@ def confirmed(user_id: int, key: str) -> bool:
 
 @router.message(Command("shop"))
 async def shop_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.panel import open_panel  # local: panel imports this module's screens
+    from bot.tg.panel import open_screen  # local: panel imports this module's screens
 
-    await open_panel(message, bot, game, admins, "shop")
+    await open_screen(message, bot, game, admins, "shop")  # it shows the asker's coins
 
 
 @router.callback_query(F.data.startswith("pm:"), F.message)

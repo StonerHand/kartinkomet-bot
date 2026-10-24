@@ -191,8 +191,12 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         )
         await self.dispatcher.feed_update(self.bot, Update(update_id=next(self.update_ids), message=message))
 
-    async def press(self, data: str, message_id: int = 1, sender: int = 2, chat: Chat = GROUP) -> None:
-        message = Message(message_id=message_id, date=datetime.now(UTC), chat=chat, from_user=BOT_USER)
+    async def press(
+        self, data: str, message_id: int = 1, sender: int = 2, chat: Chat = GROUP, personal: bool = False
+    ) -> None:
+        """personal: the button sits on the sender's own (ephemeral) copy of a screen."""
+        message = Message(message_id=0 if personal else message_id, date=datetime.now(UTC), chat=chat,
+                          from_user=BOT_USER, ephemeral_message_id=55 if personal else None)
         callback = CallbackQuery(
             id=str(next(self.update_ids)),
             from_user=user(sender),
@@ -205,6 +209,15 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
     def buttons(self, request) -> list[str]:
         return [button.callback_data for row in request.reply_markup.inline_keyboard for button in row]
 
+    SCREENS = ("EditMessageText", "SendEphemeralMessage", "EditEphemeralMessageText")
+
+    def shown(self):
+        """The last screen request: the shared panel redrawn, or someone's personal copy."""
+        return [request for request in self.session.requests if self.session.kind(request) in self.SCREENS][-1]
+
+    def screen(self) -> str:
+        return self.shown().text
+
 
 class BotTest(BotHarness):
     async def test_menu_replaces_old_panel_and_navigates(self) -> None:
@@ -213,9 +226,39 @@ class BotTest(BotHarness):
         self.assertEqual(len(self.session.of("SendMessage")), 2)
         self.assertEqual(len(self.session.of("DeleteMessage")), 1)
         self.assertNotIn("m:adm", self.buttons(self.session.of("SendMessage")[0]))
-        for screen in ("m:hall", "m:bottom", "m:grave", "m:top:loved", "m:up", "m:help", "m:home:refresh"):
-            await self.press(screen)
-        self.assertEqual(len(self.session.of("EditMessageText")), 7)
+        for screen in ("m:hall", "m:bottom", "m:grave", "m:top:loved", "m:up", "m:help"):
+            await self.press(screen)  # each opens for the presser only, the panel stays home
+        self.assertEqual(len(self.session.of("SendEphemeralMessage")), 6)
+        self.assertTrue(all(request.ephemeral_message_parameters.replace_callback_query_message
+                            for request in self.session.of("SendEphemeralMessage")))
+        await self.press("m:home:refresh")
+        self.assertEqual(len(self.session.of("EditMessageText")), 1)  # the shared panel itself
+        await self.press("m:top:rich", personal=True)  # inside a personal copy: redrawn in place
+        self.assertIn("БОГАЧИ", self.session.of("EditEphemeralMessageText")[-1].text)
+        self.assertEqual(len(self.session.of("EditMessageText")), 1)
+        self.session.refuse = {"EditEphemeralMessageText"}  # the copy vanished: a fresh one comes
+        await self.press("m:shop", personal=True)
+        self.assertIn("ЛАВКА", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertEqual(len(self.session.of("EditMessageText")), 1)
+
+    async def test_someones_browsing_doesnt_move_anothers_screen(self) -> None:
+        await self.send("/menu")
+        await self.press("m:shop", sender=3)
+        await self.press("m:casino", sender=4)
+        self.assertFalse(self.session.of("EditMessageText"))  # the shared panel never moved
+        receivers = [request.ephemeral_message_parameters.receiver_user_id
+                     for request in self.session.of("SendEphemeralMessage")]
+        self.assertEqual(receivers, [3, 4])
+
+    async def test_casino_is_personal_and_the_stake_mark_follows_the_press(self) -> None:
+        await self.send("/casino", sender=3)
+        self.assertIn("КАЗИНО", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertFalse(self.session.of("SendMessage"))  # nobody else sees one person's coins
+        await self.press("cs:p25", sender=3, personal=True)
+        redrawn = self.session.of("EditEphemeralMessageText")[-1]
+        self.assertIn("✅ 25%", [button.text for row in redrawn.reply_markup.inline_keyboard for button in row])
+        await self.press("cs:p50", sender=3)  # on the shared panel: a toast, the panel stays
+        self.assertFalse(self.session.of("EditMessageText"))
 
     async def test_profile_is_private_in_groups(self) -> None:
         await self.press("m:me", sender=3)
@@ -355,7 +398,7 @@ class BotTest(BotHarness):
         await self.send("/menu")
         self.assertIn("Сейчас идёт", self.session.of("SendMessage")[-1].text)
         await self.press("m:help")
-        self.assertIn("Суд", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("Суд", self.screen())
 
     async def test_same_photo_twice_in_parallel_is_one_pic(self) -> None:
         self.assertIsNotNone(self.game.add_pic("same", "same-uniq", 5, None))
@@ -565,7 +608,7 @@ class BotTest(BotHarness):
         self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())
         self.game.pay(3, 50, "test")
         await self.press("m:top:rich")
-        self.assertIn("user3 — <b>50</b> монет", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("user3 — <b>50</b> монет", self.screen())
 
 
     # ── mini-games ─────────────────────────────────────────────────────
@@ -631,7 +674,7 @@ class BotTest(BotHarness):
 
     async def test_games_screen(self) -> None:
         await self.press("m:games")
-        self.assertIn("ИГРЫ", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("ИГРЫ", self.screen())
 
 
     async def test_crowns_in_tops_profile_and_digest(self) -> None:
@@ -643,11 +686,11 @@ class BotTest(BotHarness):
         digest = [r for r in self.session.requests if "Короны недели" in (getattr(r, "text", None) or getattr(r, "caption", None) or "")]
         self.assertEqual(len(digest), 1)
         await self.press("m:top:uploads")
-        top = self.session.of("EditMessageText")[-1].text
+        top = self.screen()
         self.assertIn("uploader", top)  # crowns show in the profile and the digest, not in tops
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=ADMIN)
-        self.assertIn("👑 Король загрузок", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("👑 Король загрузок", self.screen())
 
 
 if __name__ == "__main__":

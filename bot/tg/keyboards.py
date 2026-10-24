@@ -187,8 +187,7 @@ def quests_menu(daily_ready: bool, chests: dict[str, int], chat_id: int | None =
     if daily_ready:
         rows.append([button("🎁 Забрать бонус", f"daily{suffix}", SUCCESS)])
     rows.append(chest_buttons(chests, suffix))
-    if chat_id is None:
-        rows.append(back())
+    rows.append(back())
     return markup(*rows)
 
 

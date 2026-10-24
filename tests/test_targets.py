@@ -207,7 +207,7 @@ class PanelPeopleTest(Players):
 
     async def test_buttons_ask_personally_even_without_admin_rights(self) -> None:
         await self.press("m:people", sender=3)
-        self.assertIn("ЛЮДИ", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("ЛЮДИ", self.screen())
         await self.press("pp:rob", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
         self.assertIn("КОГО ГРАБИМ?", question.text)

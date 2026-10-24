@@ -242,7 +242,6 @@ SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "up": upload,
     "adm": admin,
 }
-PERSONAL = {"me", "quests"}  # shown only to the person who asked, in groups
 
 
 def render(name: str, ctx: Ctx) -> Screen:

@@ -100,9 +100,9 @@ async def play_command(message: Message, command: CommandObject, bot: Bot, game:
 
 @router.message(Command("casino"))
 async def casino_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.panel import open_panel  # local: panel imports this package, keep imports one-way
+    from bot.tg.panel import open_screen  # local: panel imports this package, keep imports one-way
 
-    await open_panel(message, bot, game, admins, "casino")
+    await open_screen(message, bot, game, admins, "casino")  # it shows the asker's coins and stake
 
 
 @router.message(Command("spin", "slots"))
@@ -135,24 +135,38 @@ async def bowling_command(message: Message, command: CommandObject, bot: Bot, ga
     await play_command(message, command, bot, game, live, "bowling")
 
 
+async def show_stake(bot: Bot, game: Game, callback: CallbackQuery) -> None:
+    """On someone's own casino screen (personal copy or private chat), move the ✅ to the new stake.
+    The chat's shared panel isn't redrawn: it would show one person's stake to everyone."""
+    message = callback.message
+    if isinstance(message, Message) and (message.ephemeral_message_id or message.chat.type == "private"):
+        from bot.tg.screens import Ctx, render  # local: screens imports the views this module shares
+
+        text, markup = render("casino", Ctx(game, message.chat.id, callback.from_user.id))
+        await send.redraw(bot, message, callback.from_user.id, text, markup)
+
+
 @router.callback_query(F.data.startswith("cs:"))
-async def set_stake(callback: CallbackQuery, game: Game) -> None:
+async def set_stake(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     raw = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
     balance = game.repo.player(user_id)[0]
     if raw == "all":
         game.set_stake(user_id, None)
         await callback.answer(f"🃏 Ва-банк: ставишь всё, сейчас это {views.num(balance)} 🪙. {pick(texts.STAKE_SET)}")
+        await show_stake(bot, game, callback)
         return
     if raw.startswith("p") and raw[1:].isdigit():
         share = int(raw[1:])
         game.set_stake_share(user_id, share)
         stake = casino.share_stake(balance, share)
         await callback.answer(f"🎟 Ставка {share}% баланса, сейчас это {views.num(stake)} 🪙. {pick(texts.STAKE_SET)}")
+        await show_stake(bot, game, callback)
         return
     amount = int(raw) if raw.isdigit() else casino.DEFAULT_STAKE  # buttons of older messages
     game.set_stake(user_id, amount)
     await callback.answer(f"🎟 Ставка {views.num(amount)} 🪙. {pick(texts.STAKE_SET)}")
+    await show_stake(bot, game, callback)
 
 
 async def play_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live, code: str, stake: int) -> None:
