@@ -133,10 +133,10 @@ def battle_result(
         if report.executed:
             slot = next((i for i, pic in enumerate(battle.pics) if pic.id == report.executed.id), 1)
             low = report.rating_after[slot] < report.death_rating
-            cause = f"рейтинг ниже {report.death_rating:.0f}" if low else f"{DEATH_LOSS_STREAK} поражения подряд"
+            cause = f"Рейтинг ниже {report.death_rating:.0f}" if low else f"{DEATH_LOSS_STREAK} поражения подряд"
             death = [
-                f"⚰️ <b>Пикча {labels[slot]} погибла</b> · {cause}",
-                f"<i>{escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</i>",
+                f"⚰️ <b>Пикча {labels[slot]} погибла</b>",
+                f"<i>{cause}. {escape(pick(arena_texts.DUEL_EXECUTION, battle.chat_id))}</i>",
             ]
     # Pic rows are two lines each (name, rating): every row is its own block.
     return card(f"{title} · <b>{score}</b>", pick(pool, battle.chat_id), *table, *(extras or []), streak, death)
@@ -231,12 +231,7 @@ def dice_duel_result(duel, labels: dict[int, str], chat_id: int) -> str:
     else:
         verdict = f"🏆 <b>{who(labels.get(duel.winner, '?'))}</b> забирает {money(duel.pot)}"
         flavour = pick(social_texts.DICE_DUEL_WIN, chat_id)
-    return card(
-        f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · итог",
-        flavour,
-        throws,
-        [verdict, score_line(duel.score)],
-    )
+    return card(f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · итог", flavour, throws, verdict, score_line(duel.score))
 
 
 def challenge_names(challenge: dict, labels: dict[int, str]) -> str:
@@ -259,9 +254,9 @@ def battle_report(report: BattleReport, labels: dict[int, str], score: tuple[int
 
 def challenge_result(report, labels: dict[int, str], score: tuple[int, int] | None = None) -> list[str]:
     if report.champion is None:
-        lines = ["🤺 <i>Победителя нет — обе ставки вернулись</i>"]
+        lines = ["🤺 <i>Ничья — обе ставки вернулись</i>"]
     else:
-        lines = [f"🤺 <b>{who(labels.get(report.champion, '?'))}</b> забирает {money(report.challenge['stake'] * 2)}"]
+        lines = [f"🤺 Забирает <b>{who(labels.get(report.champion, '?'))}</b>"]
     if score is not None:
         lines.append(score_line(score))
     return lines

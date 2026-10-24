@@ -71,14 +71,14 @@ async def personal(message: Message, bot: Bot, game: Game, admins: frozenset[int
 
 
 @router.message(Command("help"))
-async def help_command(message: Message) -> None:
-    await message.answer(ui.HELP, parse_mode="HTML")
+async def help_command(message: Message, bot: Bot) -> None:
+    await send.reply_personal(bot, message, ui.HELP)
 
 
 @router.message(Command("id"))
-async def my_id(message: Message) -> None:
+async def my_id(message: Message, bot: Bot) -> None:
     if message.from_user:
-        await message.answer(f"Твой ID: <code>{message.from_user.id}</code>", parse_mode="HTML")
+        await send.reply_personal(bot, message, f"Твой ID: <code>{message.from_user.id}</code>")
 
 
 @router.callback_query(F.data.startswith("m:"))

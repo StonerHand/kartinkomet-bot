@@ -93,10 +93,10 @@ def profile(
         f" · <b>{stats.dislikes_received}</b> {plural(stats.dislikes_received, 'дизлайк', 'дизлайка', 'дизлайков')}"
     )
     if stats.legends or stats.best_streak > 1:
-        lines.append(f"🏛 <b>{stats.legends}</b> в зале славы · лучшая серия <b>{stats.best_streak}</b>")
+        lines.append(f"🏛 В зале славы: <b>{stats.legends}</b> · серия <b>{stats.best_streak}</b>")
     if wallet.best_pic:
         _, best_rating, wins, losses = wallet.best_pic
-        lines.append(f"⭐ Лучшая пикча: рейтинг <b>{rating(best_rating)}</b> · {wins}–{losses}")
+        lines.append(f"⭐ Лучшая пикча: <b>{rating(best_rating)}</b> · {wins}–{losses}")
     title_code = rules.upload_title_code(stats.uploads)
     goal = rules.next_upload_goal(stats.uploads)
     if title_code:  # the uploader title: its own item, "📦 <b>Title</b>" over the way to the next one
@@ -116,7 +116,7 @@ def profile(
         if stats.kill_votes or stats.spare_votes:
             lines.append(f"⚖️ За казнь — <b>{stats.kill_votes}</b> · за помилование — <b>{stats.spare_votes}</b>")
         if voice:
-            lines.append(f"🎯 Угадываешь в <b>{voice[0]}%</b> боёв · {escape(bare(voice[1]))}")
+            lines.append(f"🎯 <b>{voice[0]}%</b> угаданных · {escape(bare(voice[1]))}")
         if wallet.nemesis:
             name, defeats = wallet.nemesis
             lines.append(
@@ -127,10 +127,10 @@ def profile(
     if wallet.casino and wallet.casino[0]:
         bets, staked, returned, biggest = wallet.casino
         net = returned - staked
-        result = f"в плюсе на {money(net)}" if net > 0 else f"в минусе на {money(-net)}" if net < 0 else "по нулям"
+        result = f"плюс {money(net)}" if net > 0 else f"минус {money(-net)}" if net < 0 else "по нулям"
         lines += ["", "🎰 <b>Казино</b>", f"<b>{num(bets)}</b> {plural(bets, 'ставка', 'ставки', 'ставок')} · {result}"]
         if biggest:
-            lines.append(f"<i>самый крупный выигрыш — {num(biggest)} {plural(biggest, 'монета', 'монеты', 'монет')}</i>")
+            lines.append(f"<i>лучший выигрыш — {num(biggest)}</i>")
 
     if wallet.records:
         lines += ["", "📈 <b>Рекорды</b>"]
@@ -138,10 +138,11 @@ def profile(
 
     hidden = len(rules.SECRET - owned)
     secret = f" · ещё {hidden} {plural(hidden, 'секретная', 'секретные', 'секретных')}" if hidden else ""
-    lines += ["", f"🏅 <b>Ачивки</b> · {len(owned)} из {len(rules.ALL_CODES)}{secret}"]
+    lines += ["", f"🏅 <b>Ачивки</b> · {len(owned)} из {len(rules.ALL_CODES)}"]
     if owned:
         lines += [escape(ACHIEVEMENTS[code][0]) for code in rules.showcase(owned, owners)]
-        listing = ["Вся коллекция · у скольких есть"]
+        lines.append("")  # the collection is a box of its own, not one more line of the showcase
+        listing = [f"Вся коллекция · у скольких есть{secret}"]
         for tier, heading in ((rules.LEGENDARY, "🌟 Легендарные"), ("rare", "✨ Редкие"), ("common", "▫️ Обычные")):
             codes = sorted(code for code in owned if rules.rarity(code) == tier)
             if codes:
@@ -151,6 +152,6 @@ def profile(
                     listing.append(f"{ACHIEVEMENTS[code][0]} · {share}%")
         lines.append(f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>\n")
     else:
-        lines += ["<i>Пока ни одной. Проголосуй в дуэли — это уже начало</i>", ""]
+        lines += [f"<i>Пока ни одной{secret}. Проголосуй в дуэли — это уже начало</i>", ""]
     lines.append(f"<i>{escape(pick(top_texts.PROFILE_ROASTS))}</i>")
     return "\n".join(lines)

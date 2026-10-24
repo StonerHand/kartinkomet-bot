@@ -187,10 +187,13 @@ def chest_buttons(chests: dict[str, int], suffix: str = "") -> list[InlineKeyboa
     return [button(CHEST_LABELS[tier], f"ch:{tier}{suffix}", SUCCESS) for tier, count in chests.items() if count]
 
 
-def open_chests(tiers: list[str]) -> InlineKeyboardMarkup | None:
+def open_chests(tiers: list[str], chat_id: int | None = None) -> InlineKeyboardMarkup | None:
+    """chat_id goes into the buttons of a personal (ephemeral) message: its callbacks may come
+    without the message."""
     if not tiers:
         return None
-    return markup([button(CHEST_LABELS[tier], f"ch:{tier}", SUCCESS) for tier in dict.fromkeys(tiers)])
+    suffix = f":{chat_id}" if chat_id is not None else ""
+    return markup([button(CHEST_LABELS[tier], f"ch:{tier}{suffix}", SUCCESS) for tier in dict.fromkeys(tiers)])
 
 
 def boss(boss_id: str, price: int) -> InlineKeyboardMarkup:

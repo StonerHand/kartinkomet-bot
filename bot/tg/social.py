@@ -45,13 +45,13 @@ async def give(message: Message, command: CommandObject, bot: Bot, game: Game, l
     target, rest = target_and_rest(message, game, command.args)
     amount = amount_of(rest)
     if target is None or amount is None:
-        await message.reply(NO_TARGET.format(example="/give vasya 100"))
+        await send.reply_personal(bot, message, NO_TARGET.format(example="/give vasya 100"))
         return
     status, granted = game.give(message.from_user.id, target, amount)
     refusals = {"self": "Себе дарить — это просто перекладывать из кармана в карман", "small": "Подарок от 1 🪙",
                 "broke": "Столько у тебя нет"}
     if status != "ok":
-        await message.reply(refusals[status])
+        await send.reply_personal(bot, message, refusals[status])
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
     await send.send_text(bot, message.chat.id, views.gift(*labels, amount, message.chat.id))
@@ -64,11 +64,11 @@ async def rob(message: Message, command: CommandObject, bot: Bot, game: Game, li
         return
     target, _ = target_and_rest(message, game, command.args)
     if target is None:
-        await message.reply(NO_TARGET.format(example="/rob vasya"))
+        await send.reply_personal(bot, message, NO_TARGET.format(example="/rob vasya"))
         return
     result = game.rob(message.from_user.id, target)
     if result.status not in ("success", "fail"):
-        await message.reply(texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait)))
+        await send.reply_personal(bot, message, texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait)))
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
     sent = await send.send_text(bot, message.chat.id, views.robbery(*labels, result, message.chat.id))
@@ -86,11 +86,11 @@ async def marry(message: Message, command: CommandObject, bot: Bot, game: Game) 
         return
     target, _ = target_and_rest(message, game, command.args)
     if target is None:
-        await message.reply(NO_TARGET.format(example="/marry vasya"))
+        await send.reply_personal(bot, message, NO_TARGET.format(example="/marry vasya"))
         return
     status, proposal_id = game.propose(message.chat.id, message.from_user.id, target)
     if status != "ok" or proposal_id is None:
-        await message.reply(texts.MARRY_REFUSED[status].format(price=game.wedding_price()))
+        await send.reply_personal(bot, message, texts.MARRY_REFUSED[status].format(price=game.wedding_price()))
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
     await send.send_text(
@@ -138,7 +138,7 @@ async def divorce(message: Message, bot: Bot, game: Game, live: Live) -> None:
         return
     result = game.divorce(message.from_user.id)
     if result.status != "ok" or result.spouse is None:
-        await message.reply("Ты не в браке. Разводиться не с кем")
+        await send.reply_personal(bot, message, "Ты не в браке. Разводиться не с кем")
         return
     labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(result.spouse))
     sent = await send.send_text(bot, message.chat.id, views.divorce(*labels, result, message.chat.id))

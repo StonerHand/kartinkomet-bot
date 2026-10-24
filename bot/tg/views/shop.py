@@ -6,7 +6,7 @@ from bot.core import shop
 from bot.db.repo import Pic
 from bot.texts import shop as shop_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import card, duration, money, rating, who
+from bot.tg.views.layout import card, duration, money, num, rating, who
 from bot.tg.views.progress import day_event_line
 
 
@@ -18,8 +18,8 @@ def shop_screen(
         for code, (emoji, name, about) in shop_texts.ITEMS.items()
     ]
     bounty = (
-        f"🎯 <b>Награда за голову</b> — от {money(prices.get('bounty', shop.BOUNTY_AMOUNTS[0]))}\n"
-        "<i>получат те, кто казнит пикчу</i>"
+        "🎯 <b>Награда за голову</b>\n"
+        f"<i>от {num(prices.get('bounty', shop.BOUNTY_AMOUNTS[0]))} монет, получат те, кто казнит пикчу</i>"
     )
     return card(
         "🛒 <b>ЛАВКА</b>",

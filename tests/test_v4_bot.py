@@ -172,8 +172,9 @@ class V4BotTest(BotHarness):
 
     async def test_rob_without_target_explains(self) -> None:
         await self.send("/rob", sender=3)
-        self.assertEqual(self.session.of("SendMessage")[-1].text.split(":")[0],
-                         "Ответь этой командой на сообщение человека или напиши его ник")
+        hint = self.session.of("SendEphemeralMessage")[-1]  # only the author sees it
+        self.assertEqual(hint.ephemeral_message_parameters.receiver_user_id, 3)
+        self.assertEqual(hint.text.split(":")[0], "Ответь этой командой на сообщение человека или напиши его ник")
 
     # ── progress ───────────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ class V4BotTest(BotHarness):
         self.assertEqual(self.game.repo.get_boss(boss["id"])["status"], "won")
         self.assertTrue(any("ПОВЕРЖЕН" in text for text in self.texts()))
         await self.send("/boss", sender=3)
-        self.assertIn("через", self.session.of("SendMessage")[-1].text)
+        self.assertIn("через", self.session.of("SendEphemeralMessage")[-1].text)
 
     async def test_boss_without_a_card_is_dropped_on_restart(self) -> None:
         """The card failed to post: on restart the boss neither escapes nor grows stronger."""

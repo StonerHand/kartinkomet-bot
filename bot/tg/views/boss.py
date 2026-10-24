@@ -23,6 +23,7 @@ def boss_card(
         f"❤️ <b>{boss['hp']}</b> / {boss['max_hp']}",
         f"<code>{hp_bar(boss['hp'], boss['max_hp'])}</code>",
         f"💰 Добыча: {money(boss['loot'])}",
+        f"⏳ Сбежит через <b>{timer(remaining)}</b>",
     ]
     damage = []
     if boss["damage"]:
@@ -32,17 +33,17 @@ def boss_card(
             damage.append(f"{place} {who(labels.get(user, '?'))} — <b>{dealt}</b>")
     kind = "РЕЙД" if raid else "БОСС"
     rules = [
-        f"🗡 <i>Удар — бесплатно, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
-        f"🔥 <i>Супер-удар: {num(super_price)} монет, сильнее</i>",
-        "🤝 <i>Добычу делят по нанесённому урону</i>",
+        f"🗡 <i>Удар бесплатный, раз в {boss_rules.HIT_COOLDOWN_SECONDS:g} сек</i>",
+        f"🔥 <i>Супер-удар: {num(super_price)} монет</i>",
+        "🤝 <i>Добыча — по нанесённому урону</i>",
     ]
     raid_rules = [
-        f"🩹 <i>Без ударов полчаса лечится на {boss_rules.HEAL_SHARE:.0%}</i>",
+        "🩹 <i>30 мин без ударов — лечится</i>",
         "🎁 <i>Лучшему — легендарный сундук</i>",
         f"🟫 <i>Всем с {boss_rules.RAID_CHEST_DAMAGE}+ урона — деревянный</i>",
     ] if raid else []
     return card(
-        f"👹 <b>{kind}: {escape(boss['title']).upper()}</b> · <b>{timer(remaining)}</b>",
+        f"👹 <b>{kind}</b> · {escape(boss['title'])}",
         pick(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, chat_id),
         health,
         PHASES.get(current, ""),
@@ -54,10 +55,10 @@ def boss_card(
 
 def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
     boss = report.boss
-    title = escape(boss["title"]).upper()
+    title = escape(boss["title"])
     if not report.won:
         return card(
-            f"👹 <b>БОСС СБЕЖАЛ · {title}</b>",
+            f"👹 <b>БОСС СБЕЖАЛ</b> · {title}",
             pick(boss_texts.ESCAPE, chat_id),
             [
                 f"❤️ Осталось <b>{boss['hp']}</b> из {boss['max_hp']}",
@@ -78,4 +79,4 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
         f"🟫 Деревянный сундук ещё {report.chests} {plural(report.chests, 'игроку', 'игрокам', 'игрокам')}"
         if report.chests else "",
     ]
-    return card(f"🏆 <b>БОСС ПОВЕРЖЕН · {title}</b>", pick(boss_texts.WIN, chat_id), loot, honours)
+    return card(f"🏆 <b>БОСС ПОВЕРЖЕН</b> · {title}", pick(boss_texts.WIN, chat_id), loot, honours)

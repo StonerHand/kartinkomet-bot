@@ -262,6 +262,29 @@ async def send_ephemeral(
         return False
 
 
+async def personal(
+    bot: Bot,
+    chat_id: int,
+    user_id: int,
+    text: str,
+    markup: InlineKeyboardMarkup | None = None,
+    callback_query_id: str | None = None,
+) -> None:
+    """A message that concerns one person: in a group only they see it, so the chat stays clean.
+    In private chats, or if Telegram refuses an ephemeral one, it is an ordinary message."""
+    if chat_id < 0 and await send_ephemeral(bot, chat_id, user_id, text, callback_query_id, markup):
+        return
+    await send_text(bot, chat_id, text, markup)
+
+
+async def reply_personal(bot: Bot, message, text: str) -> None:
+    """Answer a command for its author's eyes only (a refusal, a hint how to use it)."""
+    user = message.from_user
+    if message.chat.type != "private" and user is not None and await send_ephemeral(bot, message.chat.id, user.id, text):
+        return
+    await send_text(bot, message.chat.id, text, reply_to=message.message_id)
+
+
 # Message effects work in private chats only. IDs are Telegram's public effect ids.
 EFFECT_PARTY = "5046509860389126442"
 

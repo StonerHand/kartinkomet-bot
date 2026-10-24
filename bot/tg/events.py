@@ -187,8 +187,9 @@ class Events:
         pic = self.game.repo.worst_triable(self.game.now())
         if pic is None:
             return False
-        await send.send_text(self.bot, chat_id, f"<b>{escape(pick(texts.AUTO_COURT, chat_id))}</b>")
-        status = await open_court(self.bot, self.game, self.live, chat_id, pic.id, "bottom", None)
+        # The robot's line is the card's own flavour: one message in the chat, not two.
+        title = pick(texts.AUTO_COURT, chat_id)
+        status = await open_court(self.bot, self.game, self.live, chat_id, pic.id, "bottom", None, title=title)
         return status == "started"
 
     async def weekly(self, chat_id: int) -> bool:
@@ -206,10 +207,10 @@ class Events:
             f"{views.MEDALS[index]} {views.who(repo.user_label(user_id))} — <b>{count}</b>"
             for index, (user_id, count) in enumerate(summary["uploads"])
         ] if summary["uploads"] else []
-        crown_lines = ["👑 <b>Короны недели</b>", "<i>Носятся до следующего воскресенья</i>"] + [
+        crown_lines = ["👑 <b>Короны недели</b>"] + [
             f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])} — <b>{views.who(repo.user_label(user_id))}</b>"
             for kind, (user_id, _) in crowns.items()
-        ] if crowns else []
+        ] + ["<i>Носятся до следующего воскресенья</i>"] if crowns else []
         top_pic = summary["top_pic"]
         photo_note = "🏅 <i>На фото — самая залайканная пикча недели</i>" if top_pic is not None else None
         text = views.card(

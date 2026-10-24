@@ -49,15 +49,15 @@ def health_text(game: Game) -> str:
 @router.message(Command("admin"))
 async def admin_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
     if message.from_user is None or message.from_user.id not in admins:
-        await message.answer(ui.ADMIN_ONLY)
+        await send.reply_personal(bot, message, ui.ADMIN_ONLY)
         return
     await open_panel(message, bot, game, admins, "adm")
 
 
 @router.message(Command("health"))
-async def health_command(message: Message, game: Game, admins: frozenset[int]) -> None:
+async def health_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
     if message.from_user is None or message.from_user.id not in admins:
-        await message.answer(ui.ADMIN_ONLY)
+        await send.reply_personal(bot, message, ui.ADMIN_ONLY)
         return
     await message.answer(health_text(game), parse_mode="HTML")
 

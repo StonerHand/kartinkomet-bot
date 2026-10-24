@@ -3,7 +3,7 @@
 import re
 from html import escape
 
-PHONE_LINE = 40  # characters that fit one line of a message on a phone
+PHONE_LINE = 32  # characters that surely fit one line on a phone (measured: Telegram iOS, 17 pt, italic and emoji included)
 BAR_CELLS = 5
 SLOT_COLORS = ("🟥", "🟦", "🟩", "🟨")
 MEDALS = ("🥇", "🥈", "🥉")
@@ -17,9 +17,22 @@ def plain(line: str) -> str:
     return re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
 
+def width(line: str) -> float:
+    """A line's length in phone characters: capitals are a quarter wider than small letters."""
+    text = plain(line)
+    return len(text) + sum(char.isupper() for char in text) / 4
+
+
 def fits(line: str) -> bool:
     """True if the line doesn't wrap on a phone."""
-    return len(plain(line)) <= PHONE_LINE
+    return width(line) <= PHONE_LINE
+
+
+def header(head: str) -> str:
+    """'🎁 <b>TITLE</b> · meta' too wide for a phone keeps the title on its line and puts the meta
+    under it: a wrapped header leaves half a word or a lone timer hanging on the second line."""
+    title, dot, meta = head.partition("</b> · ")
+    return f"{title}</b>\n{meta}" if dot and not fits(head) else head
 
 
 def timer(seconds: int) -> str:
@@ -73,7 +86,7 @@ def who(label: str) -> str:
 def card(head: str, flavour: str | None = None, *blocks) -> str:
     """The one layout of every message:
 
-        HEADER · meta
+        HEADER · meta       (the meta goes to a line of its own if the two don't fit)
         flavour line (italic)
 
         block
@@ -86,7 +99,7 @@ def card(head: str, flavour: str | None = None, *blocks) -> str:
     Inside a block, lines that wrap on a phone would merge with their neighbours, so a long line
     is either a block of its own, the description under its item's title, or the italic caption
     that ends a block (like the flavour under the header)."""
-    top = head + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
+    top = header(head) + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
     parts = [top]
     for block in blocks:
         if isinstance(block, (list, tuple)):

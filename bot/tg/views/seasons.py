@@ -22,7 +22,7 @@ def podium_lines(podium: list[tuple[str, int]]) -> list[str]:
 def season_results(season: str, podium: list[tuple[str, int]], starter: int, chat_id: int) -> str:
     following = seasons.name(seasons.next_season(season)).split()[0]
     return card(
-        f"🏁 <b>ИТОГИ СЕЗОНА · {escape(seasons.name(season)).upper()}</b>",
+        f"🏁 <b>ИТОГИ СЕЗОНА</b> · {escape(seasons.name(season))}",
         pick(texts.RESULTS, chat_id),
         podium_lines(podium) or [texts.NOBODY],
         f"🪙 Монеты сгорели: все начинают с <b>{num(starter)}</b>",
@@ -32,7 +32,7 @@ def season_results(season: str, podium: list[tuple[str, int]], starter: int, cha
 
 def season_warning(season: str, podium: list[tuple[str, int]], starter: int, chat_id: int) -> str:
     return card(
-        f"⏳ <b>ПОСЛЕДНИЙ ДЕНЬ СЕЗОНА · {escape(seasons.name(season)).upper()}</b>",
+        f"⏳ <b>ПОСЛЕДНИЙ ДЕНЬ СЕЗОНА</b> · {escape(seasons.name(season))}",
         pick(texts.WARNING, chat_id),
         f"🕛 В полночь монеты сгорят, все начнут с <b>{num(starter)}</b>",
         ["🏆 <b>Сейчас в тройке</b>", *podium_lines(podium)] if podium else "",

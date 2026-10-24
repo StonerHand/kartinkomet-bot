@@ -54,7 +54,7 @@ async def start_caption(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
 @router.message(Command("caption"))
 async def caption_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     if await start_caption(bot, game, live, message.chat.id) == "active":
-        await message.answer("🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
+        await send.reply_personal(bot, message, "🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
 
 
 @router.callback_query(F.data.startswith("cv:"))
@@ -131,7 +131,7 @@ def whose_refusal(game: Game, chat_id: int, status: str) -> str:
 async def whose_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     status = await start_whose(bot, game, live, message.chat.id)
     if status != "started":
-        await message.reply(whose_refusal(game, message.chat.id, status))
+        await send.reply_personal(bot, message, whose_refusal(game, message.chat.id, status))
 
 
 @router.callback_query(F.data.startswith("wh:"))
@@ -220,7 +220,7 @@ async def wheel_command(message: Message, bot: Bot, game: Game, live: Live) -> N
         return
     refusal = await spin(bot, game, live, message.chat.id, message.from_user.id)
     if refusal:
-        await message.reply(refusal)
+        await send.reply_personal(bot, message, refusal)
 
 
 # ── horoscope ──────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ async def horoscope_command(message: Message, bot: Bot, game: Game, live: Live) 
         return
     refusal = await horoscope(bot, game, live, message.chat.id, message.from_user.id)
     if refusal:
-        await message.reply(refusal)
+        await send.reply_personal(bot, message, refusal)
 
 
 # ── panel buttons ──────────────────────────────────────────────────────
@@ -279,5 +279,4 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")
         refusal = await horoscope(bot, game, live, chat_id, callback.from_user.id)
     if refusal:
-        label = game.repo.user_label(callback.from_user.id)
-        await send.send_text(bot, chat_id, f"{views.who(label)}, {refusal[0].lower()}{refusal[1:]}")
+        await send.personal(bot, chat_id, callback.from_user.id, refusal)

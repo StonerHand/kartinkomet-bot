@@ -29,14 +29,16 @@ async def challenge(message: Message, command: CommandObject, bot: Bot, game: Ga
     target, rest = target_and_rest(message, game, command.args)
     stake = amount_of(rest)
     if stake is None:
-        await message.reply(
+        await send.reply_personal(
+            bot,
+            message,
             f"Укажи ставку: /challenge 200 — открытый вызов, или ответь так на сообщение человека. "
             f"Минимум {shop.CHALLENGE_MIN} монет"
         )
         return
     status, created = game.create_challenge(message.chat.id, message.from_user.id, target, stake)
     if status != "ok" or created is None:
-        await message.reply(CHALLENGE_REFUSALS.get(status, "Не вышло"))
+        await send.reply_personal(bot, message, CHALLENGE_REFUSALS.get(status, "Не вышло"))
         return
     await post_challenge(bot, game, live, message.chat.id, created)
 
@@ -88,14 +90,16 @@ async def dice_duel(message: Message, command: CommandObject, bot: Bot, game: Ga
     target, rest = target_and_rest(message, game, " ".join(words))
     stake = amount_of(rest)
     if stake is None:
-        await message.reply(
+        await send.reply_personal(
+            bot,
+            message,
             "Укажи ставку: /pvp 200 — кости с кем угодно, /pvp 200 дартс — ответом на сообщение человека. "
             f"Игры: кости, дартс, боулинг. Минимум {shop.CHALLENGE_MIN} монет"
         )
         return
     status, created = game.create_challenge(message.chat.id, message.from_user.id, target, stake, choice)
     if status != "ok" or created is None:
-        await message.reply(CHALLENGE_REFUSALS.get(status, "Не вышло"))
+        await send.reply_personal(bot, message, CHALLENGE_REFUSALS.get(status, "Не вышло"))
         return
     await post_challenge(bot, game, live, message.chat.id, created)
 

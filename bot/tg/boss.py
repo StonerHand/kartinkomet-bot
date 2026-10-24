@@ -53,7 +53,7 @@ def refusal(game: Game, chat_id: int, status: str) -> str:
 async def boss_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     status = await summon(bot, game, live, message.chat.id)
     if status != "started":
-        await message.reply(refusal(game, message.chat.id, status))
+        await send.reply_personal(bot, message, refusal(game, message.chat.id, status))
 
 
 @router.callback_query(F.data == "boss", F.message)

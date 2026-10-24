@@ -211,10 +211,10 @@ async def title_reply(message: Message, bot: Bot, game: Game) -> bool:
         return False
     status = game.buy_title(message.from_user.id, message.text or "")
     if status == "broke":
-        await message.reply(texts.REFUSED["broke"])
+        await send.reply_personal(bot, message, texts.REFUSED["broke"])
         return True
     if status == "empty":
-        await message.reply("Титул пустой. Напиши хоть что-нибудь")
+        await send.reply_personal(bot, message, "Титул пустой. Напиши хоть что-нибудь")
         return True
     game.repo.set_meta(key, 0)
     title = game.repo.title_of(message.from_user.id) or ""

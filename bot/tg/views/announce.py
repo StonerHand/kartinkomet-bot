@@ -31,7 +31,14 @@ def note_line(label: str, note) -> str:
     return f"🎁 Находка — {name}\n<i>{NOTE_CHESTS.get(note.code, 'сундук')}</i>"
 
 
-RARITY_WORDS = {"common": "", "rare": " · редкая", "legendary": " · легендарная"}
+RARITY_WORDS = {"common": "", "rare": "Редкая. ", "legendary": "Легендарная. "}
+SHOWN_PEOPLE = 2  # more names than this become "и ещё N": a long list would wrap mid-item
+
+
+def people_line(labels: list[str]) -> str:
+    shown = ", ".join(who(label) for label in labels[:SHOWN_PEOPLE])
+    rest = len(labels) - SHOWN_PEOPLE
+    return f"{shown} и ещё {rest}" if rest > 0 else shown
 
 
 def announcement(items: list[tuple[str, Granted]]) -> str:
@@ -53,10 +60,11 @@ def announcement(items: list[tuple[str, Granted]]) -> str:
             by_code.setdefault(code, []).append(label)
     for code in sorted(by_code, key=lambda code: (rules.RARITY_ORDER[rules.rarity(code)], code)):
         name, description = ACHIEVEMENTS.get(code, (code, ""))
-        people = ", ".join(who(label) for label in by_code[code])
         rarity = RARITY_WORDS[rules.rarity(code)]
         emoji, _, title = name.partition(" ")
-        blocks.append(f"{emoji} <b>{escape(title)}</b>\n{people}{rarity}\n<i>{escape(description)}</i>")
+        blocks.append(
+            f"{emoji} <b>{escape(title)}</b>\n{people_line(by_code[code])}\n<i>{rarity}{escape(description)}</i>"
+        )
     head = f"🏅 <b>{escape(bare(pick(UNLOCKED)))}</b>" if by_code else "🎉 <b>Есть повышение</b>"
     return card(head, None, *blocks, *notes)
 

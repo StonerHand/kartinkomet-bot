@@ -23,8 +23,9 @@ async def claim(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) ->
     if daily.status != "ok":
         return f"{pick(texts.DAILY_AGAIN)}. Серия: {daily.streak}"
     label = game.repo.user_label(user_id)
-    markup = keyboards.open_chests([progress.RARE]) if daily.chest else None
-    await send.send_text(bot, chat_id, views.daily_result(label, daily, chat_id), markup)
+    markup = keyboards.open_chests([progress.RARE], chat_id) if daily.chest else None
+    # Everyone claims it every day: in a group only its owner sees the card.
+    await send.personal(bot, chat_id, user_id, views.daily_result(label, daily, chat_id), markup)
     await live.announce(chat_id, daily.granted or [])
     return None
 
@@ -35,7 +36,7 @@ async def daily_command(message: Message, bot: Bot, game: Game, live: Live) -> N
         return
     refusal = await claim(bot, game, live, message.chat.id, message.from_user.id)
     if refusal:
-        await message.reply(refusal)
+        await send.reply_personal(bot, message, refusal)
 
 
 def chat_of(callback: CallbackQuery, parts: list[str]) -> int | None:
@@ -64,6 +65,14 @@ async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int,
     if opened is None:
         return False
     label = game.repo.user_label(user_id)
+    if tier != "legend" and chat_id < 0:
+        # Wooden and rare chests are opened for their owner only; a legendary one, with all the
+        # suspense, in front of the chat.
+        left = [tier] if game.chests_of(user_id).get(tier) else []
+        text = views.chest_opened(label, opened, chat_id)
+        await send.personal(bot, chat_id, user_id, text, keyboards.open_chests(left, chat_id))
+        await live.announce(chat_id, opened.granted)
+        return True
     message = await send.send_text(bot, chat_id, views.chest_opening(label, tier, chat_id))
     await asyncio.sleep(CHEST_PAUSE)
     text = views.chest_opened(label, opened, chat_id)

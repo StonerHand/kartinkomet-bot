@@ -131,14 +131,14 @@ async def build_collage(bot: Bot, pics) -> bytes | None:
 async def duel_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     status = await start_battle(bot, game, live, message.chat.id, "duel")
     if status == "active":
-        await message.answer("⚔️ Дуэль уже идёт — табло выше обновил")
+        await send.reply_personal(bot, message, "⚔️ Дуэль уже идёт — табло выше обновил")
 
 
 @router.message(Command("tournament"))
 async def tournament_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     status = await start_battle(bot, game, live, message.chat.id, "tournament")
     if status == "active":
-        await message.answer("🏟 Турнир уже идёт — табло выше обновил")
+        await send.reply_personal(bot, message, "🏟 Турнир уже идёт — табло выше обновил")
 
 
 BUTTON_ANSWERS = {

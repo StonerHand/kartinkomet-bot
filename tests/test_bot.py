@@ -489,6 +489,8 @@ class BotTest(BotHarness):
         self.at_hour(19)
         await self.events().tick()
         self.assertIsNotNone(self.game.repo.active_court_for_pic(pic.id))
+        self.assertFalse(self.session.of("SendMessage"))  # the robot speaks inside the court card
+        self.assertIn("НАРОДНЫЙ СУД", self.session.of("SendPhoto")[-1].caption)
 
     async def test_weekly_digest_on_sunday(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())

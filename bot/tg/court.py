@@ -24,8 +24,9 @@ async def open_court(
     reason: str,
     started_by: int | None,
     pic_message_id: int | None = None,
+    title: str | None = None,
 ) -> str:
-    """Returns 'started' | 'active' | 'immune' | 'gone' | 'failed'."""
+    """Returns 'started' | 'active' | 'immune' | 'gone' | 'failed'. title: the card's flavour line."""
 
     def attempt():
         return game.start_court(
@@ -33,7 +34,7 @@ async def open_court(
             pic_id,
             reason,
             started_by,
-            title=pick(court_texts.SUMMONS, chat_id),
+            title=title or pick(court_texts.SUMMONS, chat_id),
             pic_message_id=pic_message_id,
         )
 
@@ -156,4 +157,4 @@ async def reply_to_bot(message: Message, bot: Bot, game: Game, live: Live) -> No
             await caption_reply(message, bot, game, live)
         return
     await live.refresh_court(trial.id)
-    await message.reply("🗣 Записано в протокол. Присяжные, учтите")
+    await send.react(bot, message.chat.id, message.message_id, "✍")  # the card shows the word; no reply needed

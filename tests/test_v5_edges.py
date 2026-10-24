@@ -12,7 +12,7 @@ from aiogram.types import Chat, Message
 from bot.core import boss as boss_rules
 from bot.tg import challenges as challenges_tg
 from bot.tg import higher as higher_tg
-from tests.test_bot import GROUP, BotHarness, user
+from tests.test_bot import BOT_USER, GROUP, BotHarness, user
 
 PRIVATE = Chat(id=5, type="private")
 
@@ -70,10 +70,10 @@ class DiceDuelEdgesTest(Harness):
         cases = (("/pvp 10", "Минимальная"), ("/pvp 5000", "Столько у тебя нет"))
         for command, expected in cases:
             await self.send(command, sender=3)
-            self.assertIn(expected, self.session.of("SendMessage")[-1].text)
+            self.assertIn(expected, self.session.of("SendEphemeralMessage")[-1].text)
         await self.send("/pvp 60", sender=3)
         await self.send("/pvp 60", sender=3)
-        self.assertIn("уже висит", self.session.of("SendMessage")[-1].text)
+        self.assertIn("уже висит", self.session.of("SendEphemeralMessage")[-1].text)
 
     async def test_decline_and_cancel_return_the_stake(self) -> None:
         self.fund(3, 500)
@@ -149,7 +149,7 @@ class ButtonRefusalsTest(Harness):
         self.clock.advance(31)
         await self.live.advance_game(round_["id"])
         await self.send("/whose", sender=4)
-        self.assertIn("через", self.session.of("SendMessage")[-1].text)
+        self.assertIn("через", self.session.of("SendEphemeralMessage")[-1].text)
         await self.press("gm:caption", sender=4)
         await self.press("gm:caption", sender=4)
         self.assertIn("уже идёт", self.session.of("AnswerCallbackQuery")[-1].text)
@@ -165,3 +165,43 @@ class ButtonRefusalsTest(Harness):
         self.assertTrue(answer.show_alert)
         self.assertIn("Босс уже тут", answer.text)
         self.assertEqual(len(self.session.of("SendMessage")) + len(self.session.of("SendPhoto")), sent + 1)  # the boss card
+
+
+class PersonalMessagesTest(Harness):
+    """What concerns one person reaches only them in a group; the chat sees the events."""
+
+    def public(self) -> list[str]:
+        return [request.text for request in self.session.of("SendMessage")]
+
+    async def test_daily_bonus_and_ordinary_chests_are_personal(self) -> None:
+        self.game.quests_enabled = True
+        await self.send("/daily", sender=4)
+        card = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("БОНУС ДНЯ", card.text)
+        self.assertEqual(card.ephemeral_message_parameters.receiver_user_id, 4)
+        self.assertFalse(any("БОНУС ДНЯ" in text for text in self.public()))
+        await self.send("/daily", sender=4)
+        self.assertIn("Серия", self.session.of("SendEphemeralMessage")[-1].text)
+        self.game.grant_chest(4, "wood", announce=False)
+        await self.press("ch:wood:-100", sender=4)
+        self.assertIn("ДЕРЕВЯННЫЙ СУНДУК", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertFalse(any("СУНДУК" in text for text in self.public()))
+
+    async def test_legendary_chest_is_opened_in_front_of_everyone(self) -> None:
+        self.game.grant_chest(4, "legend", announce=False)
+        await self.press("ch:legend", sender=4)
+        self.assertTrue(any("ЛЕГЕНДАРНЫЙ СУНДУК" in text for text in self.public()))
+
+    async def test_falls_back_to_the_chat_if_telegram_refuses(self) -> None:
+        self.session.refuse = {"SendEphemeralMessage"}
+        await self.send("/rob", sender=3)
+        self.assertIn("Ответь этой командой", self.public()[-1])
+
+    async def test_last_word_gets_a_reaction_not_a_reply(self) -> None:
+        pic = self.game.draw_pic(-100)[0]
+        trial = self.game.start_court(-100, pic.id, "bottom", None).court
+        self.game.repo.set_court_message(trial.id, 777)
+        bot_message = Message(message_id=777, date=datetime.now(UTC), chat=GROUP, from_user=BOT_USER, text="суд")
+        await self.send("пощадите", sender=1, reply_to=bot_message)
+        self.assertEqual(self.session.of("SetMessageReaction")[-1].reaction[0].emoji, "✍")
+        self.assertFalse(any("протокол" in text for text in self.public()))

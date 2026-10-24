@@ -89,13 +89,13 @@ async def play_command(message: Message, command: CommandObject, bot: Bot, game:
     balance = game.repo.player(user_id)[0]
     stake = casino.parse_stake(command.args or "", balance, game.stake_for_play(user_id))
     if stake is None:
-        await message.reply(f"Ставка — число: /{casino.GAMES[code].command} 100, или «все»")
+        await send.reply_personal(bot, message, f"Ставка — число: /{casino.GAMES[code].command} 100, или «все»")
         return
     if command.args:  # an explicit stake becomes the default for the buttons too
         game.set_stake(user_id, None if stake == balance and not command.args.strip().isdigit() else stake)
     refusal = await play(bot, game, live, message.chat.id, user_id, code, stake)
     if refusal:
-        await message.reply(refusal)
+        await send.reply_personal(bot, message, refusal)
 
 
 @router.message(Command("casino"))

@@ -66,7 +66,7 @@ def bottom(pics: list[Pic], labels: list[str]) -> str:
     return "\n".join(lines)
 
 
-REMOVAL_REASONS = {"duel": "пала на арене", "court": "казнена судом", "admin": "удалена админом"}
+REMOVAL_REASONS = {"duel": "арена", "court": "суд", "admin": "админ"}
 
 
 def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
@@ -75,9 +75,9 @@ def graveyard(total: int, pics: list[Pic], labels: list[str], now: int) -> str:
     if not pics:
         lines.append("Пока никто не умер. Скукота")
     for index, (pic, label) in enumerate(zip(pics, labels), start=1):
-        reason = REMOVAL_REASONS.get(pic.removed_reason or "", "умерла")
-        when = f" · {ago(now - pic.removed_at)}" if pic.removed_at else ""
-        lines.append(f"{index}. {who(label)}  <i>{reason}{when}</i>")
+        reason = REMOVAL_REASONS.get(pic.removed_reason or "", "склад")
+        when = f", {ago(now - pic.removed_at)}" if pic.removed_at else ""
+        lines.append(f"{index}. {who(label)} · <i>{reason}{when}</i>")
     return "\n".join(lines)
 
 
@@ -170,7 +170,8 @@ GAMES_SCREEN = (
 
 
 def admin_stats(usage: dict[str, int]) -> str:
-    """The admin's weekly picture: who plays and which mechanics live."""
+    """The admin's weekly picture: who plays and which mechanics live. Sections with a title and
+    two numbers a line, so even five-digit counts fit a phone."""
 
     def n(key: str) -> str:
         return f"<b>{num(usage.get(key, 0))}</b>"
@@ -178,25 +179,13 @@ def admin_stats(usage: dict[str, int]) -> str:
     return card(
         "📊 <b>СТАТИСТИКА · 7 ДНЕЙ</b>",
         "Чем живёт чат",
-        [
-            f"👥 Игроки: сегодня {n('players_today')} · за неделю {n('players_week')}",
-            f"📥 Загрузок {n('uploads')} · лайков {n('likes')}",
-            f"🎁 Бонус дня забирали {n('daily')} раз",
-        ],
-        [
-            f"⚔️ Дуэли {n('duels')} · турниры {n('tournaments')}",
-            f"⚖️ Суды {n('courts')}",
-            f"👹 Боссы {n('bosses')} · рейды {n('raids')} · побед {n('bosses_won')}",
-            f"🤺 Вызовы на дуэль {n('challenges')} · на костях {n('dice_duels')}",
-        ],
-        [
-            f"🎰 Ставки в казино {n('casino')}",
-            f"🎡 Колесо {n('spin')} · гороскоп {n('horoscope')}",
-            f"🖋 Подписи {n('captions')} · чья пикча {n('whose')}",
-            f"🎯 Выше-ниже: ответов {n('higher')}",
-        ],
-        [
-            f"🛒 Покупки {n('purchases')} · подарки {n('gifts')}",
-            f"🕵️ Ограбления {n('robberies')}",
-        ],
+        ["👥 <b>Люди</b>", f"сегодня {n('players_today')} · неделя {n('players_week')}",
+         f"загрузок {n('uploads')} · лайков {n('likes')}"],
+        ["⚔️ <b>Арена и суды</b>", f"дуэли {n('duels')} · турниры {n('tournaments')}",
+         f"суды {n('courts')} · вызовы {n('challenges')}", f"кости 1 на 1 {n('dice_duels')}"],
+        ["👹 <b>Боссы</b>", f"обычные {n('bosses')} · рейды {n('raids')}", f"побед {n('bosses_won')}"],
+        ["🎮 <b>Игры</b>", f"казино {n('casino')} · колесо {n('spin')}", f"гороскоп {n('horoscope')} · подписи {n('captions')}",
+         f"чья пикча {n('whose')} · выше-ниже {n('higher')}"],
+        ["🛒 <b>Экономика</b>", f"бонус дня {n('daily')} · покупки {n('purchases')}",
+         f"подарки {n('gifts')} · грабежи {n('robberies')}"],
     )

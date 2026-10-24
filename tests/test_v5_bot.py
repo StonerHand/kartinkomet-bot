@@ -33,7 +33,7 @@ class V5BotTest(V4BotTest):
         author = self.game.repo.get_pic(round_["pic_id"]).added_by
         await self.press(guesses[round_["options"].index(author)], sender=4)
         await self.send("/whose", sender=5)
-        self.assertIn("уже идёт", self.session.of("SendMessage")[-1].text)
+        self.assertIn("уже идёт", self.session.of("SendEphemeralMessage")[-1].text)
         self.clock.advance(game_rules.WHOSE_SECONDS)
         await self.live.advance_game(round_["id"])
         result = self.session.of("EditMessageCaption")[-1]
@@ -96,7 +96,7 @@ class V5BotTest(V4BotTest):
 
     async def test_pvp_without_a_stake_explains(self) -> None:
         await self.send("/pvp", sender=3)
-        self.assertIn("/pvp 200", self.session.of("SendMessage")[-1].text)
+        self.assertIn("/pvp 200", self.session.of("SendEphemeralMessage")[-1].text)
 
     async def test_pic_duel_challenge_offers_a_rematch(self) -> None:
         self.fund(3, 500)

@@ -100,10 +100,10 @@ def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) 
         total, share, people = tax
         report = [
             f"🧾 Собрано с богачей: {money(total)}",
-            f"🤲 По {money(share)} получили {people} {plural(people, 'бедняк', 'бедняка', 'бедняков')}",
+            f"🤲 {people} {plural(people, 'бедняк', 'бедняка', 'бедняков')} — по {money(share)}",
         ]
     return card(
-        f"📰 <b>СОБЫТИЕ ДНЯ: {escape(bare(name)).upper()}</b>",
+        f"📰 <b>СОБЫТИЕ ДНЯ</b> · {escape(bare(name))}",
         pick(day_texts.FLAVOUR[code], chat_id),
         ["⚡ <b>Что меняется</b>", f"{escape(rule)}. <i>До полуночи</i>"],
         report,

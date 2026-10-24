@@ -4,9 +4,9 @@ from html.parser import HTMLParser
 
 from bot.core.achievements import ALL_CODES
 from bot.texts import arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui
-from bot.texts.achievements import ACHIEVEMENTS
+from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick, reset
-from bot.tg.views.layout import PHONE_LINE
+from bot.tg.views.layout import PHONE_LINE, fits
 
 EXPECTED_SIZES = {
     (captions, "CAPTIONS"): 600,
@@ -53,6 +53,10 @@ class TextsTest(unittest.TestCase):
         for (module, name), size in EXPECTED_SIZES.items():
             with self.subTest(pool=name):
                 self.assertEqual(len(getattr(module, name)), size)
+
+    def test_header_phrases_fit_a_phone_line(self) -> None:
+        for phrase in UNLOCKED:  # a bold header of its own: wrapped, it reads as two headers
+            self.assertTrue(fits(f"<b>{phrase}</b>"), phrase)
 
     def test_phrases_are_unique_everywhere(self) -> None:
         seen: dict[str, str] = {}
@@ -122,10 +126,10 @@ def layout_problems(text: str) -> list[str]:
 
     - one emoji per line, and at its start;
     - a line too long for one phone line wraps, so it must not merge with its neighbours: it
-      stands in a paragraph of its own, or it is the description under its item's title
-      ("🎁 <b>Title</b>" first, no other item in the paragraph), or the italic caption that ends
-      a paragraph of short lines.
-    The header and its flavour line are one unit and are not checked for length."""
+      stands in a paragraph of its own, or it is the last line of a paragraph: the description
+      under its item's title ("🎁 <b>Title</b>" first, no other item in the paragraph) or the
+      italic caption under short lines.
+    The header and its flavour line are one unit: only its last line may wrap."""
     raw_lines = text.split("\n")
     lines = [re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
              for line in raw_lines]
@@ -138,10 +142,16 @@ def layout_problems(text: str) -> list[str]:
             problems.append(f"emoji inside a line: {line}")
     paragraphs: list[list[int]] = [[]]
     for index, line in enumerate(lines):
-        if line.strip():
+        if raw_lines[index].startswith("<blockquote"):  # Telegram draws a quote as a box of its own
+            if paragraphs[-1]:
+                paragraphs.append([])
+        elif line.strip():
             paragraphs[-1].append(index)
         elif paragraphs[-1]:
             paragraphs.append([])
+    for index in paragraphs[0][:-1]:
+        if not fits(raw_lines[index]):  # bold capitals are wide: a header wraps sooner than text
+            problems.append(f"header wraps: {lines[index]}")
     for number, paragraph in enumerate(paragraphs):
         if number == 0 or len(paragraph) < 2:
             continue  # the header block, or a line standing alone
@@ -152,7 +162,8 @@ def layout_problems(text: str) -> list[str]:
         last = paragraph[-1]
         caption = CAPTION.match(raw_lines[last]) and all(len(lines[index]) <= PHONE_LINE for index in paragraph[:-1])
         for index in paragraph:
-            if len(lines[index]) > PHONE_LINE and not (titled and index != first) and not (caption and index == last):
+            # Under a title only the last line may wrap: wrapped lines in the middle run together.
+            if len(lines[index]) > PHONE_LINE and not ((titled or caption) and index == last):
                 problems.append(f"long line glued to a neighbour: {lines[index]}")
     return problems
 
