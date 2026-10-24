@@ -279,4 +279,4 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")
         refusal = await horoscope(bot, game, live, chat_id, callback.from_user.id)
     if refusal:
-        await send.personal(bot, chat_id, callback.from_user.id, refusal)
+        await send.personal(bot, chat_id, callback.from_user.id, refusal, callback_query_id=callback.id)

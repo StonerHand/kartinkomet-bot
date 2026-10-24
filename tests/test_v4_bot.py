@@ -168,9 +168,14 @@ class V4BotTest(BotHarness):
         self.assertEqual(self.game.repo.spouse_of(3)[0], 4)
         self.assertIn("СВАДЬБА", self.session.of("EditMessageText")[-1].text)
         await self.send("/divorce", sender=4)
+        sure = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("РАЗВОДИМСЯ?", sure.text)
+        self.assertIsNotNone(self.game.repo.spouse_of(3))  # nothing happens before the answer
+        await self.press(self.buttons(sure)[0], sender=4)
         self.assertIsNone(self.game.repo.spouse_of(3))
 
     async def test_rob_without_target_explains(self) -> None:
+        self.game.repo.add_coins(3, 500, "test", self.game.now(), earn=False)
         await self.send("/rob", sender=3)
         hint = self.session.of("SendEphemeralMessage")[-1]  # only the author sees it
         self.assertEqual(hint.ephemeral_message_parameters.receiver_user_id, 3)

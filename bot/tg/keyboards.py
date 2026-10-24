@@ -21,7 +21,8 @@ Scheme:
   daily | ch:<tier>     daily bonus / open a chest
   bh:<boss> | bs:<boss> boss hit / super hit;  boss  summon
   mr:<y|n>:<proposal>   marriage answer;  cl:<y|n>:<challenge>  challenge answer
-  ak:<chat>:<user>:<n|x>  answer to "whom? / how much?" for /rob /give /marry /pvp /challenge
+  ak:<chat>:<user>:<n|x>  answer to "whom? / how much? / sure?" for /rob /give /marry /pvp /challenge /divorce
+  pp:<action>           start one of those from the «👥 Люди» panel screen
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -92,12 +93,12 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
     return markup(
         [button("🎲 Пикчу", "pic", PRIMARY), button("⚔️ Дуэль", "d:new", PRIMARY)],
         [button("🏟 Турнир", "t:new", PRIMARY), button("🎮 Игры", "m:games", PRIMARY)],
-        [button("🎰 Казино", "m:casino", SUCCESS), button("🛒 Лавка", "m:shop", SUCCESS)],
-        [button("🎁 Бонус", "daily", SUCCESS), button("📜 Квесты", "m:quests")],
-        [button("🏆 Рейтинги", "m:top:uploads"), button("👤 Я", "m:me")],
-        [button("📥 Загрузить", "m:up"), button("❓ Правила", "m:help")],
-        [button("🔄 Обновить", "m:home:refresh")]
-        + ([button("⚙️ Админка", "m:adm")] if is_admin else []),
+        [button("👥 Люди", "m:people", PRIMARY), button("🎰 Казино", "m:casino", SUCCESS)],
+        [button("🛒 Лавка", "m:shop", SUCCESS), button("🎁 Бонус", "daily", SUCCESS)],
+        [button("📜 Квесты", "m:quests"), button("🏆 Рейтинги", "m:top:uploads")],
+        [button("👤 Я", "m:me"), button("📥 Загрузить", "m:up")],
+        [button("❓ Правила", "m:help"), button("🔄 Обновить", "m:home:refresh")],
+        [button("⚙️ Админка", "m:adm")] if is_admin else [],
     )
 
 
@@ -106,6 +107,16 @@ def games_menu() -> InlineKeyboardMarkup:
         [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
         [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
         [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
+        back(),
+    )
+
+
+def people_menu() -> InlineKeyboardMarkup:
+    """Each button starts the action; whom and how much the bot then asks personally."""
+    return markup(
+        [button("😈 Ограбить", "pp:rob", DANGER), button("🎁 Подарить", "pp:give", SUCCESS)],
+        [button("🤺 Вызов", "pp:challenge", PRIMARY), button("🎲 1 на 1", "pp:pvp", PRIMARY)],
+        [button("💍 Свадьба", "pp:marry"), button("💔 Развод", "pp:divorce")],
         back(),
     )
 

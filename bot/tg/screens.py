@@ -154,6 +154,10 @@ def games(ctx: Ctx) -> Screen:
     return views.GAMES_SCREEN, keyboards.games_menu()
 
 
+def people(ctx: Ctx) -> Screen:
+    return views.PEOPLE_SCREEN, keyboards.people_menu()
+
+
 def casino_screen(ctx: Ctx) -> Screen:
     game = ctx.game
     mode, value = game.stake_mode(ctx.user_id)
@@ -230,6 +234,7 @@ SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "seasons": seasons_screen,
     "me": me,
     "games": games,
+    "people": people,
     "casino": casino_screen,
     "shop": shop,
     "quests": quests,

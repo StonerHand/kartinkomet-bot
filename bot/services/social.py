@@ -41,6 +41,29 @@ class SocialMixin:
 
     # ── robbery ────────────────────────────────────────────────────────
 
+    def rob_block(self, robber: int) -> RobResult | None:
+        """Why the robber can't go on a job right now, whoever the victim: jail, cooldown, no coins."""
+        now = self.now()
+        jail = self.repo.counter(robber, "jail_until")
+        if jail > now:
+            return RobResult("jailed", wait=jail - now)
+        ready = self.repo.counter(robber, "rob_ready_at")
+        if ready > now:
+            return RobResult("cooldown", wait=ready - now)
+        if self.repo.player(robber)[0] < shop.ROB_MIN_BALANCE:
+            return RobResult("poor_robber")
+        return None
+
+    def robbable(self, robber: int, victim: int) -> bool:
+        """A victim worth offering: not the robber's spouse, not just robbed, has the coins."""
+        spouse = self.repo.spouse_of(robber)
+        return (
+            victim != robber
+            and not (spouse and spouse[0] == victim)
+            and self.repo.counter(victim, "robbed_until") <= self.now()
+            and self.repo.player(victim)[0] >= shop.ROB_MIN_BALANCE
+        )
+
     def rob(self, robber: int, victim: int) -> RobResult:
         now = self.now()
         if robber == victim:
@@ -48,19 +71,15 @@ class SocialMixin:
         spouse = self.repo.spouse_of(robber)
         if spouse and spouse[0] == victim:
             return RobResult("spouse")
-        jail = self.repo.counter(robber, "jail_until")
-        if jail > now:
-            return RobResult("jailed", wait=jail - now)
-        ready = self.repo.counter(robber, "rob_ready_at")
-        if ready > now:
-            return RobResult("cooldown", wait=ready - now)
+        if (blocked := self.rob_block(robber)) is not None and blocked.status != "poor_robber":
+            return blocked
         protected = self.repo.counter(victim, "robbed_until")
         if protected > now:
             return RobResult("protected", wait=protected - now)
+        if blocked is not None:
+            return blocked
         robber_coins = self.repo.player(robber)[0]
         victim_coins = self.repo.player(victim)[0]
-        if robber_coins < shop.ROB_MIN_BALANCE:
-            return RobResult("poor_robber")
         if victim_coins < shop.ROB_MIN_BALANCE:
             return RobResult("poor_victim")
 

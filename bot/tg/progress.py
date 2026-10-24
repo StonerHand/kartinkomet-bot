@@ -15,17 +15,22 @@ from bot.tg.timers import Live
 
 router = Router(name="progress")
 CHEST_PAUSE = 1.2  # seconds of suspense before the loot; tests set 0
+OWN_CARD_SECONDS = 300  # someone's own card the chat had to see goes away after this
 
 
-async def claim(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
-    """Returns a refusal (already claimed) or None when the bonus was paid."""
+async def claim(
+    bot: Bot, game: Game, live: Live, chat_id: int, user_id: int, callback_query_id: str | None = None
+) -> str | None:
+    """Returns a refusal (already claimed) or None when the bonus was paid. callback_query_id: the
+    button press that lets even a non-admin bot answer personally."""
     daily = game.claim_daily(user_id)
     if daily.status != "ok":
         return f"{pick(texts.DAILY_AGAIN)}. Серия: {daily.streak}"
     label = game.repo.user_label(user_id)
     markup = keyboards.open_chests([progress.RARE], chat_id) if daily.chest else None
     # Everyone claims it every day: in a group only its owner sees the card.
-    await send.personal(bot, chat_id, user_id, views.daily_result(label, daily, chat_id), markup)
+    text = views.daily_result(label, daily, chat_id)
+    await send.personal(bot, chat_id, user_id, text, markup, callback_query_id, fleeting_seconds=OWN_CARD_SECONDS)
     await live.announce(chat_id, daily.granted or [])
     return None
 
@@ -53,14 +58,16 @@ async def daily_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live
     if chat_id is None:
         await callback.answer()
         return
-    refusal = await claim(bot, game, live, chat_id, callback.from_user.id)
+    refusal = await claim(bot, game, live, chat_id, callback.from_user.id, callback.id)
     if refusal:
         await callback.answer(refusal, show_alert=True)
     else:
         await send.answer_quietly(callback, "🎁 Получено")
 
 
-async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int, tier: str) -> bool:
+async def open_one(
+    bot: Bot, game: Game, live: Live, chat_id: int, user_id: int, tier: str, callback_query_id: str | None = None
+) -> bool:
     opened = game.open_chest(user_id, tier)
     if opened is None:
         return False
@@ -70,7 +77,10 @@ async def open_one(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int,
         # suspense, in front of the chat.
         left = [tier] if game.chests_of(user_id).get(tier) else []
         text = views.chest_opened(label, opened, chat_id)
-        await send.personal(bot, chat_id, user_id, text, keyboards.open_chests(left, chat_id))
+        await send.personal(
+            bot, chat_id, user_id, text, keyboards.open_chests(left, chat_id), callback_query_id,
+            fleeting_seconds=OWN_CARD_SECONDS,
+        )
         await live.announce(chat_id, opened.granted)
         return True
     message = await send.send_text(bot, chat_id, views.chest_opening(label, tier, chat_id))
@@ -99,5 +109,7 @@ async def open_chest(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
         name = texts.CHESTS.get(tier, ("", "сундука"))[1].lower()
         await callback.answer(f"У тебя нет: {name}. Сундуки дают за квесты, бонусы и боссов", show_alert=True)
         return
-    await send.answer_quietly(callback, "🗝 Открываю…")
-    await open_one(bot, game, live, chat_id, callback.from_user.id, tier)
+    if tier == "legend":  # the suspense is public: stop the button's spinner first
+        await send.answer_quietly(callback, "🗝 Открываю…")
+    await open_one(bot, game, live, chat_id, callback.from_user.id, tier, callback.id)
+    await send.answer_quietly(callback)

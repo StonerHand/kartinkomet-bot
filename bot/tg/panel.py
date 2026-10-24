@@ -10,6 +10,7 @@ from bot.tg import screens, send
 from bot.tg.screens import PERSONAL, Ctx
 
 router = Router(name="panel")
+HELP_SECONDS = 600  # the rules are long: if the chat had to see them, give time to read
 
 
 @router.my_chat_member()
@@ -78,7 +79,7 @@ async def personal(message: Message, bot: Bot, game: Game, admins: frozenset[int
 
 @router.message(Command("help"))
 async def help_command(message: Message, bot: Bot) -> None:
-    await send.reply_personal(bot, message, ui.HELP)
+    await send.reply_personal(bot, message, ui.HELP, seconds=HELP_SECONDS)
 
 
 @router.message(Command("id"))

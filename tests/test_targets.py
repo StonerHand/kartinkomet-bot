@@ -23,7 +23,8 @@ class Players(Harness):
             self.clock.advance(1)
         self.game.repo.remember_user(7, None, "Данил", "Медведев", self.game.now())
         self.game.repo.touch_member(-100, 7, self.game.now())
-        self.fund(3, 1000)
+        for player in (3, 4, 5, 7):
+            self.fund(player, 1000 if player == 3 else 500)
 
     def question(self) -> dict:
         return json.loads(self.game.repo.meta_str("ask:-100:3"))
@@ -58,7 +59,20 @@ class TargetsTest(Players):
         self.assertIsNotNone(amounts.ephemeral_message_parameters.callback_query_id)  # allowed without admin rights
         await self.press(self.buttons(amounts)[1], sender=3)  # 500
         self.assertIn("ПОДАРОК", self.session.of("SendMessage")[-1].text)
-        self.assertEqual((self.coins(3), self.coins(4)), (500, 500))
+        self.assertEqual((self.coins(3), self.coins(4)), (500, 1000))
+
+    async def test_rob_offers_only_people_worth_robbing(self) -> None:
+        self.game.repo.add_coins(5, -450, "test", self.game.now(), earn=False)  # 50 left: too poor
+        await self.send("/rob", sender=3)
+        labels = [button.text for row in self.session.of("SendEphemeralMessage")[-1].reply_markup.inline_keyboard
+                  for button in row]
+        self.assertEqual(labels, ["Данил Медведев", "user4", "✖️ Отмена"])
+
+    async def test_a_jailed_robber_hears_it_before_picking(self) -> None:
+        self.game.repo.set_counter(3, "jail_until", self.game.now() + 600)
+        await self.send("/rob", sender=3)
+        self.assertIn("обезьяннике", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertIsNone(targets.pending(self.game, -100, 3))
 
     async def test_cancel_leaves_no_trace(self) -> None:
         await self.send("/marry", sender=3)
@@ -157,3 +171,47 @@ class NotAdminTest(Players):
         await self.dispatcher.feed_update(self.bot, Update(update_id=next(self.update_ids), my_chat_member=change))
         await self.send("/divorce", sender=3)
         self.assertIn("не в браке", self.session.of("SendEphemeralMessage")[-1].text)
+
+
+class PanelPeopleTest(Players):
+    """«👥 Люди» in the panel: each button starts an action, the questions come personally."""
+
+    async def asyncSetUp(self) -> None:
+        await super().asyncSetUp()
+        self.session.bot_admin = False  # even so: a button press allows a personal answer
+
+    async def test_buttons_ask_personally_even_without_admin_rights(self) -> None:
+        await self.press("m:people", sender=3)
+        self.assertIn("ЛЮДИ", self.session.of("EditMessageText")[-1].text)
+        await self.press("pp:rob", sender=3)
+        question = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("КОГО ГРАБИМ?", question.text)
+        self.assertIsNotNone(question.ephemeral_message_parameters.callback_query_id)
+        self.assertFalse(self.session.of("SendMessage"))  # nothing in the chat
+
+    async def test_a_duel_asks_with_whom_and_anyone_opens_it(self) -> None:
+        await self.press("pp:pvp", sender=3)
+        question = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("С КЕМ ИГРАЕМ?", question.text)
+        labels = [button.text for row in question.reply_markup.inline_keyboard for button in row]
+        self.assertIn("🌍 Любой", labels)
+        await self.press(self.buttons(question)[labels.index("🌍 Любой")], sender=3)
+        stakes = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("КАКАЯ СТАВКА?", stakes.text)
+        await self.press(self.buttons(stakes)[0], sender=3)  # 100
+        card = self.session.of("SendMessage")[-1]
+        self.assertIn("КОСТИ 1 НА 1", card.text)
+        self.assertIsNone(self.game.repo.pending_challenge_of(3)["to_user"])  # open to anyone
+        self.assertEqual(self.coins(3), 900)
+
+    async def test_divorce_asks_first_and_refuses_the_single(self) -> None:
+        await self.press("pp:divorce", sender=3)
+        answer = self.session.of("AnswerCallbackQuery")[-1]
+        self.assertTrue(answer.show_alert)
+        self.assertIn("не в браке", answer.text)
+
+    async def test_daily_by_button_is_personal(self) -> None:
+        await self.press("daily", sender=3)
+        card = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("БОНУС ДНЯ", card.text)
+        self.assertIsNotNone(card.ephemeral_message_parameters.callback_query_id)

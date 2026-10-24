@@ -28,7 +28,8 @@ async def challenge(message: Message, command: CommandObject, bot: Bot, game: Ga
 
 
 async def run_challenge(bot: Bot, game: Game, live: Live, chat_id: int, author: int, state: dict) -> str | None:
-    status, created = game.create_challenge(chat_id, author, state.get("to"), state["amount"], state.get("kind", ""))
+    opponent = state.get("to") or None  # 0: anyone
+    status, created = game.create_challenge(chat_id, author, opponent, state["amount"], state.get("kind", ""))
     if status != "ok" or created is None:
         return CHALLENGE_REFUSALS.get(status, "Не вышло")
     await post_challenge(bot, game, live, chat_id, created)
@@ -82,6 +83,7 @@ async def dice_duel(message: Message, command: CommandObject, bot: Bot, game: Ga
 
 
 targets.RUNNERS.update(challenge=run_challenge, pvp=run_challenge)
+targets.PREPARE["pvp"] = lambda game, author: ({"kind": "dice"}, None)  # from the panel: dice, the classic
 
 
 async def throw_dice_duel(bot: Bot, game: Game, live: Live, chat_id: int, challenge: dict, card_id: int | None) -> None:

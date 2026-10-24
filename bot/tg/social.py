@@ -67,7 +67,25 @@ async def run_marry(bot: Bot, game: Game, live: Live, chat_id: int, suitor: int,
     return None
 
 
+def check_rob(game: Game, robber: int) -> str | None:
+    blocked = game.rob_block(robber)
+    return texts.ROB_REFUSED[blocked.status].format(wait=views.duration(blocked.wait)) if blocked else None
+
+
+def check_marry(game: Game, suitor: int) -> str | None:
+    if game.repo.spouse_of(suitor):
+        return texts.MARRY_REFUSED["married"]
+    if game.repo.player(suitor)[0] < game.wedding_price():
+        return texts.MARRY_REFUSED["broke"].format(price=game.wedding_price())
+    return None
+
+
 targets.RUNNERS.update(give=run_give, rob=run_rob, marry=run_marry)
+targets.CHECKS.update(rob=check_rob, marry=check_marry)
+targets.FILTERS.update(
+    rob=lambda game, robber, victim: game.robbable(robber, victim),
+    marry=lambda game, suitor, person: game.repo.spouse_of(person) is None,
+)
 
 
 @router.callback_query(F.data.startswith("mr:"))
@@ -103,14 +121,26 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
 
 @router.message(Command("divorce"))
 async def divorce(message: Message, bot: Bot, game: Game, live: Live) -> None:
-    if message.from_user is None:
-        return
-    result = game.divorce(message.from_user.id)
+    if message.from_user is not None:  # asks first: a menu misclick shouldn't split the coins
+        await targets.begin(bot, game, live, message.chat.id, message.from_user.id, "divorce", message=message)
+
+
+def prepare_divorce(game: Game, user_id: int) -> tuple[dict | None, str | None]:
+    spouse = game.repo.spouse_of(user_id)
+    return ({"to": spouse[0]}, None) if spouse else (None, "Ты не в браке. Разводиться не с кем")
+
+
+async def run_divorce(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int, state: dict) -> str | None:
+    result = game.divorce(user_id)
     if result.status != "ok" or result.spouse is None:
-        await send.reply_personal(bot, message, "Ты не в браке. Разводиться не с кем")
-        return
-    labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(result.spouse))
-    sent = await send.send_text(bot, message.chat.id, views.divorce(*labels, result, message.chat.id))
+        return "Ты не в браке. Разводиться не с кем"
+    labels = (game.repo.user_label(user_id), game.repo.user_label(result.spouse))
+    sent = await send.send_text(bot, chat_id, views.divorce(*labels, result, chat_id))
     if sent:
-        await send.react(bot, message.chat.id, sent.message_id, "💔")
-    await live.announce(message.chat.id, result.granted)
+        await send.react(bot, chat_id, sent.message_id, "💔")
+    await live.announce(chat_id, result.granted)
+    return None
+
+
+targets.RUNNERS["divorce"] = run_divorce
+targets.PREPARE["divorce"] = prepare_divorce

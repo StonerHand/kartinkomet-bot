@@ -33,20 +33,41 @@ class Action:
     amount: str | None  # the question when the amount is missing; None: no amount
     hint: str  # how to aim it by hand, for chats where the bot knows nobody yet
     minimum: int = 1
+    anyone: bool = False  # the person may be "anyone" (an open challenge); asked only if nothing was given
+    confirm: str | None = None  # a yes-or-no question before something that can't be undone
+    nobody: str | None = None  # when the chat has players but none fits (all poor, all married)
 
 
 ACTIONS = {
-    "rob": Action("😈", "Кого грабим?", None, "Ответь командой на сообщение человека или напиши ник: /rob vasya"),
-    "marry": Action("💍", "Кому предложение?", None, "Ответь командой на сообщение человека: /marry"),
+    "rob": Action(
+        "😈", "Кого грабим?", None, "Ответь командой на сообщение человека или напиши ник: /rob vasya",
+        nobody="Грабить некого: у всех меньше 100 монет или их только что ограбили",
+    ),
+    "marry": Action(
+        "💍", "Кому предложение?", None, "Ответь командой на сообщение человека: /marry",
+        nobody="Свободных людей не видно. Ответь командой на сообщение человека: /marry",
+    ),
     "give": Action("🎁", "Кому дарим?", "Сколько дарим?", "Ответь на сообщение человека: /give 100"),
-    "pvp": Action("🎲", None, "Какая ставка?", "Например: /pvp 200", shop.CHALLENGE_MIN),
-    "challenge": Action("🤺", None, "Какая ставка?", "Например: /challenge 200", shop.CHALLENGE_MIN),
+    "pvp": Action("🎲", "С кем играем?", "Какая ставка?", "Например: /pvp 200", shop.CHALLENGE_MIN, anyone=True),
+    "challenge": Action(
+        "🤺", "Кого вызываем?", "Какая ставка?", "Например: /challenge 200", shop.CHALLENGE_MIN, anyone=True
+    ),
+    "divorce": Action("💔", None, None, "", confirm="Разводимся?"),
 }
+ANYONE = 0  # the person "anyone" in a question's options
 
-# Runner(bot, game, live, chat_id, author, state) → a refusal, or None once the thing happened.
-# The modules owning the commands register theirs.
+# The modules owning the commands register:
+# RUNNERS: (bot, game, live, chat_id, author, state) → a refusal, or None once the thing happened;
+# PREPARE: (game, author) → the starting state for actions started with nothing typed (panel
+#   buttons, /divorce), or None and a refusal;
+# CHECKS: (game, author) → why the author can't do it at all right now (jail, no ring money), asked
+#   before any question so nobody picks a victim only to hear "you're in jail";
+# FILTERS: (game, author, person) → whether the person is worth offering.
 Runner = Callable[[Bot, Game, Live, int, int, dict], Awaitable[str | None]]
 RUNNERS: dict[str, Runner] = {}
+PREPARE: dict[str, Callable[[Game, int], tuple[dict | None, str | None]]] = {}
+CHECKS: dict[str, Callable[[Game, int], str | None]] = {}
+FILTERS: dict[str, Callable[[Game, int, int], bool]] = {}
 
 
 @dataclass
@@ -101,8 +122,11 @@ async def start(bot: Bot, game: Game, live: Live, message: Message, do: str, fou
     if message.from_user is None:
         return
     action = ACTIONS[do]
-    if found.unknown and action.person is None and found.user is None:
+    if found.unknown and found.user is None and (action.person is None or action.anyone):  # a typo, not «anyone»
         await send.reply_personal(bot, message, f"{action.emoji} {unknown_note(found.unknown)}")
+        return
+    if do in CHECKS and (refusal := CHECKS[do](game, message.from_user.id)):
+        await send.reply_personal(bot, message, refusal)
         return
     state = {"to": found.user, "amount": amount_of(found.words), **extra}
     note = unknown_note(found.unknown) if found.unknown and found.user is None else None
@@ -121,22 +145,53 @@ async def go(
     message: Message | None = None,
     callback: CallbackQuery | None = None,
     note: str | None = None,
-) -> None:
+) -> bool:
+    """Run the action, or ask for what's missing. True if a button press got answered (a refusal
+    pop-up), so the caller doesn't answer it twice."""
     action = ACTIONS[do]
+    if action.anyone and state.get("to") is None:
+        if state.get("amount") is not None or not candidates(game, chat_id, author, do):
+            state["to"] = ANYONE  # «/pvp 200», or nobody to pick: open to anyone, no questions
     if action.person and state.get("to") is None:
-        await ask(bot, game, chat_id, author, do, state, "person", message=message, callback=callback, note=note)
-    elif action.amount and state.get("amount") is None:
-        await ask(bot, game, chat_id, author, do, state, "amount", message=message, callback=callback)
-    elif refusal := await RUNNERS[do](bot, game, live, chat_id, author, state):
-        await tell(bot, refusal, message=message, callback=callback)
+        return await ask(bot, game, chat_id, author, do, state, "person", message=message, callback=callback, note=note)
+    if action.amount and state.get("amount") is None:
+        return await ask(bot, game, chat_id, author, do, state, "amount", message=message, callback=callback)
+    if action.confirm and not state.get("sure"):
+        return await ask(bot, game, chat_id, author, do, state, "sure", message=message, callback=callback)
+    if refusal := await RUNNERS[do](bot, game, live, chat_id, author, state):
+        return await tell(bot, refusal, message=message, callback=callback)
+    return False
 
 
-async def tell(bot: Bot, text: str, *, message: Message | None = None, callback: CallbackQuery | None = None) -> None:
-    """A refusal for the one who asked: a pop-up after a button, a personal reply after a message."""
+async def begin(
+    bot: Bot,
+    game: Game,
+    live: Live,
+    chat_id: int,
+    author: int,
+    do: str,
+    *,
+    message: Message | None = None,
+    callback: CallbackQuery | None = None,
+) -> bool:
+    """An action started with nothing typed: everything it needs is asked. Returns like go()."""
+    state, refusal = PREPARE[do](game, author) if do in PREPARE else ({}, None)
+    if state is not None and do in CHECKS and (refusal := CHECKS[do](game, author)):
+        state = None
+    if state is None:
+        return await tell(bot, refusal or "Не вышло", message=message, callback=callback)
+    return await go(bot, game, live, chat_id, author, do, state, message=message, callback=callback)
+
+
+async def tell(bot: Bot, text: str, *, message: Message | None = None, callback: CallbackQuery | None = None) -> bool:
+    """A refusal for the one who asked: a pop-up after a button (True: the press is answered), a
+    personal reply after a message."""
     if callback is not None:
         await send.answer_quietly_alert(callback, text)
-    elif message is not None:
+        return True
+    if message is not None:
         await send.reply_personal(bot, message, text)
+    return False
 
 
 async def ask(
@@ -151,19 +206,23 @@ async def ask(
     message: Message | None = None,
     callback: CallbackQuery | None = None,
     note: str | None = None,
-) -> None:
+) -> bool:
+    """Returns like go()."""
     action = ACTIONS[do]
     about = game.repo.user_label(state["to"]) if state.get("to") else None
     if need == "person":
-        options = (
-            game.repo.recent_members(chat_id, game.now() - ACTIVE_SECONDS, exclude=[author], limit=PEOPLE)
-            if chat_id < 0 else []
-        )
-        if not options:  # a private chat, or a group the bot hasn't met yet
-            await tell(bot, f"{action.emoji} {action.hint}", message=message, callback=callback)
-            return
+        options = candidates(game, chat_id, author, do)
+        if not options:  # a private chat, a group the bot hasn't met yet, or nobody fits
+            known = action.nobody and candidates(game, chat_id, author)
+            text = f"{action.emoji} {action.nobody if known else action.hint}"
+            return await tell(bot, text, message=message, callback=callback)
         labels = [game.repo.user_label(user) for user in options]
+        if action.anyone:
+            options, labels = [*options, ANYONE], [*labels, "🌍 Любой"]
         question, hint = action.person, "Жми на имя или ответь ником"
+    elif need == "sure":
+        options, labels = [1], [f"{action.emoji} Да"]
+        question, hint = action.confirm, "Обратно не склеить"
     else:
         balance = game.repo.player(author)[0]
         options = [amount for amount in AMOUNTS if action.minimum <= amount <= balance]
@@ -171,8 +230,7 @@ async def ask(
             options = [balance]
         if not options:
             text = f"{action.emoji} Нужно хотя бы {views.money(action.minimum)}, а у тебя {views.num(balance)}"
-            await tell(bot, text, message=message, callback=callback)
-            return
+            return await tell(bot, text, message=message, callback=callback)
         labels = [keyboards.short(amount) for amount in options]
         question, hint = action.amount, "Жми на сумму или ответь числом"
     text = views.ask(action.emoji, question or "", about, hint, note)
@@ -184,9 +242,23 @@ async def ask(
             bot, chat_id, author, text, markup, callback.id if callback else None, fleeting_seconds=ASK_SECONDS
         )
     if sent is None:
-        return
+        return False
     state.update(do=do, need=need, options=options, message=sent.message_id, until=game.now() + ASK_SECONDS)
     game.repo.set_meta(key(chat_id, author), json.dumps(state))
+    return False
+
+
+FIELDS = {"person": "to", "amount": "amount", "sure": "sure"}
+
+
+def candidates(game: Game, chat_id: int, author: int, do: str | None = None) -> list[int]:
+    """Whom to offer: the group's recently seen players, the author aside, and for `do` only those
+    it can be done to."""
+    if chat_id > 0:
+        return []
+    keep = FILTERS.get(do or "")
+    people = game.repo.recent_members(chat_id, game.now() - ACTIVE_SECONDS, exclude=[author], limit=PEOPLE * 4)
+    return [person for person in people if keep is None or keep(game, author, person)][:PEOPLE]
 
 
 def key(chat_id: int, author: int) -> str:
@@ -220,9 +292,9 @@ async def picked(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         await send.answer_quietly(callback, "Отменено" if choice == "x" else "Вопрос устарел. Набери команду ещё раз")
         return
     forget(game, chat_id, author)
-    state["to" if state["need"] == "person" else "amount"] = state["options"][int(choice)]
-    await go(bot, game, live, chat_id, author, state["do"], state, callback=callback)
-    await send.answer_quietly(callback)  # no-op if a refusal already answered it
+    state[FIELDS[state["need"]]] = state["options"][int(choice)]
+    if not await go(bot, game, live, chat_id, author, state["do"], state, callback=callback):
+        await send.answer_quietly(callback)
 
 
 async def answer(message: Message, bot: Bot, game: Game, live: Live) -> bool:
@@ -231,7 +303,7 @@ async def answer(message: Message, bot: Bot, game: Game, live: Live) -> bool:
         return False
     chat_id, author = message.chat.id, message.from_user.id
     state = pending(game, chat_id, author)
-    if state is None:
+    if state is None or state["need"] == "sure":  # a yes-or-no is answered with its button
         return False
     reply = message.reply_to_message
     if reply is not None and reply.message_id != state["message"]:
@@ -256,6 +328,17 @@ async def answer(message: Message, bot: Bot, game: Game, live: Live) -> bool:
         await send.delete(bot, chat_id, state["message"])
     await go(bot, game, live, chat_id, author, state["do"], state, message=message)
     return True
+
+
+@router.callback_query(F.data.startswith("pp:"), F.message)
+async def panel_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    """«👥 Люди» in the panel: the press lets the bot ask personally even where it isn't an admin."""
+    do = callback.data.split(":", 1)[1]
+    if do not in ACTIONS:
+        await send.answer_quietly(callback)
+        return
+    if not await begin(bot, game, live, callback.message.chat.id, callback.from_user.id, do, callback=callback):
+        await send.answer_quietly(callback)
 
 
 @router.message(F.ephemeral_message_id & F.text)

@@ -194,6 +194,7 @@ class PersonalMessagesTest(Harness):
 
     async def test_falls_back_to_the_chat_if_telegram_refuses(self) -> None:
         self.session.refuse = {"SendEphemeralMessage"}
+        self.fund(3, 500)
         await self.send("/rob", sender=3)
         self.assertIn("Ответь командой", self.public()[-1])
 
