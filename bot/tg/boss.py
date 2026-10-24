@@ -62,10 +62,11 @@ async def boss_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live)
     if game.repo.active_boss(chat_id) is None and game.boss_cooldown_left(chat_id):
         await callback.answer(refusal(game, chat_id, "cooldown"), show_alert=True)
         return
-    await send.answer_quietly(callback, "👹 Призываю…")
     status = await summon(bot, game, live, chat_id)
-    if status != "started":
-        await send.send_text(bot, chat_id, refusal(game, chat_id, status))
+    if status == "started":
+        await send.answer_quietly(callback, "👹 Призван!")
+    else:  # only the one who pressed needs to know why not
+        await send.answer_quietly_alert(callback, refusal(game, chat_id, status))
 
 
 @router.callback_query(F.data.regexp(r"^b[hs]:"))

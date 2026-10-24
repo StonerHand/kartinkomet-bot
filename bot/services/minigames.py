@@ -139,6 +139,9 @@ class MiniGamesMixin:
         self.repo.set_title(user_id, title)
         return title
 
+    def horoscope_available(self, user_id: int) -> bool:
+        return self.repo.counter(user_id, "horoscope_day") != self.local_day()
+
     def horoscope(self, user_id: int) -> tuple[Pic | None, bool, list[Granted]]:
         """(pic, already_today, granted). One reading per person per day."""
         if self.repo.counter(user_id, "horoscope_day") == self.local_day():

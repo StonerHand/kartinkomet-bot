@@ -117,17 +117,21 @@ async def start_whose(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
 
 WHOSE_REFUSALS = {
     "active": "🕵️ Раунд уже идёт — отвечай на пикчу выше",
-    "cooldown": "🕵️ Следующий раунд чуть позже: детектив курит",
+    "cooldown": "🕵️ Детектив курит. Следующий раунд через {wait}",
     "shortage": "🕵️ Нужны пикчи хотя бы от двух человек",
     "failed": "🕵️ Telegram не дал показать пикчу. Попробуй ещё раз",
 }
+
+
+def whose_refusal(game: Game, chat_id: int, status: str) -> str:
+    return WHOSE_REFUSALS[status].format(wait=views.duration(game.whose_cooldown_left(chat_id)))
 
 
 @router.message(Command("whose"))
 async def whose_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
     status = await start_whose(bot, game, live, message.chat.id)
     if status != "started":
-        await message.reply(WHOSE_REFUSALS[status])
+        await message.reply(whose_refusal(game, message.chat.id, status))
 
 
 @router.callback_query(F.data.startswith("wh:"))
@@ -248,16 +252,19 @@ async def horoscope_command(message: Message, bot: Bot, game: Game, live: Live) 
 @router.callback_query(F.data.in_({"gm:caption", "gm:spin", "gm:horo", "gm:whose"}), F.message)
 async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     chat_id = callback.message.chat.id
+    # Refusals from buttons are pop-ups for the one who pressed, not messages in the chat.
     if callback.data == "gm:whose":
-        await send.answer_quietly(callback, "🕵️ Ищу улику…")
         status = await start_whose(bot, game, live, chat_id)
-        if status != "started":
-            await send.send_text(bot, chat_id, WHOSE_REFUSALS[status])
+        if status == "started":
+            await send.answer_quietly(callback, "🕵️ Раунд начался")
+        else:
+            await send.answer_quietly_alert(callback, whose_refusal(game, chat_id, status))
         return
     if callback.data == "gm:caption":
-        await send.answer_quietly(callback, "🖋 Ищу пикчу без подписи…")
         if await start_caption(bot, game, live, chat_id) == "active":
-            await send.send_text(bot, chat_id, "🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
+            await send.answer_quietly_alert(callback, "🖋 Конкурс подписей уже идёт — ответь на пикчу выше")
+        else:
+            await send.answer_quietly(callback, "🖋 Конкурс начался")
         return
     if callback.data == "gm:spin":
         if not game.free_spin_available(callback.from_user.id):
@@ -266,6 +273,9 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         await send.answer_quietly(callback, "🎡 Крутим!")
         refusal = await spin(bot, game, live, chat_id, callback.from_user.id)
     else:
+        if not game.horoscope_available(callback.from_user.id):
+            await callback.answer(pick(game_texts.HOROSCOPE_AGAIN), show_alert=True)
+            return
         await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")
         refusal = await horoscope(bot, game, live, chat_id, callback.from_user.id)
     if refusal:

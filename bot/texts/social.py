@@ -139,6 +139,3 @@ DICE_DUEL_DRAW = lines("""
 Счёт равный, кошельки целы
 Одинаково. Ставки вернулись по карманам
 """)
-
-# Accusative names for "вызов на …" and the button that picks the game.
-DICE_DUEL_NAMES = {"dice": "кости", "darts": "дартс", "bowling": "боулинг"}

@@ -53,6 +53,9 @@ class QuizMixin:
         self.repo.set_meta(f"whose_at:{chat_id}", self.now())
         return "started", self.with_options(self.repo.get_game(game_id))
 
+    def whose_cooldown_left(self, chat_id: int) -> int:
+        return max(0, games.WHOSE_COOLDOWN_SECONDS - (self.now() - self.repo.meta_int(f"whose_at:{chat_id}")))
+
     def with_options(self, game: dict) -> dict:
         raw = self.repo.meta_str(f"whose:{game['id']}") or ""
         game["options"] = [int(part) for part in raw.split(",") if part]
