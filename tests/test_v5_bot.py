@@ -94,9 +94,15 @@ class V5BotTest(V4BotTest):
         self.assertEqual(sum("ДАРТС 1 НА 1</b> · <b>" in sent.text for sent in self.session.of("SendMessage")), 2)
         self.assertEqual(self.coins(4), 600)
 
-    async def test_pvp_without_a_stake_explains(self) -> None:
+    async def test_pvp_without_a_stake_asks_for_one(self) -> None:
+        self.fund(3, 1000)
         await self.send("/pvp", sender=3)
-        self.assertIn("/pvp 200", self.session.of("SendEphemeralMessage")[-1].text)
+        question = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("КАКАЯ СТАВКА?", question.text)
+        before = self.game.repo.player(3)[0]
+        await self.press(self.buttons(question)[1], sender=3)  # 500
+        self.assertEqual(self.game.repo.player(3)[0], before - 500)
+        self.assertIn("КОСТИ 1 НА 1", self.session.of("SendMessage")[-1].text)
 
     async def test_pic_duel_challenge_offers_a_rematch(self) -> None:
         self.fund(3, 500)

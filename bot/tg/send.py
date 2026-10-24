@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
@@ -237,6 +238,49 @@ async def react(bot: Bot, chat_id: int, message_id: int | None, emoji: str, big:
         LOGGER.info("Reaction %s not allowed in %s: %s", emoji, chat_id, error)
 
 
+# Telegram lets a bot that isn't a chat admin send an ephemeral message only in answer to a button
+# press or to an ephemeral message, within 15 seconds. Chats that refused one without such a
+# trigger are skipped for a while instead of paying a doomed request every time.
+NO_EPHEMERAL_SECONDS = 1800
+_no_ephemeral: dict[int, float] = {}
+
+
+def ephemeral_allowed_again(chat_id: int) -> None:
+    """The bot became an admin (or lost it): ask Telegram again next time."""
+    _no_ephemeral.pop(chat_id, None)
+
+
+async def ephemeral(
+    bot: Bot,
+    chat_id: int,
+    user_id: int,
+    text: str,
+    callback_query_id: str | None = None,
+    markup: InlineKeyboardMarkup | None = None,
+    reply_to_ephemeral: int | None = None,
+) -> Message | None:
+    """A group message only `user_id` sees, or None if Telegram refused, so callers can fall back."""
+    triggered = callback_query_id is not None or reply_to_ephemeral is not None
+    if not triggered and _no_ephemeral.get(chat_id, 0) > time.monotonic():
+        return None
+    try:
+        return await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=markup,
+            reply_parameters=ReplyParameters(ephemeral_message_id=reply_to_ephemeral) if reply_to_ephemeral else None,
+            ephemeral_message_parameters=EphemeralMessageParameters(
+                receiver_user_id=user_id, callback_query_id=callback_query_id
+            ),
+        )
+    except TelegramAPIError as error:
+        LOGGER.info("Ephemeral message refused in %s: %s", chat_id, error)
+        if not triggered:
+            _no_ephemeral[chat_id] = time.monotonic() + NO_EPHEMERAL_SECONDS
+        return None
+
+
 async def send_ephemeral(
     bot: Bot,
     chat_id: int,
@@ -246,20 +290,38 @@ async def send_ephemeral(
     markup: InlineKeyboardMarkup | None = None,
 ) -> bool:
     """A group message only `user_id` sees. False if Telegram refused, so callers can fall back."""
-    try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            parse_mode="HTML",
-            reply_markup=markup,
-            ephemeral_message_parameters=EphemeralMessageParameters(
-                receiver_user_id=user_id, callback_query_id=callback_query_id
-            ),
-        )
-        return True
-    except TelegramAPIError as error:
-        LOGGER.info("Ephemeral message refused in %s: %s", chat_id, error)
-        return False
+    return await ephemeral(bot, chat_id, user_id, text, callback_query_id, markup) is not None
+
+
+async def remove(bot: Bot, chat_id: int, message: Message | None) -> None:
+    """Delete a message the bot sent, ephemeral or not. Failures are ignored."""
+    if message is None:
+        return
+    if message.ephemeral_message_id and message.receiver_user is not None:
+        try:
+            await bot.delete_ephemeral_message(chat_id, message.receiver_user.id, message.ephemeral_message_id)
+        except TelegramAPIError:
+            pass
+    elif message.message_id:
+        await delete(bot, chat_id, message.message_id)
+
+
+# Hints and refusals the chat had to see because nothing personal was possible clean up after
+# themselves. Tasks are kept here so the loop doesn't drop them half-way.
+FLEETING_SECONDS = 60
+_fleeting: set[asyncio.Task] = set()
+
+
+def fleeting(bot: Bot, chat_id: int, message_ids: list[int | None], seconds: float | None = None) -> None:
+    async def later() -> None:
+        await asyncio.sleep(FLEETING_SECONDS if seconds is None else seconds)
+        for message_id in message_ids:
+            if message_id:
+                await delete(bot, chat_id, message_id)
+
+    task = asyncio.create_task(later())
+    _fleeting.add(task)
+    task.add_done_callback(_fleeting.discard)
 
 
 async def personal(
@@ -269,20 +331,38 @@ async def personal(
     text: str,
     markup: InlineKeyboardMarkup | None = None,
     callback_query_id: str | None = None,
-) -> None:
+    fleeting_seconds: float | None = None,
+) -> Message | None:
     """A message that concerns one person: in a group only they see it, so the chat stays clean.
-    In private chats, or if Telegram refuses an ephemeral one, it is an ordinary message."""
-    if chat_id < 0 and await send_ephemeral(bot, chat_id, user_id, text, callback_query_id, markup):
-        return
-    await send_text(bot, chat_id, text, markup)
+    In private chats, or if Telegram refuses an ephemeral one, it is an ordinary message, which
+    disappears after `fleeting_seconds` if given."""
+    if chat_id < 0:
+        sent = await ephemeral(bot, chat_id, user_id, text, callback_query_id, markup)
+        if sent is not None:
+            return sent
+    sent = await send_text(bot, chat_id, text, markup)
+    if sent is not None and chat_id < 0 and fleeting_seconds is not None:
+        fleeting(bot, chat_id, [sent.message_id], fleeting_seconds)
+    return sent
 
 
-async def reply_personal(bot: Bot, message, text: str) -> None:
-    """Answer a command for its author's eyes only (a refusal, a hint how to use it)."""
+async def reply_personal(
+    bot: Bot, message, text: str, markup: InlineKeyboardMarkup | None = None, seconds: float | None = None
+) -> Message | None:
+    """Answer a command for its author's eyes only (a refusal, a hint how to use it). Where the
+    chat has to see it, the answer and the command it answers go away after `seconds`."""
     user = message.from_user
-    if message.chat.type != "private" and user is not None and await send_ephemeral(bot, message.chat.id, user.id, text):
-        return
-    await send_text(bot, message.chat.id, text, reply_to=message.message_id)
+    if message.chat.type == "private" or user is None:
+        return await send_text(bot, message.chat.id, text, markup, reply_to=message.message_id)
+    sent = await ephemeral(
+        bot, message.chat.id, user.id, text, markup=markup, reply_to_ephemeral=message.ephemeral_message_id
+    )
+    if sent is not None:
+        return sent
+    sent = await send_text(bot, message.chat.id, text, markup, reply_to=message.message_id or None)
+    if sent is not None:
+        fleeting(bot, message.chat.id, [sent.message_id, message.message_id], seconds)
+    return sent
 
 
 # Message effects work in private chats only. IDs are Telegram's public effect ids.

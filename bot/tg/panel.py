@@ -2,7 +2,7 @@
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 
 from bot.game import Game
 from bot.texts import ui
@@ -10,6 +10,12 @@ from bot.tg import screens, send
 from bot.tg.screens import PERSONAL, Ctx
 
 router = Router(name="panel")
+
+
+@router.my_chat_member()
+async def bot_status_changed(update: ChatMemberUpdated) -> None:
+    """Made an admin, the bot may write personal messages any time: stop assuming it can't."""
+    send.ephemeral_allowed_again(update.chat.id)
 
 
 def message_ctx(message: Message, game: Game, admins: frozenset[int], arg: str | None = None) -> Ctx:

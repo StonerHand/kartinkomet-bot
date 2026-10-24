@@ -13,8 +13,7 @@ from bot.core import casino, shop
 from bot.game import Game
 from bot.texts import social as texts
 from bot.texts.pick import pick
-from bot.tg import keyboards, send, views
-from bot.tg.social import amount_of, target_and_rest
+from bot.tg import keyboards, send, targets, views
 from bot.tg.timers import Live
 
 LOGGER = logging.getLogger(__name__)
@@ -24,23 +23,16 @@ DICE_ANIMATION_SCALE = 1.0  # tests set 0
 
 @router.message(Command("challenge"))
 async def challenge(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
-    if message.from_user is None:
-        return
-    target, rest = target_and_rest(message, game, command.args)
-    stake = amount_of(rest)
-    if stake is None:
-        await send.reply_personal(
-            bot,
-            message,
-            f"Укажи ставку: /challenge 200 — открытый вызов, или ответь так на сообщение человека. "
-            f"Минимум {shop.CHALLENGE_MIN} монет"
-        )
-        return
-    status, created = game.create_challenge(message.chat.id, message.from_user.id, target, stake)
+    """/challenge 200: an open pic duel for a stake, or aimed at one person (reply, name)."""
+    await targets.start(bot, game, live, message, "challenge", targets.aim(message, game, command.args))
+
+
+async def run_challenge(bot: Bot, game: Game, live: Live, chat_id: int, author: int, state: dict) -> str | None:
+    status, created = game.create_challenge(chat_id, author, state.get("to"), state["amount"], state.get("kind", ""))
     if status != "ok" or created is None:
-        await send.reply_personal(bot, message, CHALLENGE_REFUSALS.get(status, "Не вышло"))
-        return
-    await post_challenge(bot, game, live, message.chat.id, created)
+        return CHALLENGE_REFUSALS.get(status, "Не вышло")
+    await post_challenge(bot, game, live, chat_id, created)
+    return None
 
 
 CHALLENGE_REFUSALS = {
@@ -82,26 +74,14 @@ GAME_WORDS = {
 @router.message(Command("pvp"))
 async def dice_duel(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
     """/pvp 200 [кости|дартс|боулинг]: a casino duel between two players, no house."""
-    if message.from_user is None:
-        return
     words = (command.args or "").split()
     choice = next((GAME_WORDS[word.casefold()] for word in words if word.casefold() in GAME_WORDS), "dice")
     words = [word for word in words if word.casefold() not in GAME_WORDS]
-    target, rest = target_and_rest(message, game, " ".join(words))
-    stake = amount_of(rest)
-    if stake is None:
-        await send.reply_personal(
-            bot,
-            message,
-            "Укажи ставку: /pvp 200 — кости с кем угодно, /pvp 200 дартс — ответом на сообщение человека. "
-            f"Игры: кости, дартс, боулинг. Минимум {shop.CHALLENGE_MIN} монет"
-        )
-        return
-    status, created = game.create_challenge(message.chat.id, message.from_user.id, target, stake, choice)
-    if status != "ok" or created is None:
-        await send.reply_personal(bot, message, CHALLENGE_REFUSALS.get(status, "Не вышло"))
-        return
-    await post_challenge(bot, game, live, message.chat.id, created)
+    found = targets.aim(message, game, " ".join(words))
+    await targets.start(bot, game, live, message, "pvp", found, kind=choice)
+
+
+targets.RUNNERS.update(challenge=run_challenge, pvp=run_challenge)
 
 
 async def throw_dice_duel(bot: Bot, game: Game, live: Live, chat_id: int, challenge: dict, card_id: int | None) -> None:

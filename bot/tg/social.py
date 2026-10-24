@@ -1,5 +1,5 @@
-"""People: /give, /rob, /marry, /divorce. The target is the person whose message you reply to,
-or a username after the command: /give vasya 100. Challenges live in tg/challenges.py."""
+"""People: /give, /rob, /marry, /divorce. Who they're aimed at is tg/targets.py's business (a
+reply, a mention, a name, or the bot asks); challenges live in tg/challenges.py."""
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject
@@ -7,98 +7,67 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.game import Game
 from bot.texts import social as texts
-from bot.tg import keyboards, send, views
+from bot.tg import keyboards, send, targets, views
 from bot.tg.timers import Live
 
 router = Router(name="social")
 
 
-def target_and_rest(message: Message, game: Game, args: str | None) -> tuple[int | None, list[str]]:
-    """Who the command is about, plus the remaining words (amounts)."""
-    words = (args or "").split()
-    reply = message.reply_to_message
-    if reply is not None and reply.from_user is not None and not reply.from_user.is_bot:
-        return reply.from_user.id, words
-    for index, word in enumerate(words):
-        if word.isdigit():
-            continue
-        user_id = game.repo.user_by_name(word)
-        if user_id is not None:
-            return user_id, words[:index] + words[index + 1 :]
-    return None, words
-
-
-def amount_of(words: list[str]) -> int | None:
-    for word in words:
-        if word.isdigit():
-            return int(word)
-    return None
-
-
-NO_TARGET = "Ответь этой командой на сообщение человека или напиши его ник: {example}"
-
-
 @router.message(Command("give"))
 async def give(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
-    if message.from_user is None:
-        return
-    target, rest = target_and_rest(message, game, command.args)
-    amount = amount_of(rest)
-    if target is None or amount is None:
-        await send.reply_personal(bot, message, NO_TARGET.format(example="/give vasya 100"))
-        return
-    status, granted = game.give(message.from_user.id, target, amount)
+    await targets.start(bot, game, live, message, "give", targets.aim(message, game, command.args))
+
+
+async def run_give(bot: Bot, game: Game, live: Live, chat_id: int, giver: int, state: dict) -> str | None:
+    amount = state["amount"]
+    status, granted = game.give(giver, state["to"], amount)
     refusals = {"self": "Себе дарить — это просто перекладывать из кармана в карман", "small": "Подарок от 1 🪙",
                 "broke": "Столько у тебя нет"}
     if status != "ok":
-        await send.reply_personal(bot, message, refusals[status])
-        return
-    labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
-    await send.send_text(bot, message.chat.id, views.gift(*labels, amount, message.chat.id))
-    await live.announce(message.chat.id, granted)
+        return refusals[status]
+    labels = (game.repo.user_label(giver), game.repo.user_label(state["to"]))
+    await send.send_text(bot, chat_id, views.gift(*labels, amount, chat_id))
+    await live.announce(chat_id, granted)
+    return None
 
 
 @router.message(Command("rob"))
 async def rob(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
-    if message.from_user is None:
-        return
-    target, _ = target_and_rest(message, game, command.args)
-    if target is None:
-        await send.reply_personal(bot, message, NO_TARGET.format(example="/rob vasya"))
-        return
-    result = game.rob(message.from_user.id, target)
+    await targets.start(bot, game, live, message, "rob", targets.aim(message, game, command.args))
+
+
+async def run_rob(bot: Bot, game: Game, live: Live, chat_id: int, robber: int, state: dict) -> str | None:
+    result = game.rob(robber, state["to"])
     if result.status not in ("success", "fail"):
-        await send.reply_personal(bot, message, texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait)))
-        return
-    labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
-    sent = await send.send_text(bot, message.chat.id, views.robbery(*labels, result, message.chat.id))
+        return texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait))
+    labels = (game.repo.user_label(robber), game.repo.user_label(state["to"]))
+    sent = await send.send_text(bot, chat_id, views.robbery(*labels, result, chat_id))
     if sent:
-        await send.react(bot, message.chat.id, sent.message_id, "😈" if result.status == "success" else "🤡")
-    await live.announce(message.chat.id, result.granted)
+        await send.react(bot, chat_id, sent.message_id, "😈" if result.status == "success" else "🤡")
+    await live.announce(chat_id, result.granted)
+    return None
 
 
 # ── marriage ───────────────────────────────────────────────────────────
 
 
 @router.message(Command("marry"))
-async def marry(message: Message, command: CommandObject, bot: Bot, game: Game) -> None:
-    if message.from_user is None:
-        return
-    target, _ = target_and_rest(message, game, command.args)
-    if target is None:
-        await send.reply_personal(bot, message, NO_TARGET.format(example="/marry vasya"))
-        return
-    status, proposal_id = game.propose(message.chat.id, message.from_user.id, target)
+async def marry(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
+    await targets.start(bot, game, live, message, "marry", targets.aim(message, game, command.args))
+
+
+async def run_marry(bot: Bot, game: Game, live: Live, chat_id: int, suitor: int, state: dict) -> str | None:
+    status, proposal_id = game.propose(chat_id, suitor, state["to"])
     if status != "ok" or proposal_id is None:
-        await send.reply_personal(bot, message, texts.MARRY_REFUSED[status].format(price=game.wedding_price()))
-        return
-    labels = (game.repo.user_label(message.from_user.id), game.repo.user_label(target))
+        return texts.MARRY_REFUSED[status].format(price=game.wedding_price())
+    labels = (game.repo.user_label(suitor), game.repo.user_label(state["to"]))
     await send.send_text(
-        bot,
-        message.chat.id,
-        views.proposal(*labels, game.wedding_price(), message.chat.id),
-        keyboards.proposal(proposal_id),
+        bot, chat_id, views.proposal(*labels, game.wedding_price(), chat_id), keyboards.proposal(proposal_id)
     )
+    return None
+
+
+targets.RUNNERS.update(give=run_give, rob=run_rob, marry=run_marry)
 
 
 @router.callback_query(F.data.startswith("mr:"))

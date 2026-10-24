@@ -165,6 +165,25 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     pic_columns = {row[1] for row in connection.execute("PRAGMA table_info(pics)")}
     if "frame" not in pic_columns:
         connection.execute("ALTER TABLE pics ADD COLUMN frame TEXT")
+    if connection.execute("SELECT 1 FROM meta WHERE key = 'members_seeded'").fetchone() is None:
+        # v5.1: who plays where, recovered from the chats' votes, hits, games and challenges.
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO chat_members (chat_id, user_id, last_seen)
+            SELECT chat_id, user_id, MAX(at) FROM (
+                SELECT b.chat_id, v.user_id, b.started_at AS at FROM battle_votes v JOIN battles b ON b.id = v.battle_id
+                UNION ALL SELECT c.chat_id, v.user_id, c.started_at FROM court_votes v JOIN courts c ON c.id = v.court_id
+                UNION ALL SELECT s.chat_id, h.user_id, s.started_at FROM boss_hits h JOIN bosses s ON s.id = h.boss_id
+                UNION ALL SELECT g.chat_id, e.user_id, g.created_at FROM game_entries e JOIN games g ON g.id = e.game_id
+                UNION ALL SELECT g.chat_id, v.user_id, g.created_at FROM game_votes v JOIN games g ON g.id = v.game_id
+                UNION ALL SELECT chat_id, from_user, created_at FROM challenges
+                UNION ALL SELECT chat_id, to_user, created_at FROM challenges WHERE to_user IS NOT NULL
+                UNION ALL SELECT chat_id, from_user, created_at FROM proposals
+                UNION ALL SELECT chat_id, to_user, created_at FROM proposals
+            ) WHERE chat_id < 0 GROUP BY chat_id, user_id
+            """
+        )
+        connection.execute("INSERT INTO meta (key, value) VALUES ('members_seeded', '1')")
     # v1 kept per-side duel history ("duel:<chat>:left"); the migration filed it under pic scopes.
     connection.execute(
         "DELETE FROM deck_seen WHERE scope LIKE 'pic:duel:%' OR scope LIKE 'pic:tournament:%'"

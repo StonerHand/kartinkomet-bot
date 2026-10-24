@@ -174,7 +174,7 @@ class V4BotTest(BotHarness):
         await self.send("/rob", sender=3)
         hint = self.session.of("SendEphemeralMessage")[-1]  # only the author sees it
         self.assertEqual(hint.ephemeral_message_parameters.receiver_user_id, 3)
-        self.assertEqual(hint.text.split(":")[0], "Ответь этой командой на сообщение человека или напиши его ник")
+        self.assertIn("Ответь командой на сообщение человека", hint.text)  # the bot knows nobody here yet
 
     # ── progress ───────────────────────────────────────────────────────
 

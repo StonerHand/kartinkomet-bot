@@ -31,13 +31,13 @@ from bot.tg.views.progress import (
     task_line, quests_screen, daily_result, chest_opening, chest_opened, day_event_line, day_event
 )
 from bot.tg.views.boss import boss_card, boss_result
-from bot.tg.views.people import gift, robbery, proposal, wedding, rejected, divorce
+from bot.tg.views.people import ask, gift, robbery, proposal, wedding, rejected, divorce
 from bot.tg.views.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
 
 __all__ = [
     "BAR_CELLS", "DUEL_SLOTS", "GAMES_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",
     "RARITY_WORDS", "REMOVAL_REASONS", "SLOT_COLORS", "TOURNAMENT_SLOTS", "Wallet", "admin", "ago",
-    "announcement", "appeal_hint", "bar", "bare", "battle_card", "battle_report", "battle_result",
+    "announcement", "appeal_hint", "ask", "bar", "bare", "battle_card", "battle_report", "battle_result",
     "bets_line", "bets_result", "boss_card", "boss_result", "bottom", "bought", "bounty_line",
     "caption_cancelled", "caption_card", "caption_result", "card", "casino_result", "casino_screen",
     "casino_title", "challenge_card", "challenge_closed", "challenge_names", "challenge_result",

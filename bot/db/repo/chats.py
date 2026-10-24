@@ -27,6 +27,46 @@ class ChatsRepo:
                 (now,),
             )
 
+    def touch_member(self, chat_id: int, user_id: int, now: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT INTO chat_members (chat_id, user_id, last_seen) VALUES (?, ?, ?) "
+                "ON CONFLICT(chat_id, user_id) DO UPDATE SET last_seen = excluded.last_seen",
+                (chat_id, user_id, now),
+            )
+
+    def recent_members(self, chat_id: int, since: int, exclude: Iterable[int] = (), limit: int = 8) -> list[int]:
+        """The chat's players, the most recently seen first."""
+        skip = list(exclude)
+        return [
+            row[0]
+            for row in self.db.execute(
+                f"SELECT user_id FROM chat_members WHERE chat_id = ? AND last_seen >= ? "
+                f"AND user_id NOT IN ({_placeholders(skip) if skip else 'NULL'}) ORDER BY last_seen DESC LIMIT ?",
+                (chat_id, since, *skip, limit),
+            )
+        ]
+
+    def find_member(self, chat_id: int, name: str) -> int | None:
+        """A person by username, or by first or full name among the chat's players (the most
+        recently seen wins a tie). Case doesn't matter, nor does a leading @."""
+        clean = name.strip().lstrip("@").casefold()
+        if not clean:
+            return None
+        row = self.db.execute("SELECT user_id FROM users WHERE lower(username) = ? LIMIT 1", (clean,)).fetchone()
+        if row is not None:  # usernames are ASCII, so SQLite's lower() is enough for them
+            return row[0]
+        for row in self.db.execute(
+            "SELECT u.user_id, u.first_name, u.last_name FROM chat_members m JOIN users u ON u.user_id = m.user_id "
+            "WHERE m.chat_id = ? ORDER BY m.last_seen DESC",
+            (chat_id,),
+        ):
+            first = (row["first_name"] or "").casefold()
+            full = " ".join(part for part in (row["first_name"], row["last_name"]) if part).casefold()
+            if clean in (first, full):
+                return row["user_id"]
+        return None
+
     def event_chats(self, active_since: int) -> list[int]:
         return [
             row[0]

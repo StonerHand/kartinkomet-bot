@@ -6,6 +6,12 @@ from bot.texts.pick import pick
 from bot.tg.views.layout import card, duration, money, num, who
 
 
+def ask(emoji: str, question: str, about: str | None, hint: str, note: str | None = None) -> str:
+    """The bot's question when a command leaves out the person or the amount."""
+    head = f"{emoji} <b>{question.upper()}</b>" + (f" · {who(about)}" if about else "")
+    return card(head, hint, f"<i>{note}</i>" if note else "")
+
+
 def gift(giver: str, receiver: str, amount: int, chat_id: int) -> str:
     return card(
         "🎁 <b>ПОДАРОК</b>",

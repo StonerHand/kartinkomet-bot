@@ -24,7 +24,7 @@ from aiogram.types import (
 from bot.__main__ import build_dispatcher
 from bot.core.arena import DUEL_SECONDS
 from bot.core.court import COURT_SECONDS
-from bot.tg import games, pics, timers, upload
+from bot.tg import games, pics, send, timers, upload
 from bot.tg.events import Events
 from bot.tg.timers import Live
 from tests.helpers import make_game
@@ -50,6 +50,7 @@ class FakeSession(BaseSession):
         pass
 
     image: bytes | None = None  # served by downloads when a test enables collages
+    bot_admin = True  # an admin bot may send ephemeral messages untriggered
     dice_value = 64
     dice_values: list[int] = []  # served first, one per SendDice
 
@@ -88,7 +89,16 @@ class FakeSession(BaseSession):
 
             raise TelegramBadRequest(method=method, message="Bad Request: not supported")
         if name == "SendEphemeralMessage":
-            return self.message(int(method.chat_id))
+            params = method.ephemeral_message_parameters
+            reply = method.reply_parameters
+            if not self.bot_admin and not params.callback_query_id and not (reply and reply.ephemeral_message_id):
+                from aiogram.exceptions import TelegramBadRequest
+
+                raise TelegramBadRequest(method=method, message="Bad Request: EPHEMERAL_TRIGGER_REQUIRED")
+            return self.message(int(method.chat_id)).model_copy(
+                update={"message_id": 0, "ephemeral_message_id": next(self.ids),
+                        "receiver_user": user(params.receiver_user_id)}
+            )
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
             return self.message(int(method.chat_id), photo=name == "SendPhoto")
         if name == "SendDice":
@@ -144,6 +154,7 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         pics._last_drop.clear()
         games.DICE_ANIMATION_SECONDS = 0
         self.session.dice_values = []
+        send._no_ephemeral.clear()
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()

@@ -11,7 +11,7 @@ from bot.db.repo import Repo
 from bot.game import Game
 from bot.tg import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, shop,
-    social, upload,
+    social, targets, upload,
 )
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
@@ -34,11 +34,11 @@ GROUP_COMMANDS = [
     BotCommand(command="shop", description="🛒 лавка"),
     BotCommand(command="boss", description="👹 призвать босса"),
     BotCommand(command="challenge", description="🤺 вызов на дуэль за монеты"),
-    BotCommand(command="pvp", description="🎲 кости 1 на 1: /pvp 200"),
+    BotCommand(command="pvp", description="🎲 кости 1 на 1 на монеты"),
     BotCommand(command="whose", description="🕵️ угадай, чья пикча"),
     BotCommand(command="higher", description="🎯 выше-ниже: угадай рейтинг"),
     BotCommand(command="give", description="🎁 подарить монеты"),
-    BotCommand(command="rob", description="🕵️ ограбить"),
+    BotCommand(command="rob", description="😈 ограбить кого-нибудь"),
     BotCommand(command="marry", description="💍 сделать предложение"),
     BotCommand(command="caption", description="🖋 подпиши пикчу"),
     BotCommand(command="wheel", description="🎡 колесо фортуны раз в день"),
@@ -124,6 +124,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         boss.router,
         inline.router,
         court.router,
+        targets.router,
         fallback.router,
     )
     return dispatcher

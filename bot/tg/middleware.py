@@ -1,5 +1,5 @@
-"""Remembers every user who touches the bot (names for tops and profiles) and every group
-chat it lives in (targets for scheduled events)."""
+"""Remembers every user who touches the bot (names for tops and profiles), every group chat it
+lives in (targets for scheduled events) and who plays in which chat (names for people pickers)."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -14,6 +14,7 @@ class RememberUser(BaseMiddleware):
     def __init__(self, game: Game) -> None:
         self.game = game
         self._chat_seen: dict[int, int] = {}
+        self._member_seen: dict[tuple[int, int], int] = {}
         self._starter_checked: set[int] = set()
 
     async def __call__(
@@ -33,6 +34,8 @@ class RememberUser(BaseMiddleware):
         chat: Chat | None = data.get("event_chat")
         if chat is not None and chat.type in ("group", "supergroup"):
             self._touch_chat(chat)
+            if user is not None and not user.is_bot:
+                self._touch_member(chat.id, user.id)
         return await handler(event, data)
 
     def _touch_chat(self, chat: Chat) -> None:
@@ -42,3 +45,11 @@ class RememberUser(BaseMiddleware):
             return
         self._chat_seen[chat.id] = now
         self.game.repo.touch_chat(chat.id, chat.title, now)
+
+    def _touch_member(self, chat_id: int, user_id: int) -> None:
+        """Who plays where, for the people pickers; at most one write per person per 10 minutes."""
+        now = self.game.now()
+        if now - self._member_seen.get((chat_id, user_id), 0) < 600:
+            return
+        self._member_seen[(chat_id, user_id)] = now
+        self.game.repo.touch_member(chat_id, user_id, now)

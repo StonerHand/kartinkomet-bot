@@ -180,6 +180,8 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
 
 # ── titles ─────────────────────────────────────────────────────────────
 
+TITLE_PROMPT_SECONDS = 600
+
 
 @router.callback_query(F.data == "title", F.message)
 async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
@@ -200,6 +202,8 @@ async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     )
     if prompt is not None:
         game.repo.set_meta(f"title_prompt:{chat_id}:{prompt.message_id}", callback.from_user.id)
+        if chat_id < 0:  # an unanswered prompt doesn't stay in the chat forever
+            send.fleeting(bot, chat_id, [prompt.message_id], TITLE_PROMPT_SECONDS)
 
 
 async def title_reply(message: Message, bot: Bot, game: Game) -> bool:
@@ -219,6 +223,10 @@ async def title_reply(message: Message, bot: Bot, game: Game) -> bool:
     game.repo.set_meta(key, 0)
     title = game.repo.title_of(message.from_user.id) or ""
     label = game.repo.user_label(message.from_user.id)
-    await message.reply(texts.TITLE_DONE.format(name=views.who(label), title=escape(title)), parse_mode="HTML")
+    await send.delete(bot, message.chat.id, message.reply_to_message.message_id)  # the prompt did its job
+    await send.send_text(
+        bot, message.chat.id, texts.TITLE_DONE.format(name=views.who(label), title=escape(title)),
+        reply_to=message.message_id,
+    )
     await send.react(bot, message.chat.id, message.message_id, "🏆")
     return True

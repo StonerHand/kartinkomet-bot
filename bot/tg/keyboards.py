@@ -21,6 +21,7 @@ Scheme:
   daily | ch:<tier>     daily bonus / open a chest
   bh:<boss> | bs:<boss> boss hit / super hit;  boss  summon
   mr:<y|n>:<proposal>   marriage answer;  cl:<y|n>:<challenge>  challenge answer
+  ak:<chat>:<user>:<n|x>  answer to "whom? / how much?" for /rob /give /marry /pvp /challenge
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -210,6 +211,21 @@ def boss_over() -> InlineKeyboardMarkup:
 
 def proposal(proposal_id: str) -> InlineKeyboardMarkup:
     return markup([button("💍 Да", f"mr:y:{proposal_id}", SUCCESS), button("💔 Нет", f"mr:n:{proposal_id}", DANGER)])
+
+
+def fit(name: str, limit: int = 14) -> str:
+    """A name on a half-width button: whole if it fits, else the first name, else cut with «…»."""
+    if len(name) <= limit:
+        return name
+    first = name.split()[0]
+    return first if len(first) <= limit else name[: limit - 1] + "…"
+
+
+def ask(chat_id: int, owner: int, labels: list[str]) -> InlineKeyboardMarkup:
+    """People or amounts to pick from, two a row, and a way out. Only `owner` may press."""
+    buttons = [button(fit(label), f"ak:{chat_id}:{owner}:{index}", PRIMARY) for index, label in enumerate(labels)]
+    rows = [buttons[start : start + 2] for start in range(0, len(buttons), 2)]
+    return markup(*rows, [button("✖️ Отмена", f"ak:{chat_id}:{owner}:x")])
 
 
 def challenge(challenge_id: str) -> InlineKeyboardMarkup:

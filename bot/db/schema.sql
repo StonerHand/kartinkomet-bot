@@ -192,6 +192,14 @@ CREATE TABLE IF NOT EXISTS chats (
     last_seen INTEGER NOT NULL
 );
 
+-- Who plays in which group: the names offered when a command is aimed at a person.
+CREATE TABLE IF NOT EXISTS chat_members (
+    chat_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
+) WITHOUT ROWID;
+
 -- One live control panel per chat.
 CREATE TABLE IF NOT EXISTS panels (
     chat_id INTEGER PRIMARY KEY,
