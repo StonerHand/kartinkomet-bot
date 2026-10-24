@@ -27,6 +27,13 @@ def robbery(robber: str, victim: str, result, chat_id: int) -> str:
             pick(social_texts.ROB_SUCCESS, chat_id),
             f"Добыча <b>{who(robber)}</b>: {money(result.amount)} из кармана <b>{who(victim)}</b>",
         )
+    if result.guarded:  # the victim is an admin: the robber pays exactly what they reached for
+        return card(
+            "🚔 <b>ОГРАБЛЕНИЕ СОРВАЛОСЬ</b>",
+            pick(social_texts.ROB_GUARDED, chat_id).format(victim=victim),
+            f"<b>{who(robber)}</b>: вместо добычи −{money(result.amount)} в карман <b>{who(victim)}</b>",
+            f"<i>И {duration(result.wait)} в обезьяннике</i>",
+        )
     return card(
         "🚔 <b>ОГРАБЛЕНИЕ СОРВАЛОСЬ</b>",
         pick(social_texts.ROB_FAIL, chat_id),

@@ -3,7 +3,7 @@
 from unittest import mock
 
 from bot.core import boss as boss_rules
-from bot.core import economy, games, progress
+from bot.core import economy, games, progress, shop
 from bot.services.economy import STARTER_COINS
 from tests.test_v4_game import V4Case
 
@@ -220,3 +220,37 @@ class PrizeTest(V4Case):
             opened = self.game.open_chest(3, "legend")
         self.assertEqual(opened.loot.kind, "coins")
         self.assertEqual(self.game.repo.title_of(3), "Свой")  # a title someone has is never replaced
+
+
+class AdminTrapTest(V4Case):
+    """Robbing an admin always fails: the robber pays the admin what they reached for, and sits."""
+
+    def test_the_robber_pays_what_they_reached_for(self) -> None:
+        game = self.game
+        game.admins = frozenset({2})
+        self.fund(2, 3000)
+        self.fund(3, 5000)
+        with mock.patch.object(game.rng, "random", return_value=0.0), \
+                mock.patch.object(game.rng, "uniform", return_value=0.15):  # a sure success on anyone else
+            result = game.rob(3, 2)
+        reached = min(game.rob_cap(), int(3000 * 0.15))
+        self.assertEqual((result.status, result.guarded, result.amount), ("fail", True, reached))
+        self.assertEqual((self.coins(3), self.coins(2)), (5000 - reached, 3000 + reached))
+        self.assertEqual(game.rob(3, 2).status, "jailed")  # the usual jail
+        self.assertEqual(result.wait, shop.JAIL_SECONDS)
+
+    def test_a_poor_robber_loses_all_they_have_at_most(self) -> None:
+        game = self.game
+        game.admins = frozenset({2})
+        self.fund(2, 1_000_000)
+        self.fund(3, 150)
+        result = game.rob(3, 2)
+        self.assertEqual((result.amount, self.coins(3)), (150, 0))
+
+    def test_others_are_robbed_as_usual(self) -> None:
+        game = self.game
+        game.admins = frozenset({2})
+        self.fund(4, 3000)
+        self.fund(3, 5000)
+        with mock.patch.object(game.rng, "random", return_value=0.0):
+            self.assertEqual(game.rob(3, 4).status, "success")

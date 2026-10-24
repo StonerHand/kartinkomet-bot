@@ -115,7 +115,7 @@ def amount_of(words: list[str]) -> int | None:
 
 
 def unknown_note(name: str) -> str:
-    return f"Не знаю, кто такой {views.who(name.lstrip('@'))}: бот запоминает людей, когда они пишут в чат"
+    return f"Не знаю никого по имени {views.who(name.lstrip('@'))}: бот запоминает людей, когда они пишут в чат"
 
 
 async def start(bot: Bot, game: Game, live: Live, message: Message, do: str, found: Aim, **extra) -> None:
@@ -315,7 +315,7 @@ async def answer(message: Message, bot: Bot, game: Game, live: Live) -> bool:
     if state["need"] == "person":
         found = named(message, game, words)
         if found.user is None:
-            await send.reply_personal(bot, message, "Не нашёл такого. Жми на имя в списке")
+            await send.reply_personal(bot, message, "Никого с таким именем. Жми на имя в списке")
             return True
         state["to"] = found.user
     else:

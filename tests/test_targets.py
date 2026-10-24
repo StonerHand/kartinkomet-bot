@@ -68,6 +68,20 @@ class TargetsTest(Players):
                   for button in row]
         self.assertEqual(labels, ["Данил Медведев", "user4", "✖️ Отмена"])
 
+    async def test_robbing_the_admin_is_a_trap_with_its_own_card(self) -> None:
+        self.game.admins = frozenset({4})
+        await self.send("/rob", sender=3)
+        labels = [button.text for row in self.session.of("SendEphemeralMessage")[-1].reply_markup.inline_keyboard
+                  for button in row]
+        self.assertIn("user4", labels)  # offered like anyone: that's the trap
+        await self.press(self.buttons(self.session.of("SendEphemeralMessage")[-1])[labels.index("user4")], sender=3)
+        card = next(request.text for request in self.session.of("SendMessage") if "ОГРАБЛЕНИЕ" in request.text)
+        self.assertIn("🚔 <b>ОГРАБЛЕНИЕ СОРВАЛОСЬ</b>", card)
+        self.assertIn("вместо добычи", card)
+        self.assertIn("user4", card.split("\n")[1])  # the phrase names the admin
+        self.assertLess(self.coins(3), 1000)
+        self.assertGreater(self.coins(4), 500)
+
     async def test_a_jailed_robber_hears_it_before_picking(self) -> None:
         self.game.repo.set_counter(3, "jail_until", self.game.now() + 600)
         await self.send("/rob", sender=3)
@@ -106,10 +120,10 @@ class TargetsTest(Players):
     async def test_unknown_name_is_said_and_people_are_offered(self) -> None:
         await self.send("/rob @kcifekzhue", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("Не знаю, кто такой kcifekzhue", question.text)
+        self.assertIn("Не знаю никого по имени kcifekzhue", question.text)
         self.assertIn("КОГО ГРАБИМ?", question.text)
         await self.send("/pvp 200 kcifekzhue", sender=3)  # no open challenge for a typo
-        self.assertIn("Не знаю, кто такой", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertIn("Не знаю никого по имени", self.session.of("SendEphemeralMessage")[-1].text)
         self.assertEqual(self.coins(3), 1000)
 
 
@@ -144,14 +158,14 @@ class NotAdminTest(Players):
     async def test_a_pending_question_doesnt_swallow_other_replies(self) -> None:
         await self.send("/rob", sender=3)
         await self.send("смешно", sender=3, reply_to=self.bot_message(4242))  # some other message of the bot
-        self.assertFalse(any("Не нашёл" in request.text for request in self.session.of("SendMessage")))
+        self.assertFalse(any("Никого с таким" in request.text for request in self.session.of("SendMessage")))
         self.assertIsNotNone(targets.pending(self.game, -100, 3))
 
     async def test_a_reply_with_a_stranger_keeps_the_question(self) -> None:
         await self.send("/rob", sender=3)
         asked = self.question()["message"]
         await self.send("@nobody", sender=3, reply_to=self.bot_message(asked))
-        self.assertIn("Не нашёл такого", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Никого с таким именем", self.session.of("SendMessage")[-1].text)
         self.assertIsNotNone(targets.pending(self.game, -100, 3))
 
     async def test_hints_clean_up_after_themselves_and_stop_retrying(self) -> None:

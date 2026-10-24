@@ -12,6 +12,7 @@ class RobResult:
     amount: int = 0
     wait: int = 0  # seconds until allowed again
     granted: list[Granted] = field(default_factory=list)
+    guarded: bool = False  # the victim is an admin: a trap, not bad luck
 
 
 @dataclass(frozen=True)
@@ -84,8 +85,11 @@ class SocialMixin:
             return RobResult("poor_victim")
 
         self.repo.set_counter(robber, "rob_ready_at", now + shop.ROB_COOLDOWN)
+        if victim in self.admins:
+            # An admin's pocket is a trap: the robber loses what they reached for, to the admin.
+            reached = min(self.rob_cap(), int(victim_coins * self.rng.uniform(*shop.ROB_SHARE)))
+            return self._caught(robber, victim, min(reached, robber_coins), guarded=True)
         chance = days.THIEVES_DAY_CHANCE if self.day_is("thieves_day") else shop.ROB_CHANCE
-        events: dict[int, list[str]] = {}
         if self.rng.random() < chance:
             share = self.rng.uniform(*shop.ROB_SHARE)
             amount = min(self.rob_cap(), int(victim_coins * share))
@@ -96,12 +100,16 @@ class SocialMixin:
             self.repo.incr_counter(victim, "times_robbed")
             self.progress(robber, "rob_success")
             return RobResult("success", amount, granted=self.check_achievements([robber, victim]))
-        fine = shop.rob_fine(robber_coins)
+        return self._caught(robber, victim, shop.rob_fine(robber_coins))
+
+    def _caught(self, robber: int, victim: int, fine: int, guarded: bool = False) -> RobResult:
+        """A failed robbery: the robber pays the victim and goes to jail."""
+        now = self.now()
         self.repo.add_coins(robber, -fine, "rob_fine", now, earn=False)
         self.repo.add_coins(victim, fine, "rob_fine", now, earn=False)
         self.repo.set_counter(robber, "jail_until", now + shop.JAIL_SECONDS)
-        events[robber] = ["caught"]
-        return RobResult("fail", fine, wait=shop.JAIL_SECONDS, granted=self.check_achievements([robber], events))
+        granted = self.check_achievements([robber], {robber: ["caught"]})
+        return RobResult("fail", fine, wait=shop.JAIL_SECONDS, granted=granted, guarded=guarded)
 
     # ── marriage ───────────────────────────────────────────────────────
 

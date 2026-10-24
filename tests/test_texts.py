@@ -37,6 +37,10 @@ EXPECTED_SIZES = {
 }
 
 
+# Pools whose phrases name someone: the one placeholder they may hold.
+TEMPLATES = {"bot.texts.social.ROB_GUARDED": "{victim}"}
+
+
 def all_pools():
     for module in (arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui):
         for name, value in vars(module).items():
@@ -70,8 +74,15 @@ class TextsTest(unittest.TestCase):
         for pool_name, pool in all_pools():
             for phrase in pool:
                 with self.subTest(pool=pool_name, phrase=phrase):
-                    self.assertFalse(set(phrase) & set("<>&{}"), "HTML/format characters")
+                    text = phrase.replace(TEMPLATES.get(pool_name, "\0"), "")
+                    self.assertFalse(set(text) & set("<>&{}"), "HTML/format characters")
                     self.assertLess(len(phrase), 200)
+
+    def test_template_phrases_name_their_person_once(self) -> None:
+        pools = dict(all_pools())
+        for pool_name, placeholder in TEMPLATES.items():
+            for phrase in pools[pool_name]:
+                self.assertEqual(phrase.count(placeholder), 1, phrase)
 
     def test_no_generated_gender_mismatch(self) -> None:
         bad = ("Пикча выдал", "Пикча принёс", "Пикча оформил", "пикча выжил", "пикча проиграл ")
