@@ -36,6 +36,7 @@ class Action:
     anyone: bool = False  # the person may be "anyone" (an open challenge); asked only if nothing was given
     confirm: str | None = None  # a yes-or-no question before something that can't be undone
     nobody: str | None = None  # when the chat has players but none fits (all poor, all married)
+    stakes: str = "Обратно не склеить"  # under a yes-or-no question: what it costs
 
 
 ACTIONS = {
@@ -52,7 +53,7 @@ ACTIONS = {
     "challenge": Action(
         "🤺", "Кого вызываем?", "Какая ставка?", "Например: /challenge 200", shop.CHALLENGE_MIN, anyone=True
     ),
-    "divorce": Action("💔", None, None, "", confirm="Разводимся?"),
+    "divorce": Action("💔", None, None, "", confirm="Разводимся?", stakes="Монеты поделятся пополам. Обратно не склеить"),
 }
 ANYONE = 0  # the person "anyone" in a question's options
 
@@ -222,7 +223,7 @@ async def ask(
         question, hint = action.person, "Жми на имя или ответь ником"
     elif need == "sure":
         options, labels = [1], [f"{action.emoji} Да"]
-        question, hint = action.confirm, "Обратно не склеить"
+        question, hint = action.confirm, action.stakes
     else:
         balance = game.repo.player(author)[0]
         options = [amount for amount in AMOUNTS if action.minimum <= amount <= balance]

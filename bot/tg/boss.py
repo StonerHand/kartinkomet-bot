@@ -86,11 +86,13 @@ async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         return
     pool = texts.CRIT if result.crit or kind == "bs" else texts.HIT
     shield = " · щит держит" if result.phase == "shield" and kind != "bs" else ""
-    await callback.answer(f"{pick(pool)} · −{result.damage} ❤️ (осталось {result.hp}){shield}")
-    if result.counter_victim is not None and callback.message is not None:
-        name = game.repo.user_label(result.counter_victim)
-        lost = f" · −{views.money(result.fine)} в добычу" if result.fine else ""
-        await send.send_text(bot, callback.message.chat.id, f"👹 {pick(texts.COUNTER)}: <b>{views.who(name)}</b>{lost}")
+    struck = ""
+    if result.counter_victim is not None:
+        # The card shows the counterattack; only its victim, if it's the hitter, hears it here.
+        game.repo.set_meta(f"boss_counter:{boss_id}", f"{result.counter_victim}:{result.fine}")
+        if result.counter_victim == callback.from_user.id and result.fine:
+            struck = f" · босс дал сдачи: −{result.fine} 🪙"
+    await callback.answer(f"{pick(pool)} · −{result.damage} ❤️ (осталось {result.hp}){shield}{struck}")
     if result.killed:
         await live.finish_boss(boss_id)
     else:

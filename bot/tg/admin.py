@@ -29,8 +29,8 @@ def health_text(game: Game) -> str:
     totals = repo.totals()
     size = repo.database_path.stat().st_size / 1024 / 1024 if repo.database_path.exists() else 0
     return views.card(
-        "🩺 <b>HEALTH</b>",
-        "Состояние бота",
+        "🩺 <b>СОСТОЯНИЕ</b>",
+        "Как бот себя чувствует",
         [
             f"📦 Живых: <b>{totals['alive']}</b>",
             f"⚰️ Казнено: <b>{totals['executed']}</b>",

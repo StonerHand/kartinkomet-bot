@@ -92,7 +92,7 @@ def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int
 
 
 def horoscope(label: str, chat_id: int) -> str:
-    return card(f"🔮 <b>ГОРОСКОП · {who(label).upper()}</b>", None, escape(pick(game_texts.HOROSCOPE, chat_id)))
+    return card(f"🔮 <b>ГОРОСКОП</b> · {who(label)}", None, escape(pick(game_texts.HOROSCOPE, chat_id)))
 
 
 # ── whose pic? ─────────────────────────────────────────────────────────

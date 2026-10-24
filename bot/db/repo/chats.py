@@ -38,11 +38,12 @@ class ChatsRepo:
     def recent_members(self, chat_id: int, since: int, exclude: Iterable[int] = (), limit: int = 8) -> list[int]:
         """The chat's players, the most recently seen first."""
         skip = list(exclude)
+        but = f"AND user_id NOT IN ({_placeholders(skip)}) " if skip else ""  # NOT IN (NULL) would match nobody
         return [
             row[0]
             for row in self.db.execute(
-                f"SELECT user_id FROM chat_members WHERE chat_id = ? AND last_seen >= ? "
-                f"AND user_id NOT IN ({_placeholders(skip) if skip else 'NULL'}) ORDER BY last_seen DESC LIMIT ?",
+                f"SELECT user_id FROM chat_members WHERE chat_id = ? AND last_seen >= ? {but}"
+                "ORDER BY last_seen DESC LIMIT ?",
                 (chat_id, since, *skip, limit),
             )
         ]

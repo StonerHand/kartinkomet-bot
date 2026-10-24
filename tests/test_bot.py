@@ -227,7 +227,7 @@ class BotTest(BotHarness):
     async def test_profile_falls_back_to_panel_if_ephemeral_refused(self) -> None:
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=3)
-        self.assertIn("USER3", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("👤 <b>user3</b>", self.session.of("EditMessageText")[-1].text)  # a name keeps its case
 
     async def test_admin_sees_admin_and_reset_needs_confirmation(self) -> None:
         await self.send("/menu", sender=ADMIN)

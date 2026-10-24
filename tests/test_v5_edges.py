@@ -58,8 +58,10 @@ class BossEdgesTest(Harness):
         self.fund(4, 500)
         with mock.patch.object(boss_rules, "COUNTER_EVERY", 1):
             await self.press(f"bh:{boss['id']}", sender=4)
-        counter = self.session.of("SendMessage")[-1]
-        self.assertIn("в добычу", counter.text)
+        self.assertIn("босс дал сдачи", self.session.of("AnswerCallbackQuery")[-1].text)
+        self.assertFalse(any("в добычу" in request.text for request in self.session.of("SendMessage")))  # no chat spam
+        await self.live.refresh_boss(boss["id"])
+        self.assertIn("😤 <b>user4</b> · −<b>15</b> монет в добычу", self.session.of("EditMessageCaption")[-1].caption)
         self.assertEqual(self.coins(4), 500 - boss_rules.COUNTER_FINE)
         self.assertEqual(self.game.repo.get_boss(boss["id"])["loot"], boss["loot"] + boss_rules.COUNTER_FINE)
 

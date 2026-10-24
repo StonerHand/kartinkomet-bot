@@ -10,6 +10,7 @@ from aiogram import Bot
 from aiogram.exceptions import (
     TelegramAPIError,
     TelegramBadRequest,
+    TelegramForbiddenError,
     TelegramNetworkError,
     TelegramRetryAfter,
     TelegramServerError,
@@ -276,8 +277,8 @@ async def ephemeral(
         )
     except TelegramAPIError as error:
         LOGGER.info("Ephemeral message refused in %s: %s", chat_id, error)
-        if not triggered:
-            _no_ephemeral[chat_id] = time.monotonic() + NO_EPHEMERAL_SECONDS
+        if not triggered and isinstance(error, (TelegramBadRequest, TelegramForbiddenError)):
+            _no_ephemeral[chat_id] = time.monotonic() + NO_EPHEMERAL_SECONDS  # a refusal, not a network blip
         return None
 
 

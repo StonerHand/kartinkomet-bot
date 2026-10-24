@@ -79,8 +79,8 @@ def back(to: str = "m:home") -> list[InlineKeyboardButton]:
 
 
 def more() -> InlineKeyboardButton:
-    """«🎲 ещё»: under almost every card, the one way to keep the chat going."""
-    return button("🎲 ещё", "pic", PRIMARY)
+    """«🎲 Ещё»: under almost every card, the one way to keep the chat going."""
+    return button("🎲 Ещё", "pic", PRIMARY)
 
 
 def numbered(pic_ids: list[str], label: str, data: str, style: str | None = None) -> list[list[InlineKeyboardButton]]:
@@ -289,7 +289,7 @@ def gold(token: str) -> InlineKeyboardMarkup:
 
 
 def gold_taken(label: str) -> InlineKeyboardMarkup:
-    return markup([button(f"🏆 {label[:10]}", "gold:taken"), more()])
+    return markup([button(f"🏆 {fit(label, 10)}", "gold:taken"), more()])
 
 
 def after_wheel() -> InlineKeyboardMarkup:
@@ -374,9 +374,13 @@ def tops(active: str, week: bool = False) -> InlineKeyboardMarkup:
             button("✅ Неделя" if week else "📆 Неделя", f"m:top:{active}:w"),
             button("♾ Всё время" if week else "✅ Всё время", f"m:top:{active}"),
         ]
-    pics = [button("🏛 Слава", "m:hall"), button("🕳 Дно", "m:bottom"), button("⚰️ Морг", "m:grave")]
-    return markup(*(tabs[start : start + 2] for start in range(0, len(tabs), 2)), period, pics,
-                  [button("🏆 Сезоны", "m:seasons"), *back()])
+    return markup(
+        *(tabs[start : start + 2] for start in range(0, len(tabs), 2)),
+        period,
+        [button("🏛 Зал славы", "m:hall"), button("🕳 Дно", "m:bottom")],
+        [button("⚰️ Кладбище", "m:grave"), button("🏆 Сезоны", "m:seasons")],
+        back(),
+    )
 
 
 def profile(best_pic: str | None) -> InlineKeyboardMarkup:
@@ -391,7 +395,7 @@ def upload_hub(is_private: bool) -> InlineKeyboardMarkup:
 
 
 def uploading() -> InlineKeyboardMarkup:
-    return markup([button("✅ Готово", "up:done", SUCCESS), button("❌ Отмена", "up:cancel", DANGER)])
+    return markup([button("✅ Готово", "up:done", SUCCESS), button("✖️ Отмена", "up:cancel", DANGER)])
 
 
 def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
@@ -401,7 +405,7 @@ def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
         label = "🔔 События: вкл" if events_on else "🔕 События: выкл"
         events_row = [button(label, "adm:events", SUCCESS if events_on else None)]
     return markup(
-        [button("🩺 Health", "adm:health"), button("💾 Бэкап", "adm:backup")],
+        [button("🩺 Состояние", "adm:health"), button("💾 Бэкап", "adm:backup")],
         [button("📊 Статистика", "adm:stats", PRIMARY)],
         events_row,
         [button("🧨 Сбросить статистику", "adm:reset", DANGER)],
@@ -412,5 +416,5 @@ def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
 def admin_reset_confirm() -> InlineKeyboardMarkup:
     return markup(
         [button("💀 Да, всё стереть", "adm:reset!", DANGER)],
-        [button("Отмена", "m:adm")],
+        [button("✖️ Отмена", "m:adm")],
     )

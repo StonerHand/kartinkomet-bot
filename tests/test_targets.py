@@ -113,6 +113,17 @@ class TargetsTest(Players):
         self.assertEqual(self.coins(3), 1000)
 
 
+    async def test_a_network_blip_doesnt_pause_personal_messages(self) -> None:
+        from aiogram.exceptions import TelegramNetworkError
+        from aiogram.methods import SendMessage
+
+        blip = TelegramNetworkError(method=SendMessage(chat_id=-100, text="x"), message="timeout")
+        self.session.errors["SendEphemeralMessage"] = [blip]
+        await self.send("/divorce", sender=3)  # this once it lands in the chat
+        await self.send("/divorce", sender=3)
+        self.assertEqual(len(self.session.of("SendEphemeralMessage")), 2)  # tried again, not paused
+
+
 class NotAdminTest(Players):
     """The bot isn't a chat admin: Telegram allows personal messages only after a button press."""
 

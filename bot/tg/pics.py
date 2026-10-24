@@ -23,7 +23,7 @@ def pic_markup(game: Game, pic_id: str, likes: int, dislikes: int):
     return keyboards.pic_actions(pic_id, likes, dislikes)
 
 
-# Telegram allows ~20 messages a minute in a group; mashing "🎲 ещё" would get the whole chat muted.
+# Telegram allows ~20 messages a minute in a group; mashing "🎲 Ещё" would get the whole chat muted.
 COOLDOWN_SECONDS = 1.5
 _last_drop: dict[int, float] = {}
 

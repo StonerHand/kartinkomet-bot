@@ -15,8 +15,14 @@ PHASES = {
 
 
 def boss_card(
-    boss: dict, labels: dict[int, str], remaining: int, chat_id: int, super_price: int = boss_rules.SUPER_PRICE
+    boss: dict,
+    labels: dict[int, str],
+    remaining: int,
+    chat_id: int,
+    super_price: int = boss_rules.SUPER_PRICE,
+    counter: tuple[str, int] | None = None,
 ) -> str:
+    """counter: the last counterattack, (victim, coins taken)."""
     raid = bool(boss.get("raid"))
     current = boss_rules.phase(boss["hp"], boss["max_hp"], raid)
     health = [
@@ -25,6 +31,11 @@ def boss_card(
         f"💰 Добыча: {money(boss['loot'])}",
         f"⏳ Сбежит через <b>{timer(remaining)}</b>",
     ]
+    struck = []
+    if counter is not None:
+        victim, fine = counter
+        lost = f" · −{money(fine)} в добычу" if fine else ""
+        struck = [f"😤 <b>{who(victim)}</b>{lost}", f"<i>{escape(pick(boss_texts.COUNTER, chat_id))}</i>"]
     damage = []
     if boss["damage"]:
         damage.append("⚔️ <b>Урон</b>")
@@ -47,6 +58,7 @@ def boss_card(
         pick(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, chat_id),
         health,
         PHASES.get(current, ""),
+        struck,
         damage,
         rules,
         raid_rules,

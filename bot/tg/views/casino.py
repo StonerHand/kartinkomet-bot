@@ -47,13 +47,13 @@ def casino_title(game: str, kind: str) -> str:
 def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], chat_id: int) -> str:
     if result.profit > 0:
         pool = casino_texts.BIG_WIN if result.profit >= result.stake * 5 else casino_texts.WIN
-        verdict = f"➕ +{money(result.profit)}"
+        verdict = f"🪙 +{money(result.profit)}"
     elif result.payout == result.stake:
         pool, verdict = casino_texts.DRAW, "↩️ Ставка вернулась"
     elif result.payout > 0:
         pool, verdict = casino_texts.REFUND, f"↩️ Вернулось <b>{num(result.payout)}</b> из {num(result.stake)}"
     else:
-        pool, verdict = casino_texts.LOSE, f"➖ −{money(result.stake)}"
+        pool, verdict = casino_texts.LOSE, f"🪙 −{money(result.stake)}"
     return card(
         f"<b>{casino_title(result.game, result.roll.kind)}</b> · {who(label)}",
         pick(pool, chat_id),

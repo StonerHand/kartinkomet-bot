@@ -40,7 +40,7 @@ def quests_screen(
         else "🎁 <i>Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
     )
     return card(
-        f"📜 <b>КВЕСТЫ · {who(label).upper()}</b>",
+        f"📜 <b>КВЕСТЫ</b> · {who(label)}",
         pick(progress_texts.QUEST_HEADERS, chat_id),
         ["🎁 <b>Бонус дня</b>", bonus],
         ["📋 <b>Квесты дня</b>", "<i>За все три — деревянный сундук</i>"],
@@ -58,7 +58,7 @@ def daily_result(label: str, daily: Daily, chat_id: int) -> str:
         f"🎁 <b>БОНУС ДНЯ</b> · {who(label)}",
         pick(progress_texts.DAILY, chat_id),
         [
-            f"➕ {money(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
+            f"🪙 +{money(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
             f"💍 Семейная надбавка: +{daily.family_bonus} тебе и супругу" if daily.family_bonus else "",
             f"🎁 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest else "",
         ],
@@ -75,7 +75,7 @@ def chest_opened(label: str, opened, chat_id: int) -> str:
     emoji, name = progress_texts.CHESTS[opened.tier]
     loot = opened.loot
     facts = [
-        f"➕ {money(loot.coins)}" if loot.coins else "",
+        f"🪙 +{money(loot.coins)}" if loot.coins else "",
         f"⚡ +{progress.CHEST_BOOST_RATING} рейтинга одной из твоих пикч" if loot.kind == "boost" and opened.pic else "",
         f"🛡 Щит на {progress.CHEST_SHIELD_SECONDS // 86400} дня самой слабой твоей пикче"
         if loot.kind == "shield" and opened.pic else "",

@@ -90,7 +90,8 @@ def battle_result(
     else:
         title = "⚔️ <b>ИТОГ ДУЭЛИ</b>" if is_duel else "🏟 <b>ИТОГ ТУРНИРА</b>"
     if not report.counted:
-        return card(title, pick(arena_texts.NOBODY_VOTED, battle.chat_id), *(extras or []))
+        nothing = "🤷 Ни одного голоса: рейтинги не изменились, никто не умер"
+        return card(title, pick(arena_texts.NOBODY_VOTED, battle.chat_id), nothing, *(extras or []))
 
     if battle.mode == "challenge":
         from bot.texts.social import CHALLENGE_WIN  # local: only challenges speak this voice
@@ -227,7 +228,7 @@ def dice_duel_result(duel, labels: dict[int, str], chat_id: int) -> str:
     names = tuple(labels.get(user, "?") for user in players)
     throws = [f"{info.emoji} {who(name)} — <b>{value}</b>" for name, value in zip(names, duel.values)]
     if duel.winner is None:
-        verdict, flavour = "↩️ Ничья: ставки вернулись", pick(social_texts.DICE_DUEL_DRAW, chat_id)
+        verdict, flavour = "↩️ Ничья — ставки вернулись", pick(social_texts.DICE_DUEL_DRAW, chat_id)
     else:
         verdict = f"🏆 <b>{who(labels.get(duel.winner, '?'))}</b> забирает {money(duel.pot)}"
         flavour = pick(social_texts.DICE_DUEL_WIN, chat_id)

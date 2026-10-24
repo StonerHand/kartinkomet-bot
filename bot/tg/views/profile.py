@@ -44,7 +44,7 @@ def profile(
 ) -> str:
     level = economy.level_for(wallet.earned)
     upcoming = economy.next_level(wallet.earned)
-    lines = [f"👤 <b>{who(label).upper()}</b>"]
+    lines = [f"👤 <b>{who(label)}</b>"]
     if wallet.title:
         lines.append(f"🏷 «{escape(wallet.title)}»")
     lines += [f"<i>{escape(level.name)} · уровень {level.index + 1} из {len(economy.LEVELS)}</i>", ""]
@@ -142,7 +142,7 @@ def profile(
     if owned:
         lines += [escape(ACHIEVEMENTS[code][0]) for code in rules.showcase(owned, owners)]
         lines.append("")  # the collection is a box of its own, not one more line of the showcase
-        listing = [f"Вся коллекция · у скольких есть{secret}"]
+        listing = [f"Вся коллекция · % — у скольких она есть{secret}"]
         for tier, heading in ((rules.LEGENDARY, "🌟 Легендарные"), ("rare", "✨ Редкие"), ("common", "▫️ Обычные")):
             codes = sorted(code for code in owned if rules.rarity(code) == tier)
             if codes:

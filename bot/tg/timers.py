@@ -368,10 +368,18 @@ class Live:
             boss["message_id"],
             views.boss_card(
                 boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"],
-                self.game.super_price(),
+                self.game.super_price(), self.boss_counter(boss_id),
             ),
             keyboards.boss(boss_id, self.game.super_price()),
         )
+
+    def boss_counter(self, boss_id: str) -> tuple[str, int] | None:
+        """The boss's last counterattack, shown in its card: (victim, coins taken)."""
+        raw = self.game.repo.meta_str(f"boss_counter:{boss_id}")
+        if not raw:
+            return None
+        victim, fine = raw.split(":")
+        return self.game.repo.user_label(int(victim)), int(fine)
 
     async def finish_boss(self, boss_id: str) -> None:
         report = self.game.finish_boss(boss_id)

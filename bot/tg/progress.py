@@ -11,6 +11,7 @@ from bot.game import Game
 from bot.texts import progress as texts
 from bot.texts.pick import pick
 from bot.tg import keyboards, send, views
+from bot.tg.views import plural
 from bot.tg.timers import Live
 
 router = Router(name="progress")
@@ -25,7 +26,8 @@ async def claim(
     button press that lets even a non-admin bot answer personally."""
     daily = game.claim_daily(user_id)
     if daily.status != "ok":
-        return f"{pick(texts.DAILY_AGAIN)}. Серия: {daily.streak}"
+        days = plural(daily.streak, "день", "дня", "дней")
+        return f"{pick(texts.DAILY_AGAIN)}. Серия — {daily.streak} {days}, следующий бонус после полуночи"
     label = game.repo.user_label(user_id)
     markup = keyboards.open_chests([progress.RARE], chat_id) if daily.chest else None
     # Everyone claims it every day: in a group only its owner sees the card.
@@ -112,4 +114,5 @@ async def open_chest(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
     if tier == "legend":  # the suspense is public: stop the button's spinner first
         await send.answer_quietly(callback, "🗝 Открываю…")
     await open_one(bot, game, live, chat_id, callback.from_user.id, tier, callback.id)
-    await send.answer_quietly(callback)
+    if tier != "legend":  # the personal card went first: Telegram allows it only while the press is fresh
+        await send.answer_quietly(callback)
