@@ -44,7 +44,7 @@ async def show_personal(bot: Bot, ctx: Ctx, name: str, callback_id: str | None =
     text, markup = screens.render(name, ctx)
     if name == "quests":
         markup = screens.quests_markup(ctx.game, ctx.user_id, ctx.chat_id)
-    return await send.send_ephemeral(bot, ctx.chat_id, ctx.user_id, text, callback_id, markup)
+    return await send.ephemeral(bot, ctx.chat_id, ctx.user_id, text, callback_id, markup) is not None
 
 
 @router.message(CommandStart())

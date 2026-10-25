@@ -18,7 +18,6 @@ def boss_card(
     boss: dict,
     labels: dict[int, str],
     remaining: int,
-    chat_id: int,
     super_price: int = boss_rules.SUPER_PRICE,
     counter: tuple[str, int] | None = None,
 ) -> str:

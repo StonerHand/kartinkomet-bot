@@ -78,9 +78,9 @@ async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     chat_id = callback.message.chat.id
     token = menu_token(game, pic.id, user_id, chat_id, callback.message.message_id)
     markup = keyboards.pic_menu(token, bool(cursed), prices, game.bounty_amounts())
-    if callback.message.chat.type != "private" and await send.send_ephemeral(
+    if callback.message.chat.type != "private" and await send.ephemeral(
         bot, chat_id, user_id, text, callback.id, markup
-    ):
+    ) is not None:
         await send.answer_quietly(callback)
         return
     await callback.answer()
@@ -113,7 +113,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
                 bot,
                 chat_id,
                 pic.file_id,
-                views.wanted_poster(pic, total, label, chat_id),
+                views.wanted_poster(total, label, chat_id),
                 keyboards.pic_actions(pic.id, pic.likes, pic.dislikes),
             )
             await live.announce(chat_id, game.flush([pic.added_by, user_id]))

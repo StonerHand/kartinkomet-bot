@@ -224,7 +224,7 @@ class ScreensTest(BotHarness):
         _, boss = game.summon_boss(-100, "Тест", forced=True)
         for user_id in (2, 3, 4, 5, 6):
             game.hit_boss(boss["id"], user_id, super_hit=user_id == 3)
-        texts.append(views.boss_card(repo.get_boss(boss["id"]), labels, 300, -100))
+        texts.append(views.boss_card(repo.get_boss(boss["id"]), labels, 300))
         self.clock.advance(3600)
         texts.append(views.boss_result(game.finish_boss(boss["id"]), labels, -100))
 
@@ -262,8 +262,8 @@ class ScreensTest(BotHarness):
         pic = game.draw_pic(-100)[0]
         whose = {"votes": {2: 1, 3: 1}, "phase_ends_at": 0}
         texts += [
-            views.whose_card(whose, 30, -100),
-            views.whose_card({"votes": {}}, 30, -100),
+            views.whose_card(whose, 30),
+            views.whose_card({"votes": {}}, 30),
             views.whose_result("stoner_hand", list(NAMES.values()), 3, -100),
             views.whose_result("stoner_hand", [], 0, -100),
         ]
@@ -285,7 +285,7 @@ class ScreensTest(BotHarness):
         _, raid = game.summon_boss(-100, "Пожиратель лайков", forced=True, raid=True)
         for share in (1.0, 0.5, 0.1):
             boss = {**repo.get_boss(raid["id"]), "hp": int(raid["max_hp"] * share), "hits": 3}
-            texts.append(views.boss_card(boss, NAMES, 7 * 3600 + 59, -100, game.super_price()))
+            texts.append(views.boss_card(boss, NAMES, 7 * 3600 + 59, game.super_price()))
         for kind in ("frame", "title"):
             loot = progress_rules.Loot(kind, prize="gold" if kind == "frame" else "Пиксельное величие")
             opened = Opened("legend", loot, pic, [])

@@ -348,18 +348,6 @@ async def redraw(bot: Bot, message: Message, user_id: int, text: str, markup: In
     return await edit_text(bot, message.chat.id, message.message_id, text, markup)
 
 
-async def send_ephemeral(
-    bot: Bot,
-    chat_id: int,
-    user_id: int,
-    text: str,
-    callback_query_id: str | None = None,
-    markup: InlineKeyboardMarkup | None = None,
-) -> bool:
-    """A group message only `user_id` sees. False if Telegram refused, so callers can fall back."""
-    return await ephemeral(bot, chat_id, user_id, text, callback_query_id, markup) is not None
-
-
 async def remove(bot: Bot, chat_id: int, message: Message | None) -> None:
     """Delete a message the bot sent, ephemeral or not. Failures are ignored."""
     if message is None:

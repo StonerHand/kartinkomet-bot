@@ -11,7 +11,7 @@ from bot.texts.pick import pick, steady
 from bot.tg.views.layout import card, money, note, num, plural, rating, timer, who
 
 
-def caption_card(game: dict, remaining: int, chat_id: int) -> str:
+def caption_card(game: dict, remaining: int) -> str:
     entries = game["entries"]
     if game["phase"] == "collect":
         return card(
@@ -98,7 +98,7 @@ def horoscope(label: str, chat_id: int) -> str:
 # ── whose pic? ─────────────────────────────────────────────────────────
 
 
-def whose_card(game: dict, remaining: int, chat_id: int, reward: int = game_rules.WHOSE_REWARD) -> str:
+def whose_card(game: dict, remaining: int, reward: int = game_rules.WHOSE_REWARD) -> str:
     answered = len(game["votes"])
     return card(
         f"🕵️ <b>Чья пикча?</b> · <b>{timer(remaining)}</b>",

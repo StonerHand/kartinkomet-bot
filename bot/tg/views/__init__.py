@@ -1,7 +1,8 @@
 """Message texts for every card and screen. Pure formatting, no I/O.
 
-One layout for all of them (see layout.card): header, italic flavour line, empty line,
-blocks split by empty lines; one emoji per line, at its start; list items fit a phone line.
+One design system for all of them (see layout.card): a sentence-case title, an italic flavour
+line, then blocks that each open with their emoji or a list mark, and rules or hints in a quote
+box at the end (layout.note). tests/test_texts.layout_problems checks it on every message.
 """
 
 from bot.tg.views.layout import (
@@ -18,7 +19,7 @@ from bot.tg.views.court import court_card, court_result, appeal_hint
 from bot.tg.views.announce import NOTE_CHESTS, note_line, RARITY_WORDS, announcement, has_legendary
 from bot.tg.views.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
-    GAMES_SCREEN, PEOPLE_SCREEN, admin_stats, games_screen, season_line
+    PEOPLE_SCREEN, admin_stats, games_screen, season_line
 )
 from bot.tg.views.profile import Wallet, profile
 from bot.tg.views.games import (
@@ -35,7 +36,7 @@ from bot.tg.views.people import ask, gift, robbery, proposal, wedding, rejected,
 from bot.tg.views.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
 
 __all__ = [
-    "BAR_CELLS", "DUEL_SLOTS", "GAMES_SCREEN", "PEOPLE_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",
+    "BAR_CELLS", "DUEL_SLOTS", "PEOPLE_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",
     "RARITY_WORDS", "REMOVAL_REASONS", "SLOT_COLORS", "TOURNAMENT_SLOTS", "Wallet", "admin", "ago",
     "announcement", "appeal_hint", "ask", "note", "bar", "bare", "battle_card", "battle_report", "battle_result",
     "bets_line", "bets_result", "boss_card", "boss_result", "bottom", "bought", "bounty_line",

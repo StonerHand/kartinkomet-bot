@@ -78,7 +78,7 @@ def purchase_notice(item: str, buyer: str, pic: Pic, chat_id: int) -> str:
     )
 
 
-def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
+def wanted_poster(total: int, sponsor: str, chat_id: int) -> str:
     return card(
         f"🎯 <b>Разыскивается</b> · награда {money(total)}",
         pick(shop_texts.BOUNTY, chat_id),

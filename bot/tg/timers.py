@@ -348,10 +348,10 @@ class Live:
             if fresh["kind"] == "whose":
                 fresh = self.game.with_options(fresh)
                 labels = [self.game.repo.user_label(user) for user in fresh["options"]]
-                card = views.whose_card(fresh, remaining, fresh["chat_id"], self.game.reward(game_rules.WHOSE_REWARD))
+                card = views.whose_card(fresh, remaining, self.game.reward(game_rules.WHOSE_REWARD))
                 return card, keyboards.whose(game_id, labels)
             markup = keyboards.caption_vote(game_id, len(fresh["entries"])) if fresh["phase"] == "vote" else None
-            return views.caption_card(fresh, remaining, fresh["chat_id"]), markup
+            return views.caption_card(fresh, remaining), markup
 
         await self._redraw(game["chat_id"], game["message_id"], True, render)
 
@@ -408,7 +408,7 @@ class Live:
                 return None
             price = self.game.super_price()
             card = views.boss_card(
-                fresh, self.labels(fresh["damage"]), fresh["ends_at"] - self.game.now(), fresh["chat_id"], price,
+                fresh, self.labels(fresh["damage"]), fresh["ends_at"] - self.game.now(), price,
                 self.boss_counter(boss_id),
             )
             return card, keyboards.boss(boss_id, price)

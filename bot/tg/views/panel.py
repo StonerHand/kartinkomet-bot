@@ -172,8 +172,6 @@ def games_screen(reward: Callable[[int], int] = lambda amount: amount) -> str:
     )
 
 
-GAMES_SCREEN = games_screen()
-
 
 PEOPLE_SCREEN = (
     "👥 <b>Люди</b>\n"

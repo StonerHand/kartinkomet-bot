@@ -43,7 +43,7 @@ async def start_caption(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
         bot,
         chat_id,
         pic.file_id,
-        views.caption_card(contest, contest["phase_ends_at"] - game.now(), chat_id),
+        views.caption_card(contest, contest["phase_ends_at"] - game.now()),
     )
     if message is None:
         game.repo.drop_game(contest["id"])
@@ -106,7 +106,7 @@ async def start_whose(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
         bot,
         chat_id,
         pic.file_id,
-        views.whose_card(round_, round_["phase_ends_at"] - game.now(), chat_id, game.reward(game_rules.WHOSE_REWARD)),
+        views.whose_card(round_, round_["phase_ends_at"] - game.now(), game.reward(game_rules.WHOSE_REWARD)),
         keyboards.whose(round_["id"], labels),
     )
     if message is None:

@@ -31,7 +31,7 @@ async def summon(
         bot,
         chat_id,
         pic.file_id,
-        views.boss_card(boss, {}, boss["ends_at"] - game.now(), chat_id, game.super_price()),
+        views.boss_card(boss, {}, boss["ends_at"] - game.now(), game.super_price()),
         keyboards.boss(boss["id"], game.super_price()),
     )
     if message is None:
