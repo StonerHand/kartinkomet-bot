@@ -116,7 +116,7 @@ class MiniGamesMixin:
             self.grant_chest(user_id, "wood", announce=False)
         pic = None
         if spin.coins:
-            self.pay(user_id, spin.coins, f"spin_{spin.kind}", earn=False)
+            spin = replace(spin, coins=self.pay(user_id, spin.coins, f"spin_{spin.kind}", earn=False))
         if spin.kind in ("curse", "bless"):
             pic = self.repo.random_alive_of(user_id)
             if pic is not None:

@@ -151,7 +151,7 @@ def best_pic(repo, user_id: int) -> tuple[str, float, int, int] | None:
 
 
 def games(ctx: Ctx) -> Screen:
-    return views.GAMES_SCREEN, keyboards.games_menu()
+    return views.games_screen(ctx.game.reward), keyboards.games_menu()
 
 
 def people(ctx: Ctx) -> Screen:

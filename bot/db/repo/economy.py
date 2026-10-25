@@ -13,16 +13,20 @@ class EconomyRepo:
         ).fetchone()
         return (row[0], row[1], row[2]) if row else (0, 0, 0)
 
-    def add_coins(self, user_id: int, amount: int, reason: str, now: int, earn: bool = True) -> int:
+    def add_coins(
+        self, user_id: int, amount: int, reason: str, now: int, earn: bool = True, xp: int | None = None
+    ) -> int:
         """Change the balance (never below zero). Gains count towards the level only with `earn`:
-        casino wins, transfers and bonuses move coins without levelling anyone up."""
+        casino wins, transfers and bonuses move coins without levelling anyone up. xp: what the gain
+        counts for the level, if not the coins themselves (rewards grow with the chat's wealth,
+        levels don't)."""
         with self.db:
             self.db.execute(
                 "INSERT INTO players (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING", (user_id,)
             )
             self.db.execute(
                 "UPDATE players SET coins = MAX(0, coins + ?), earned = earned + MAX(0, ?) WHERE user_id = ?",
-                (amount, amount if earn else 0, user_id),
+                (amount, (amount if xp is None else xp) if earn else 0, user_id),
             )
             self.db.execute(
                 "INSERT INTO ledger (user_id, amount, reason, at, earn) VALUES (?, ?, ?, ?, ?)",

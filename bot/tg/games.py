@@ -9,6 +9,8 @@ from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot import collage
+from bot.core import economy
+from bot.core import games as game_rules
 from bot.game import Game
 from bot.texts import games as game_texts
 from bot.texts import toasts, ui
@@ -104,7 +106,7 @@ async def start_whose(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
         bot,
         chat_id,
         pic.file_id,
-        views.whose_card(round_, round_["phase_ends_at"] - game.now(), chat_id),
+        views.whose_card(round_, round_["phase_ends_at"] - game.now(), chat_id, game.reward(game_rules.WHOSE_REWARD)),
         keyboards.whose(round_["id"], labels),
     )
     if message is None:
@@ -165,7 +167,7 @@ async def drop_gold(bot: Bot, game: Game, chat_id: int, pic) -> bool:
         return False
     token = game.repo.create_gold(chat_id, pic.id, game.now())
     message = await send.send_photo(
-        bot, chat_id, BufferedInputFile(framed, filename="gold.jpg"), views.gold_caption(), keyboards.gold(token)
+        bot, chat_id, BufferedInputFile(framed, filename="gold.jpg"), views.gold_caption(game.reward(economy.GOLD)), keyboards.gold(token)
     )
     return message is not None
 
@@ -180,7 +182,7 @@ async def grab_gold(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
     if not won:
         await callback.answer(pick(game_texts.GOLD_CLAIMED), show_alert=True)
         return
-    await callback.answer("⚡ Твоё! +25 🪙", show_alert=True)
+    await callback.answer(f"⚡ Твоё! +{views.num(game.reward(economy.GOLD))} 🪙", show_alert=True)
     if callback.message is not None:
         label = game.repo.user_label(callback.from_user.id)
         chat_id = callback.message.chat.id

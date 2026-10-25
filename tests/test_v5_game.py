@@ -254,3 +254,48 @@ class AdminTrapTest(V4Case):
         self.fund(3, 5000)
         with mock.patch.object(game.rng, "random", return_value=0.0):
             self.assertEqual(game.rob(3, 4).status, "success")
+
+
+class RewardsFollowWealthTest(V4Case):
+    """When everyone holds a million, rewards the game creates grow like prices do; levels don't."""
+
+    quests = True
+
+    def setUp(self) -> None:
+        super().setUp()
+        for user in range(2, 9):  # an active chat of millionaires: the median is a million
+            self.game.repo.add_coins(user, 1, "vote", self.game.now())
+            self.fund(user, 1_000_000)
+        self.factor = self.game.wealth()
+
+    def test_the_factor_is_the_median_wallet_over_the_base(self) -> None:
+        self.assertGreater(self.factor, 400)
+        self.assertEqual(self.game.reward(economy.VOTE), economy.scaled(economy.VOTE, self.factor))
+        self.assertEqual(self.game.reward(-10), -economy.scaled(10, self.factor))
+
+    def test_a_vote_pays_today_s_money_but_levels_by_its_base(self) -> None:
+        coins, earned, _ = self.game.repo.player(3)
+        paid = self.game.pay(3, economy.VOTE, "vote")
+        self.assertEqual(paid, economy.scaled(economy.VOTE, self.factor))
+        self.assertEqual(self.game.repo.player(3)[:2], (coins + paid, earned + economy.VOTE))
+
+    def test_daily_quests_and_the_screen_agree(self) -> None:
+        daily = self.game.claim_daily(4)
+        self.assertEqual(daily.reward, economy.scaled(progress.daily_reward(1), self.factor))
+        tasks, _ = self.game.quests_of(4)
+        self.assertEqual(tasks[0].reward, economy.scaled(progress.daily_quests(4, self.game.local_day())[0].reward, self.factor))
+
+    def test_shares_of_a_pool_are_not_scaled_twice(self) -> None:
+        coins = self.coins(5)
+        self.assertEqual(self.game.pay(5, 1000, "boss"), 1000)  # loot already grew when the boss came
+        self.assertEqual(self.coins(5), coins + 1000)
+
+    def test_boss_loot_grows_with_the_chat(self) -> None:
+        status, boss = self.game.summon_boss(-100, "Тест", forced=True)
+        self.assertEqual(status, "ok")
+        self.assertGreater(boss["loot"], 100_000)
+
+    def test_a_fresh_season_brings_rewards_back_to_base(self) -> None:
+        self.game.repo.reset_coins(1111, frozenset(), "season_reset", self.game.now())
+        self.game._wealth = None
+        self.assertEqual(self.game.reward(economy.VOTE), economy.VOTE)

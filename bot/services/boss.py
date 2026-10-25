@@ -28,6 +28,7 @@ class BossReport:
     last_hit: int | None = None
     granted: list[Granted] = field(default_factory=list)
     chests: int = 0  # raids: wooden chests handed to everyone who dealt RAID_CHEST_DAMAGE
+    last_hit_bonus: int = 0
 
 
 class BossMixin:
@@ -49,7 +50,7 @@ class BossMixin:
         pic = pool[self.rng.randrange(len(pool))]
         players = self.repo.active_players(self.now() - 7 * 86400)
         hp = rules.max_hp(players, double)
-        loot = rules.loot(hp, double)
+        loot = self.scaled(rules.loot(hp, double))  # a pool of money that grows like everything else
         duration = rules.DURATION_SECONDS
         if raid:
             hp, loot, duration = hp * rules.RAID_HP_FACTOR, loot * rules.RAID_LOOT_FACTOR, rules.RAID_SECONDS
@@ -92,7 +93,7 @@ class BossMixin:
             fighters = list(self.repo.get_boss(boss_id)["damage"])
             victim = fighters[self.rng.randrange(len(fighters))] if fighters else None
             if victim is not None:
-                fine = rules.COUNTER_FINE * (2 if enraged else 1)
+                fine = self.scaled(rules.COUNTER_FINE) * (2 if enraged else 1)
                 taken = min(fine, self.repo.player(victim)[0])
                 if taken and self.repo.spend(victim, taken, "boss_counter", self.now()):
                     self.repo.add_boss_loot(boss_id, taken)
@@ -127,8 +128,9 @@ class BossMixin:
             return BossReport(boss, False, granted=self.check_achievements(list(damage)))
         payouts = rules.split_loot(boss["loot"], damage)
         last = boss["last_hit_by"]
+        bonus = self.scaled(rules.LAST_HIT_BONUS)
         if isinstance(last, int):
-            payouts[last] = payouts.get(last, 0) + rules.LAST_HIT_BONUS
+            payouts[last] = payouts.get(last, 0) + bonus
         for user_id, amount in payouts.items():
             self.pay(user_id, amount, "boss")
         events: dict[int, list[str]] = {}
@@ -147,4 +149,4 @@ class BossMixin:
         if isinstance(last, int):
             events.setdefault(last, []).append("last_hit")
         granted = self.check_achievements(list(damage), events)
-        return BossReport(boss, True, payouts, top, last, granted, chests)
+        return BossReport(boss, True, payouts, top, last, granted, chests, bonus)

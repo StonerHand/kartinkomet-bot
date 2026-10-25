@@ -85,7 +85,7 @@ def boss_result(report, labels: dict[int, str], chat_id: int) -> str:
     raid = bool(boss.get("raid"))
     top_chest = "Легендарный" if raid else "Редкий"
     honours = [
-        f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{boss_rules.LAST_HIT_BONUS})"
+        f"💀 Добил: <b>{who(labels.get(report.last_hit, '?'))}</b> (+{num(report.last_hit_bonus or boss_rules.LAST_HIT_BONUS)})"
         if report.last_hit is not None else "",
         f"🎁 {top_chest} сундук — <b>{who(labels.get(report.top, '?'))}</b>" if report.top is not None else "",
         f"🟫 Деревянный сундук ещё {report.chests} {plural(report.chests, 'игроку', 'игрокам', 'игрокам')}"

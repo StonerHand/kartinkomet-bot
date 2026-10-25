@@ -35,7 +35,7 @@ def caption_card(game: dict, remaining: int, chat_id: int) -> str:
     )
 
 
-def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
+def caption_result(game: dict, labels: dict[int, str], chat_id: int, prize: int = economy.CAPTION_WIN) -> str:
     tally: dict[int, int] = {}
     for author in game["votes"].values():
         tally[author] = tally.get(author, 0) + 1
@@ -49,19 +49,19 @@ def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
             f"{mark} «{escape(entry['text'])}»\n"
             f"<i>{who(labels.get(entry['user_id'], '?'))} · {votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>"
         )
-    prize = f"🏆 <b>{who(labels.get(winner, '?'))}</b> +{money(economy.CAPTION_WIN)}" if winner is not None else None
-    return card("🖋 <b>Итоги: подпиши пикчу</b>", pick(pool, chat_id), *listing, prize)
+    won = f"🏆 <b>{who(labels.get(winner, '?'))}</b> +{money(prize)}" if winner is not None else None
+    return card("🖋 <b>Итоги: подпиши пикчу</b>", pick(pool, chat_id), *listing, won)
 
 
 def caption_cancelled(chat_id: int) -> str:
     return card("🖋 <b>Подпиши пикчу</b>", pick(game_texts.CAPTION_CANCELLED, chat_id))
 
 
-def gold_caption() -> str:
+def gold_caption(prize: int = economy.GOLD) -> str:
     return card(
         "⚡ <b>Золотая пикча</b>",
         pick(game_texts.GOLD),
-        f"🏆 Первому — +{money(economy.GOLD)} и ачивка",
+        f"🏆 Первому — +{money(prize)} и ачивка",
     )
 
 
@@ -98,19 +98,21 @@ def horoscope(label: str, chat_id: int) -> str:
 # ── whose pic? ─────────────────────────────────────────────────────────
 
 
-def whose_card(game: dict, remaining: int, chat_id: int) -> str:
+def whose_card(game: dict, remaining: int, chat_id: int, reward: int = game_rules.WHOSE_REWARD) -> str:
     answered = len(game["votes"])
     return card(
         f"🕵️ <b>Чья пикча?</b> · <b>{timer(remaining)}</b>",
         steady(game_texts.WHOSE_INTRO, game.get("id")),
         f"✍️ Ответили: <b>{answered}</b>" if answered else "",
-        note(f"Угадай, кто её загрузил. Верный ответ — +{money(game_rules.WHOSE_REWARD)}, ответ один"),
+        note(f"Угадай, кто её загрузил. Верный ответ — +{money(reward)}, ответ один"),
     )
 
 
-def whose_result(author: str, right: list[str], wrong: int, chat_id: int) -> str:
+def whose_result(
+    author: str, right: list[str], wrong: int, chat_id: int, reward: int = game_rules.WHOSE_REWARD
+) -> str:
     if right:
-        verdict = [f"✅ <b>Угадали</b> · каждому +{money(game_rules.WHOSE_REWARD)}", ", ".join(who(name) for name in right)]
+        verdict = [f"✅ <b>Угадали</b> · каждому +{money(reward)}", ", ".join(who(name) for name in right)]
     else:
         verdict = [f"🤷 {escape(pick(game_texts.WHOSE_NOBODY, chat_id))}"]
     return card(
@@ -141,7 +143,7 @@ def hl_card(streak: int, record: int, last=None) -> str:
     )
 
 
-def hl_over(answer, chat_id: int) -> str:
+def hl_over(answer, chat_id: int, reward: int = game_rules.HL_REWARD) -> str:
     beaten = answer.streak > answer.record_before
     best = max(answer.streak, answer.record_before)
     return card(
@@ -149,5 +151,5 @@ def hl_over(answer, chat_id: int) -> str:
         pick(game_texts.HL_RECORD if beaten else game_texts.HL_OVER, chat_id),
         f"❌ Мимо: {hl_reveal(answer.first, answer.second)}",
         f"🏁 Серия: <b>{answer.streak}</b> · рекорд <b>{best}</b>",
-        note(f"За верный ответ +{num(game_rules.HL_REWARD)} монеты, до {game_rules.HL_PAID_PER_DAY} ответов в день"),
+        note(f"За верный ответ +{money(reward)}, до {game_rules.HL_PAID_PER_DAY} ответов в день"),
     )

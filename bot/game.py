@@ -39,6 +39,11 @@ __all__ = [
 
 # Rewards for taking part: the day events "double coins" and "sniper" multiply these.
 ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
+# Coins the game creates (not moved between players, not a share of a pool): they grow with the
+# chat's wealth. The wheel's spin_* reasons too.
+REWARD_REASONS = ACTIVITY_REASONS | {
+    "quest", "challenge", "daily", "daily_family", "caption_win", "gold", "whose", "hl", "chest",
+}
 
 
 class Game(
@@ -105,12 +110,25 @@ class Game(
         day_start = today * 86400 - self.tz_offset_hours * 3600
         return self.repo.usage(self.now() - days * 86400, day_start, today - days + 1)
 
-    def pay(self, user_id: int | None, amount: int, reason: str, earn: bool = True) -> None:
+    def pay(self, user_id: int | None, amount: int, reason: str, earn: bool = True) -> int:
+        """Credit coins; returns what was paid. Rewards the game creates out of thin air (votes,
+        quests, the daily bonus, chests, the wheel…) grow with the chat's wealth, like prices do:
+        when everyone holds a million, a vote isn't worth 4 coins. The level counts their base
+        amount, so it doesn't grow with them. Shares of a pool (boss loot, bounties) come from
+        money that already grew and are paid as they are."""
         if not isinstance(user_id, int) or not amount:
-            return
+            return 0
         if reason in ACTIVITY_REASONS and amount > 0:
             amount *= self.activity_multiplier(reason)
-        self.repo.add_coins(user_id, amount, reason, self.now(), earn=earn)
+        base = amount
+        if reason in REWARD_REASONS or reason.startswith("spin_"):
+            amount = self.reward(amount)
+        self.repo.add_coins(user_id, amount, reason, self.now(), earn=earn, xp=base)
+        return amount
+
+    def reward(self, amount: int) -> int:
+        """A reward in today's money: the base amount × the chat's wealth (losses too)."""
+        return self.scaled(amount) if amount >= 0 else -self.scaled(-amount)
 
     def activity_multiplier(self, reason: str) -> int:
         event = self.day_event()
@@ -119,4 +137,6 @@ class Game(
         return 2 if event == "double_coins" else 1
 
     def guess_reward(self) -> int:
-        return economy.GUESS * self.activity_multiplier("guess") + economy.VOTE * self.activity_multiplier("vote")
+        """What a right guess brings, the vote included, in today's money."""
+        return (self.reward(economy.GUESS * self.activity_multiplier("guess"))
+                + self.reward(economy.VOTE * self.activity_multiplier("vote")))

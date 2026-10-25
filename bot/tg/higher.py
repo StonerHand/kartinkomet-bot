@@ -5,6 +5,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
+from bot.core import games as games_rules
 from bot.game import Game
 from bot.texts import games as game_texts
 from bot.tg import keyboards, send, views
@@ -75,5 +76,5 @@ async def answer(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         await deal(bot, game, chat_id, user_id, message_id, result)
         return
     await send.answer_quietly(callback, "❌ Мимо")
-    await send.edit_caption(bot, chat_id, message_id, views.hl_over(result, chat_id), keyboards.higher_lower_over())
+    await send.edit_caption(bot, chat_id, message_id, views.hl_over(result, chat_id, game.reward(games_rules.HL_REWARD)), keyboards.higher_lower_over())
     await live.announce(chat_id, game.check_achievements([user_id]))

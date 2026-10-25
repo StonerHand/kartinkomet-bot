@@ -1,5 +1,6 @@
 """Panel screens: home, hall of fame, bottom, graveyard, tops, games, upload, admin."""
 
+from collections.abc import Callable
 from html import escape
 
 from bot.core import economy, seasons
@@ -8,7 +9,7 @@ from bot.db.repo import Pic
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg.views.layout import MEDALS, ago, card, num, plural, rating, who
+from bot.tg.views.layout import MEDALS, ago, card, money, num, plural, rating, who
 
 
 def season_line(season: str, days_left: int) -> str:
@@ -141,32 +142,37 @@ def admin(totals: dict[str, int], users: int, database: str) -> str:
     )
 
 
-GAMES_SCREEN = (
-    "🎮 <b>Игры</b>\n"
-    "<i>Всё, за что капают монеты помимо арены. Казино и люди — отдельными кнопками в пульте</i>\n"
-    "\n"
-    "👹 <b>Босс</b> · /boss\n"
-    "Пикча-чудовище на 10 минут. Чат бьёт его кнопками, добыча делится по урону. "
-    "Приходит сам в 16:00, призвать можно раз в 3 часа. По субботам — рейд до полуночи\n"
-    "\n"
-    "🖋 <b>Подпиши пикчу</b> · /caption\n"
-    f"Минута на подпись ответом на пикчу, потом анонимное голосование. Победителю +{economy.CAPTION_WIN} монет\n"
-    "\n"
-    "🎡 <b>Колесо фортуны</b> · /wheel\n"
-    "Раз в день бесплатно: монеты, проклятие или благословение твоей пикчи, легенда. 777 — +100 монет\n"
-    "\n"
-    "🔮 <b>Гороскоп</b> · /horoscope\n"
-    "Личная пикча и предсказание, раз в день\n"
-    "\n"
-    "🕵️ <b>Чья пикча?</b> · /whose\n"
-    f"Пикча и четыре имени: угадай, кто её загрузил. Полминуты, за верный ответ +{game_rules.WHOSE_REWARD} монет\n"
-    "\n"
-    "🎯 <b>Выше-ниже</b> · /higher\n"
-    "Две пикчи, угадай, у какой рейтинг выше. Играется в личке с ботом, рекорд серии — в рейтингах\n"
-    "\n"
-    "⚡ <b>Золотая пикча</b>\n"
-    f"Иногда выпадает в рандоме. Кто первый нажмёт — тому +{economy.GOLD} монет"
-)
+def games_screen(reward: Callable[[int], int] = lambda amount: amount) -> str:
+    """reward: base amount → today's (rewards grow with the chat's wealth)."""
+    return (
+        "🎮 <b>Игры</b>\n"
+        "<i>Всё, за что капают монеты помимо арены. Казино и люди — отдельными кнопками в пульте</i>\n"
+        "\n"
+        "👹 <b>Босс</b> · /boss\n"
+        "Пикча-чудовище на 10 минут. Чат бьёт его кнопками, добыча делится по урону. "
+        "Приходит сам в 16:00, призвать можно раз в 3 часа. По субботам — рейд до полуночи\n"
+        "\n"
+        "🖋 <b>Подпиши пикчу</b> · /caption\n"
+        f"Минута на подпись ответом на пикчу, потом анонимное голосование. Победителю +{money(reward(economy.CAPTION_WIN))}\n"
+        "\n"
+        "🎡 <b>Колесо фортуны</b> · /wheel\n"
+        f"Раз в день бесплатно: монеты, проклятие или благословение твоей пикчи, легенда. 777 — +{money(reward(game_rules.SPIN_COINS["jackpot"]))}\n"
+        "\n"
+        "🔮 <b>Гороскоп</b> · /horoscope\n"
+        "Личная пикча и предсказание, раз в день\n"
+        "\n"
+        "🕵️ <b>Чья пикча?</b> · /whose\n"
+        f"Пикча и четыре имени: угадай, кто её загрузил. Полминуты, за верный ответ +{money(reward(game_rules.WHOSE_REWARD))}\n"
+        "\n"
+        "🎯 <b>Выше-ниже</b> · /higher\n"
+        "Две пикчи, угадай, у какой рейтинг выше. Играется в личке с ботом, рекорд серии — в рейтингах\n"
+        "\n"
+        "⚡ <b>Золотая пикча</b>\n"
+        f"Иногда выпадает в рандоме. Кто первый нажмёт — тому +{money(reward(economy.GOLD))}"
+    )
+
+
+GAMES_SCREEN = games_screen()
 
 
 PEOPLE_SCREEN = (

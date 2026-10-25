@@ -139,8 +139,7 @@ class QuizMixin:
             day_key = f"hl_paid:{self.local_day()}"
             if self.repo.counter(user_id, day_key) < games.HL_PAID_PER_DAY:
                 self.repo.incr_counter(user_id, day_key)
-                self.pay(user_id, games.HL_REWARD, "hl")
-                paid = games.HL_REWARD
+                paid = self.pay(user_id, games.HL_REWARD, "hl")
             # The token is spent: a second tap on the same round (before the next one is dealt) is stale.
             self.repo.set_meta(f"hl:{user_id}", f":{first_id}:{second_id}:{streak}")
             return HLAnswer("right", first, second, streak, record_before, paid)

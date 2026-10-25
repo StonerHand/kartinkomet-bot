@@ -1,6 +1,6 @@
 """Daily bonus, quests, weekly challenges, chests, the event of the day and the starter bonus."""
 
-from dataclasses import dataclass
+from dataclasses import replace, dataclass
 
 from bot.core import days, progress
 from bot.services.types import Granted, Note
@@ -151,12 +151,12 @@ class ProgressMixin:
             after = self.repo.incr_counter(user_id, f"q:{day}:{kind}", by)
             if before < task.target <= after:
                 reward = task.reward * (2 if self.day_is("quest_mania") else 1)
-                self.pay(user_id, reward, "quest")
-                self._note(user_id, Note("quest", kind, reward, task.target))
+                paid = self.pay(user_id, reward, "quest")
+                self._note(user_id, Note("quest", kind, paid, task.target))
                 self.repo.incr_counter(user_id, "quests_done")
                 if self.repo.incr_counter(user_id, f"q:{day}:done") == progress.QUESTS_PER_DAY:
-                    self.pay(user_id, progress.ALL_QUESTS_BONUS, "quest")
-                    self._note(user_id, Note("quests_all", progress.WOOD, progress.ALL_QUESTS_BONUS))
+                    bonus = self.pay(user_id, progress.ALL_QUESTS_BONUS, "quest")
+                    self._note(user_id, Note("quests_all", progress.WOOD, bonus))
                     self.grant_chest(user_id, progress.WOOD, announce=False)
                 self.progress(user_id, "quest")
         for task in progress.weekly_challenges(week):
@@ -165,8 +165,8 @@ class ProgressMixin:
             before = self.repo.counter(user_id, f"w:{week}:{kind}")
             after = self.repo.incr_counter(user_id, f"w:{week}:{kind}", by)
             if before < task.target <= after:
-                self.pay(user_id, task.reward, "challenge")
-                self._note(user_id, Note("challenge", kind, task.reward, task.target))
+                paid = self.pay(user_id, task.reward, "challenge")
+                self._note(user_id, Note("challenge", kind, paid, task.target))
                 self.grant_chest(user_id, progress.RARE, announce=False)
                 self.repo.incr_counter(user_id, "challenges_done")
                 if self.repo.incr_counter(user_id, f"w:{week}:done") == progress.CHALLENGES_PER_WEEK:
@@ -177,11 +177,11 @@ class ProgressMixin:
     def quests_of(self, user_id: int) -> tuple[list[TaskState], list[TaskState]]:
         day, week = self.local_day(), self.local_week()
         daily = [
-            TaskState(task.kind, task.target, task.reward, self.repo.counter(user_id, f"q:{day}:{task.kind}"))
+            TaskState(task.kind, task.target, self.reward(task.reward), self.repo.counter(user_id, f"q:{day}:{task.kind}"))
             for task in progress.daily_quests(user_id, day)
         ]
         weekly = [
-            TaskState(task.kind, task.target, task.reward, self.repo.counter(user_id, f"w:{week}:{task.kind}"))
+            TaskState(task.kind, task.target, self.reward(task.reward), self.repo.counter(user_id, f"w:{week}:{task.kind}"))
             for task in progress.weekly_challenges(week)
         ]
         return daily, weekly
@@ -252,7 +252,7 @@ class ProgressMixin:
         elif loot.kind == "empty":
             events.append("empty_chest")
         if loot.coins:
-            self.pay(user_id, loot.coins, "chest", earn=False)
+            loot = replace(loot, coins=self.pay(user_id, loot.coins, "chest", earn=False))
         self.repo.incr_counter(user_id, "chests_opened")
         self.progress(user_id, "chest")
         return Opened(tier, loot, pic, self.check_achievements([user_id], {user_id: events}))
@@ -268,13 +268,14 @@ class ProgressMixin:
         self.repo.set_counter(user_id, "daily_day", today)
         self.repo.set_counter(user_id, "daily_streak", streak)
         self.repo.raise_counter(user_id, "best_daily_streak", streak)
-        reward = progress.daily_reward(streak)
+        base = progress.daily_reward(streak)
         family = 0
         spouse = self.repo.spouse_of(user_id)
+        reward = self.pay(user_id, base, "daily")
         if spouse and self.repo.counter(spouse[0], "daily_day") == today:
-            family = int(reward * progress.MARRIED_DAILY_BONUS)
-            self.pay(spouse[0], family, "daily_family")
-        self.pay(user_id, reward + family, "daily")
+            bonus = int(base * progress.MARRIED_DAILY_BONUS)
+            self.pay(spouse[0], bonus, "daily_family")
+            family = self.pay(user_id, bonus, "daily_family")
         chest = progress.daily_chest(streak)
         if chest:
             self.grant_chest(user_id, progress.RARE, announce=False)

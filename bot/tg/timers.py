@@ -16,6 +16,8 @@ from collections.abc import Awaitable, Callable
 
 from aiogram import Bot
 
+from bot.core import economy
+from bot.core import games as game_rules
 from bot.game import Game, Granted
 from bot.tg import keyboards, send, views
 
@@ -346,7 +348,8 @@ class Live:
             if fresh["kind"] == "whose":
                 fresh = self.game.with_options(fresh)
                 labels = [self.game.repo.user_label(user) for user in fresh["options"]]
-                return views.whose_card(fresh, remaining, fresh["chat_id"]), keyboards.whose(game_id, labels)
+                card = views.whose_card(fresh, remaining, fresh["chat_id"], self.game.reward(game_rules.WHOSE_REWARD))
+                return card, keyboards.whose(game_id, labels)
             markup = keyboards.caption_vote(game_id, len(fresh["entries"])) if fresh["phase"] == "vote" else None
             return views.caption_card(fresh, remaining, fresh["chat_id"]), markup
 
@@ -367,7 +370,8 @@ class Live:
         if outcome == "cancelled":
             text = views.caption_cancelled(chat_id)
         else:
-            text = views.caption_result(game, self.labels(entry["user_id"] for entry in game["entries"]), chat_id)
+            labels = self.labels(entry["user_id"] for entry in game["entries"])
+            text = views.caption_result(game, labels, chat_id, self.game.reward(economy.CAPTION_WIN))
         await send.edit_caption(self.bot, chat_id, message_id, text, keyboards.after_caption())
         if outcome == "done":
             if game.get("winner") is not None:
@@ -381,7 +385,10 @@ class Live:
         pic = self.game.repo.get_pic(game["pic_id"])
         author = self.game.repo.user_label(pic.added_by if pic else None)
         labels = self.labels(right)
-        text = views.whose_result(author, [labels[user] for user in right], len(game["votes"]) - len(right), game["chat_id"])
+        text = views.whose_result(
+            author, [labels[user] for user in right], len(game["votes"]) - len(right), game["chat_id"],
+            self.game.reward(game_rules.WHOSE_REWARD),
+        )
         await send.edit_caption(self.bot, game["chat_id"], game["message_id"], text, keyboards.after_whose())
         if right:
             await send.react(self.bot, game["chat_id"], game["message_id"], "👀")
