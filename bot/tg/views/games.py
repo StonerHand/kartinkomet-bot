@@ -7,18 +7,18 @@ from bot.core import economy
 from bot.core import shop
 from bot.db.repo import Pic
 from bot.texts import games as game_texts
-from bot.texts.pick import pick
-from bot.tg.views.layout import card, money, num, plural, rating, timer, who
+from bot.texts.pick import pick, steady
+from bot.tg.views.layout import card, money, note, num, plural, rating, timer, who
 
 
 def caption_card(game: dict, remaining: int, chat_id: int) -> str:
     entries = game["entries"]
     if game["phase"] == "collect":
         return card(
-            f"🖋 <b>ПОДПИШИ ПИКЧУ</b> · <b>{timer(remaining)}</b>",
-            pick(game_texts.CAPTION_START, chat_id),
-            f"Ответь на это сообщение своей подписью — до {game_rules.CAPTION_MAX_LENGTH} символов, можно переписать.",
+            f"🖋 <b>Подпиши пикчу</b> · <b>{timer(remaining)}</b>",
+            steady(game_texts.CAPTION_START, game.get("id")),
             f"✍️ Подписей: <b>{len(entries)}</b> из {game_rules.CAPTION_MAX_ENTRIES}",
+            note(f"Ответь на это сообщение своей подписью — до {game_rules.CAPTION_MAX_LENGTH} символов, можно переписать"),
         )
     tally: dict[int, int] = {}
     for author in game["votes"].values():
@@ -31,7 +31,7 @@ def caption_card(game: dict, remaining: int, chat_id: int) -> str:
             + (f"\n<i>{votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>" if votes else "")
         )
     return card(
-        f"🗳 <b>ЛУЧШАЯ ПОДПИСЬ?</b> · <b>{timer(remaining)}</b>", pick(game_texts.CAPTION_VOTE, chat_id), *listing
+        f"🗳 <b>Лучшая подпись?</b> · <b>{timer(remaining)}</b>", steady(game_texts.CAPTION_VOTE, game.get("id")), *listing
     )
 
 
@@ -50,23 +50,23 @@ def caption_result(game: dict, labels: dict[int, str], chat_id: int) -> str:
             f"<i>{who(labels.get(entry['user_id'], '?'))} · {votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>"
         )
     prize = f"🏆 <b>{who(labels.get(winner, '?'))}</b> +{money(economy.CAPTION_WIN)}" if winner is not None else None
-    return card("🖋 <b>ИТОГИ: ПОДПИШИ ПИКЧУ</b>", pick(pool, chat_id), *listing, prize)
+    return card("🖋 <b>Итоги: подпиши пикчу</b>", pick(pool, chat_id), *listing, prize)
 
 
 def caption_cancelled(chat_id: int) -> str:
-    return card("🖋 <b>ПОДПИШИ ПИКЧУ</b>", pick(game_texts.CAPTION_CANCELLED, chat_id))
+    return card("🖋 <b>Подпиши пикчу</b>", pick(game_texts.CAPTION_CANCELLED, chat_id))
 
 
 def gold_caption() -> str:
     return card(
-        "⚡ <b>ЗОЛОТАЯ ПИКЧА</b>",
+        "⚡ <b>Золотая пикча</b>",
         pick(game_texts.GOLD),
-        f"<i>Первому — +{money(economy.GOLD)} и ачивка</i>",
+        f"🏆 Первому — +{money(economy.GOLD)} и ачивка",
     )
 
 
 def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int, chat_id: int) -> str:
-    title = game_texts.SPIN_TITLES[spin.kind].split(" ", 1)[1]
+    title = game_texts.SPIN_TITLES[spin.kind].split(" ", 1)[1].lower()
     flavour = pick(game_texts.SPIN_RESULTS[spin.kind], chat_id).split(" ", 1)[1]  # phrases open with the emoji
     facts = []
     if spin.coins:
@@ -75,24 +75,24 @@ def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int
     hint = None
     if spin.kind in ("curse", "bless"):
         if pic is None:
-            facts.append("<i>…но твоих пикч на складе нет, так что мимо</i>")
+            facts.append("🫥 …но твоих пикч на складе нет, так что мимо")
         else:
             change = -shop.CURSE_RATING if spin.kind == "curse" else game_rules.BLESS_RATING
             sign = "+" if change > 0 else "−"
             facts.append(f"⭐ Твоя пикча: {sign}{abs(change)} рейтинга\n<i>теперь {rating(pic.rating + change)}</i>")
             if spin.kind == "curse":
-                hint = "<i>Порчу можно снять за сутки — в лавке под пикчей</i>"
+                hint = note("Порчу можно снять за сутки — в лавке под пикчей")
     if spin.kind == "chest":
         facts.append("🟫 +1 деревянный сундук")
-        hint = "<i>Открыть — в /quests</i>"
+        hint = note("Открыть — в /quests")
     if spin.kind == "title":
         facts.append(f"🏷 Титул «{escape(spin.prize)}»")
-        hint = "<i>Он теперь в твоём профиле</i>"
-    return card(f"🎡 <b>КОЛЕСО: {title}</b> · {who(label)}", flavour, facts, hint)
+        hint = note("Он теперь в твоём профиле")
+    return card(f"🎡 <b>Колесо: {title}</b> · {who(label)}", flavour, facts, hint)
 
 
 def horoscope(label: str, chat_id: int) -> str:
-    return card(f"🔮 <b>ГОРОСКОП</b> · {who(label)}", None, escape(pick(game_texts.HOROSCOPE, chat_id)))
+    return card(f"🔮 <b>Гороскоп</b> · {who(label)}", None, note(escape(pick(game_texts.HOROSCOPE, chat_id))))
 
 
 # ── whose pic? ─────────────────────────────────────────────────────────
@@ -101,10 +101,10 @@ def horoscope(label: str, chat_id: int) -> str:
 def whose_card(game: dict, remaining: int, chat_id: int) -> str:
     answered = len(game["votes"])
     return card(
-        f"🕵️ <b>ЧЬЯ ПИКЧА?</b> · <b>{timer(remaining)}</b>",
-        pick(game_texts.WHOSE_INTRO, chat_id),
-        f"Угадай, кто её загрузил. Верный ответ — +{money(game_rules.WHOSE_REWARD)}, ответ один",
+        f"🕵️ <b>Чья пикча?</b> · <b>{timer(remaining)}</b>",
+        steady(game_texts.WHOSE_INTRO, game.get("id")),
         f"✍️ Ответили: <b>{answered}</b>" if answered else "",
+        note(f"Угадай, кто её загрузил. Верный ответ — +{money(game_rules.WHOSE_REWARD)}, ответ один"),
     )
 
 
@@ -112,9 +112,9 @@ def whose_result(author: str, right: list[str], wrong: int, chat_id: int) -> str
     if right:
         verdict = [f"✅ <b>Угадали</b> · каждому +{money(game_rules.WHOSE_REWARD)}", ", ".join(who(name) for name in right)]
     else:
-        verdict = [f"<i>{escape(pick(game_texts.WHOSE_NOBODY, chat_id))}</i>"]
+        verdict = [f"🤷 {escape(pick(game_texts.WHOSE_NOBODY, chat_id))}"]
     return card(
-        "🕵️ <b>ЧЬЯ ПИКЧА?</b> · ответ",
+        "🕵️ <b>Чья пикча?</b> · ответ",
         pick(game_texts.WHOSE_REVEAL, chat_id),
         f"📥 Это пикча <b>{who(author)}</b>",
         verdict,
@@ -134,7 +134,7 @@ def hl_card(streak: int, record: int, last=None) -> str:
     previous = f"✅ Верно: {hl_reveal(last.first, last.second)}" if last is not None else ""
     paid = f"<i>+{money(last.paid)} за ответ</i>" if last is not None and last.paid else ""
     return card(
-        f"🎯 <b>ВЫШЕ-НИЖЕ</b> · серия <b>{streak}</b>",
+        f"🎯 <b>Выше-ниже</b> · серия <b>{streak}</b>",
         game_texts.HL_QUESTION,
         [previous, paid],
         f"🏆 Рекорд: <b>{record}</b>" if record else "",
@@ -145,11 +145,9 @@ def hl_over(answer, chat_id: int) -> str:
     beaten = answer.streak > answer.record_before
     best = max(answer.streak, answer.record_before)
     return card(
-        "🎯 <b>ВЫШЕ-НИЖЕ</b> · конец",
+        "🎯 <b>Выше-ниже</b> · конец",
         pick(game_texts.HL_RECORD if beaten else game_texts.HL_OVER, chat_id),
         f"❌ Мимо: {hl_reveal(answer.first, answer.second)}",
-        [
-            f"🏁 Серия: <b>{answer.streak}</b> · рекорд <b>{best}</b>",
-            f"<i>За верный ответ +{num(game_rules.HL_REWARD)} монеты, до {game_rules.HL_PAID_PER_DAY} ответов в день</i>",
-        ],
+        f"🏁 Серия: <b>{answer.streak}</b> · рекорд <b>{best}</b>",
+        note(f"За верный ответ +{num(game_rules.HL_REWARD)} монеты, до {game_rules.HL_PAID_PER_DAY} ответов в день"),
     )

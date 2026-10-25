@@ -172,7 +172,7 @@ class Events:
             pic = legends[self.game.rng.randrange(len(legends))]
             phrase_pool = texts.PIC_OF_THE_DAY_FALLBACK
         uploader = repo.user_label(pic.added_by) if pic.added_by else None
-        caption = views.card("🌅 <b>ПИКЧА ДНЯ</b>", pick(phrase_pool, chat_id), views.pic_footer(pic, uploader))
+        caption = views.card("🌅 <b>Пикча дня</b>", pick(phrase_pool, chat_id), views.pic_footer(pic, uploader))
         message = await send.send_photo(
             self.bot, chat_id, pic.file_id, caption, keyboards.pic_actions(pic.id, pic.likes, pic.dislikes)
         )
@@ -210,12 +210,13 @@ class Events:
         crown_lines = ["👑 <b>Короны недели</b>"] + [
             f"{economy.CROWNS[kind][0]} {escape(economy.CROWNS[kind][1])} — <b>{views.who(repo.user_label(user_id))}</b>"
             for kind, (user_id, _) in crowns.items()
-        ] + ["<i>Носятся до следующего воскресенья</i>"] if crowns else []
+        ] if crowns else []
         top_pic = summary["top_pic"]
-        photo_note = "🏅 <i>На фото — самая залайканная пикча недели</i>" if top_pic is not None else None
-        text = views.card(
-            "📅 <b>ИТОГИ НЕДЕЛИ</b>", pick(texts.WEEKLY, chat_id), numbers, uploaders, crown_lines, photo_note
+        notes = views.note(
+            "👑 Короны носятся до следующего воскресенья" if crowns else "",
+            "🏅 На фото — самая залайканная пикча недели" if top_pic is not None else "",
         )
+        text = views.card("📅 <b>Итоги недели</b>", pick(texts.WEEKLY, chat_id), numbers, uploaders, crown_lines, notes)
         if top_pic is not None:
             message = await send.send_photo(self.bot, chat_id, top_pic.file_id, text)
         else:

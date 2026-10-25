@@ -134,7 +134,7 @@ class HigherEdgesTest(Harness):
 
     async def test_games_button_in_private_deals(self) -> None:
         await self.press("gm:hl", sender=5, chat=PRIVATE)
-        self.assertIn("ВЫШЕ-НИЖЕ", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Выше-ниже", self.session.of("SendPhoto")[-1].caption)
 
 
 class ButtonRefusalsTest(Harness):
@@ -179,20 +179,20 @@ class PersonalMessagesTest(Harness):
         self.game.quests_enabled = True
         await self.send("/daily", sender=4)
         card = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("БОНУС ДНЯ", card.text)
+        self.assertIn("Бонус дня", card.text)
         self.assertEqual(card.ephemeral_message_parameters.receiver_user_id, 4)
-        self.assertFalse(any("БОНУС ДНЯ" in text for text in self.public()))
+        self.assertFalse(any("Бонус дня" in text for text in self.public()))
         await self.send("/daily", sender=4)
         self.assertIn("Серия", self.session.of("SendEphemeralMessage")[-1].text)
         self.game.grant_chest(4, "wood", announce=False)
         await self.press("ch:wood:-100", sender=4)
-        self.assertIn("ДЕРЕВЯННЫЙ СУНДУК", self.session.of("SendEphemeralMessage")[-1].text)
-        self.assertFalse(any("СУНДУК" in text for text in self.public()))
+        self.assertIn("Деревянный сундук", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertFalse(any("Сундук" in text for text in self.public()))
 
     async def test_legendary_chest_is_opened_in_front_of_everyone(self) -> None:
         self.game.grant_chest(4, "legend", announce=False)
         await self.press("ch:legend", sender=4)
-        self.assertTrue(any("ЛЕГЕНДАРНЫЙ СУНДУК" in text for text in self.public()))
+        self.assertTrue(any("Легендарный сундук" in text for text in self.public()))
 
     async def test_falls_back_to_the_chat_if_telegram_refuses(self) -> None:
         self.session.refuse = {"SendEphemeralMessage"}

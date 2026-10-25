@@ -43,10 +43,11 @@ def timer(seconds: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-def bar(count: int, leader: int, color: str) -> str:
+def bar(count: int, leader: int) -> str:
+    """'  ▰▰▰' after a vote count: the leader gets BAR_CELLS. The colour is the line's own square."""
     if count <= 0 or leader <= 0:
         return ""
-    return "  " + color * max(1, round(BAR_CELLS * count / leader))
+    return "  " + "▰" * max(1, round(BAR_CELLS * count / leader))
 
 
 def num(value: int) -> str:
@@ -83,22 +84,29 @@ def who(label: str) -> str:
     return escape(label)
 
 
+def note(*lines: str) -> str:
+    """Rules, hints and explanations: a quote box, the last block of a card. Text wraps freely
+    inside it, so a long sentence never runs into the lines above."""
+    body = "\n".join(line for line in lines if line)
+    return f"<blockquote>{body}</blockquote>" if body else ""
+
+
 def card(head: str, flavour: str | None = None, *blocks) -> str:
-    """The one layout of every message:
+    """The one layout of every message (the design system):
 
-        HEADER · meta       (the meta goes to a line of its own if the two don't fit)
-        flavour line (italic)
+        🎁 <b>Title</b> · meta     sentence case; the meta moves to its own line if both don't fit
+        flavour line (italic)      one joke, part of the header
 
-        block
+        🪙 fact · fact             every block opens with its emoji or a list mark (1., ▫️,
+        🧾 fact                    🟥); a list has no unmarked lines, a single item may carry
+                                   description lines under it
 
-        block…
+        ┃ rules, hints             explanations go into note(): a quote box at the end
 
     A block is a string or a list of lines; empty lines inside a block and empty blocks are
-    dropped, so callers never glue or double the spacing by hand.
-
-    Inside a block, lines that wrap on a phone would merge with their neighbours, so a long line
-    is either a block of its own, the description under its item's title, or the italic caption
-    that ends a block (like the flavour under the header)."""
+    dropped, so callers never glue or double the spacing by hand. Outside the box a line that
+    wraps on a phone stands alone or ends its block. tests/test_texts.layout_problems checks all
+    of this on every message the bot sends."""
     top = header(head) + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
     parts = [top]
     for block in blocks:

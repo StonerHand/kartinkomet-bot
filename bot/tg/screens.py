@@ -61,7 +61,7 @@ def grave(ctx: Ctx) -> Screen:
     text = views.graveyard(ctx.repo.count_pics("executed"), pics, ctx.labels(pics), ctx.game.now())
     if pics:
         price = views.num(ctx.game.price("resurrect"))
-        text += f"\n\n<i>Кнопка с номером — воскресить за {price} монет, нажать дважды</i>"
+        text += "\n\n" + views.note(f"Кнопка с номером — воскресить за {price} монет, нажать дважды")
     return text, keyboards.graveyard([pic.id for pic in pics], ctx.is_admin)
 
 

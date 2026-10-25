@@ -26,7 +26,7 @@ class V5BotTest(V4BotTest):
         self.game.repo.add_pic("f-x", "u-x", 3, None, self.game.now())
         await self.send("/whose", sender=4)
         card = self.session.of("SendPhoto")[-1]
-        self.assertIn("ЧЬЯ ПИКЧА", card.caption)
+        self.assertIn("Чья пикча", card.caption)
         guesses = self.buttons(card)
         self.assertEqual(len(guesses), 2)
         round_ = self.game.with_options(self.game.repo.active_game(-100, "whose"))
@@ -62,7 +62,7 @@ class V5BotTest(V4BotTest):
         self.addCleanup(setattr, higher_tg, "build_collage", __import__("bot.tg.arena", fromlist=["x"]).build_collage)
         await self.send("/higher", sender=5, chat=PRIVATE)
         card = self.session.of("SendPhoto")[-1]
-        self.assertIn("ВЫШЕ-НИЖЕ", card.caption)
+        self.assertIn("Выше-ниже", card.caption)
         token, streak, first, second = self.game.hl_state(5)
         ratings = [self.game.repo.get_pic(first).rating, self.game.repo.get_pic(second).rating]
         right = 0 if ratings[0] > ratings[1] else 1
@@ -82,7 +82,7 @@ class V5BotTest(V4BotTest):
         self.fund(4, 1000)
         await self.send("/pvp 200 дартс", sender=3, reply_to=self.reply_to(4))
         card = self.session.of("SendMessage")[-1]
-        self.assertIn("ДАРТС 1 НА 1", card.text)
+        self.assertIn("Дартс 1 на 1", card.text)
         challenge_id = self.buttons(card)[0].split(":")[2]
         self.session.dice_values = [6, 2]
         await self.press(f"cl:y:{challenge_id}", sender=4)
@@ -91,18 +91,18 @@ class V5BotTest(V4BotTest):
         self.assertIn("забирает <b>400</b>", result.text)
         self.assertEqual((self.coins(3), self.coins(4)), (1200, 800))
         await self.press(self.buttons(result)[0], sender=4)
-        self.assertEqual(sum("ДАРТС 1 НА 1</b> · <b>" in sent.text for sent in self.session.of("SendMessage")), 2)
+        self.assertEqual(sum("Дартс 1 на 1</b> · <b>" in sent.text for sent in self.session.of("SendMessage")), 2)
         self.assertEqual(self.coins(4), 600)
 
     async def test_pvp_without_a_stake_asks_for_one(self) -> None:
         self.fund(3, 1000)
         await self.send("/pvp", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("КАКАЯ СТАВКА?", question.text)
+        self.assertIn("Какая ставка?", question.text)
         before = self.game.repo.player(3)[0]
         await self.press(self.buttons(question)[1], sender=3)  # 500
         self.assertEqual(self.game.repo.player(3)[0], before - 500)
-        self.assertIn("КОСТИ 1 НА 1", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Кости 1 на 1", self.session.of("SendMessage")[-1].text)
 
     async def test_pic_duel_challenge_offers_a_rematch(self) -> None:
         self.fund(3, 500)
@@ -128,15 +128,15 @@ class V5BotTest(V4BotTest):
         self.game.pay(3, 40, "vote")
         self.clock.value = self.game.season_bounds()[1] - 6 * 3600  # noon-ish of the last day
         self.assertTrue(await events.season_warning(-100))
-        self.assertIn("ПОСЛЕДНИЙ ДЕНЬ СЕЗОНА", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Последний день сезона", self.session.of("SendMessage")[-1].text)
         self.clock.value = self.game.season_bounds()[1] + 60
         repo.touch_chat(-100, "чат", self.game.now())  # results go to chats active lately
         await events.close_season()
         results = self.session.of("SendMessage")[-1]
-        self.assertIn("ИТОГИ СЕЗОНА", results.text)
+        self.assertIn("Итоги сезона", results.text)
         self.assertIn("m:seasons", self.buttons(results))
         await self.press("m:seasons")
-        self.assertIn("ЗАЛ СЕЗОНОВ", self.screen())
+        self.assertIn("Зал сезонов", self.screen())
 
     # ── raids ──────────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ class V5BotTest(V4BotTest):
         await Events(self.bot, self.game, self.live, frozenset({ADMIN}), 0).tick()
         boss = self.game.repo.active_boss(-100)
         self.assertEqual(boss["raid"], 1)
-        self.assertIn("РЕЙД", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Рейд", self.session.of("SendPhoto")[-1].caption)
         self.fund(3, 1000)
         await self.press(f"bs:{boss['id']}", sender=3)
         self.assertEqual(self.coins(3), 1000 - self.game.super_price())
@@ -167,7 +167,7 @@ class V5BotTest(V4BotTest):
     async def test_admin_stats(self) -> None:
         await self.send("/menu", sender=ADMIN)
         await self.press("adm:stats", sender=ADMIN)
-        self.assertIn("СТАТИСТИКА", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("Статистика", self.session.of("EditMessageText")[-1].text)
 
     async def test_casino_share_buttons(self) -> None:
         self.fund(3, 1000)

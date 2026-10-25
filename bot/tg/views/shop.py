@@ -6,7 +6,7 @@ from bot.core import shop
 from bot.db.repo import Pic
 from bot.texts import shop as shop_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import card, duration, money, num, rating, who
+from bot.tg.views.layout import card, duration, money, note, num, rating, who
 from bot.tg.views.progress import day_event_line
 
 
@@ -22,7 +22,7 @@ def shop_screen(
         f"<i>от {num(prices.get('bounty', shop.BOUNTY_AMOUNTS[0]))} монет, получат те, кто казнит пикчу</i>"
     )
     return card(
-        "🛒 <b>ЛАВКА</b>",
+        "🛒 <b>Лавка</b>",
         pick(shop_texts.HEADERS, chat_id),
         [
             f"💼 <b>{who(label)}</b>: {money(balance)}",
@@ -31,11 +31,10 @@ def shop_screen(
         ],
         *items,
         bounty,
-        [
-            "💡 <b>Как купить</b>",
-            "Под каждой пикчей есть кнопка с тележкой — там всё, что можно сделать именно с ней. "
-            "Воскрешение — на экране «Кладбище», титул — кнопкой ниже.",
-        ],
+        note(
+            "💡 Под каждой пикчей есть кнопка с тележкой — там всё, что можно сделать именно с ней. "
+            "Воскрешение — на экране «Кладбище», титул — кнопкой ниже"
+        ),
     )
 
 
@@ -50,7 +49,7 @@ def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: 
         f"🎯 Награда за голову: {money(bounty)}" if bounty else "",
     ]
     return card(
-        "🛒 <b>ЧТО СДЕЛАТЬ С ПИКЧЕЙ</b>",
+        "🛒 <b>Что сделать с пикчей</b>",
         " · ".join(facts),
         status,
         f"💼 Твой баланс: {money(balance)}",
@@ -73,16 +72,16 @@ def purchase_notice(item: str, buyer: str, pic: Pic, chat_id: int) -> str:
     emoji, name, _ = shop_texts.ITEMS[item]
     phrase = bought(item, chat_id).split(" ", 1)[1]  # phrases start with the item emoji
     return card(
-        f"{emoji} <b>{name.upper()}</b> · {PURCHASE_FACTS[item]}",
+        f"{emoji} <b>{name}</b> · {PURCHASE_FACTS[item]}",
         phrase,
-        f"За счёт <b>{who(buyer)}</b> · рейтинг теперь {rating(pic.rating)}",
+        f"💳 За счёт <b>{who(buyer)}</b> · рейтинг теперь <b>{rating(pic.rating)}</b>",
     )
 
 
 def wanted_poster(pic: Pic, total: int, sponsor: str, chat_id: int) -> str:
     return card(
-        f"🎯 <b>РАЗЫСКИВАЕТСЯ</b> · награда {money(total)}",
+        f"🎯 <b>Разыскивается</b> · награда {money(total)}",
         pick(shop_texts.BOUNTY, chat_id),
-        f"Заказчик: <b>{who(sponsor)}</b>",
-        "<i>Деньги получат те, кто её казнит — в суде или на арене</i>",
+        f"🧾 Заказчик · <b>{who(sponsor)}</b>",
+        note("Деньги получат те, кто её казнит — в суде или на арене"),
     )

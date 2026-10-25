@@ -118,9 +118,11 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
         await send.answer_quietly(callback)  # the presser's own copy, redrawn in place
         return
     if not ctx.is_private and (own or name != "home"):
-        # In the panel's place if Telegram allows, else just below it. A copy that vanished
-        # (Telegram drops them on app restarts) is replaced by a fresh one.
-        for replace in (False,) if own else (True, False):
+        # In the panel's place if Telegram allows, else just below it; from another card (a
+        # result's «👥 Люди») always below, so the card stays. A copy that vanished (Telegram
+        # drops them on app restarts) is replaced by a fresh one.
+        panel = game.repo.panel_message(ctx.chat_id) == message.message_id
+        for replace in (True, False) if panel and not own else (False,):
             if await send.ephemeral(bot, ctx.chat_id, user_id, text, callback.id, markup, replace=replace):
                 await send.answer_quietly(callback, None if own else "👀 Видно только тебе")
                 return

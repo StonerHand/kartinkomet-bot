@@ -43,7 +43,7 @@ class V4BotTest(BotHarness):
         self.fund(3, 500)
         await self.send("/spin 100", sender=3)
         self.assertEqual(self.session.of("SendDice")[0].emoji, "🎰")
-        result = next(r for r in self.session.of("SendMessage") if "ДЖЕКПОТ" in r.text)
+        result = next(r for r in self.session.of("SendMessage") if "Джекпот" in r.text)
         self.assertEqual(self.coins(3), 2400)
         self.assertIn("cp:slots:100", self.buttons(result))
 
@@ -63,7 +63,7 @@ class V4BotTest(BotHarness):
         self.fund(3, 300)
         await self.press("m:casino", sender=3)
         screen = self.shown()
-        self.assertIn("КАЗИНО", screen.text)
+        self.assertIn("Казино", screen.text)
         await self.press("cs:all", sender=3)
         self.session.dice_values = [5]
         await self.press("cg:basket", sender=3)
@@ -88,7 +88,7 @@ class V4BotTest(BotHarness):
         self.fund(4, 500)
         await self.send("/challenge 200", sender=3, reply_to=self.reply_to(4))
         card = self.session.of("SendMessage")[-1]
-        self.assertIn("ВЫЗОВ", card.text)
+        self.assertIn("Вызов", card.text)
         challenge_id = self.buttons(card)[0].split(":")[2]
         await self.press(f"cl:y:{challenge_id}", sender=5)
         self.assertEqual(self.game.repo.get_challenge(challenge_id)["status"], "pending")
@@ -124,7 +124,7 @@ class V4BotTest(BotHarness):
         pic = self.game.draw_pic(-100)[0]
         token = shop_tg.menu_token(self.game, pic.id, 3, -100)
         await self.press(f"sh:h5:{token}", sender=3)
-        self.assertIn("РАЗЫСКИВАЕТСЯ", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Разыскивается", self.session.of("SendPhoto")[-1].caption)
 
     async def test_resurrection_needs_two_taps(self) -> None:
         self.fund(3)
@@ -134,7 +134,7 @@ class V4BotTest(BotHarness):
         self.assertEqual(self.game.repo.get_pic(pic.id).status, "executed")
         await self.press(f"res:{pic.id}", sender=3)
         self.assertEqual(self.game.repo.get_pic(pic.id).status, "alive")
-        self.assertIn("ВОСКРЕШЕНИЕ", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Воскрешение", self.session.of("SendPhoto")[-1].caption)
 
     async def test_title_by_reply(self) -> None:
         from datetime import UTC, datetime
@@ -156,7 +156,7 @@ class V4BotTest(BotHarness):
         await self.send("/give 100", sender=3, reply_to=self.reply_to(4))
         await self.send("/give user5 50", sender=3)
         self.assertEqual((self.coins(3), self.coins(4), self.coins(5)), (150, 100, 50))
-        self.assertIn("ПОДАРОК", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Подарок", self.session.of("SendMessage")[-1].text)
 
     async def test_marriage_by_buttons(self) -> None:
         self.fund(3)
@@ -166,10 +166,10 @@ class V4BotTest(BotHarness):
         proposal = self.buttons(card)[0].split(":")[2]
         await self.press(f"mr:y:{proposal}", sender=4)
         self.assertEqual(self.game.repo.spouse_of(3)[0], 4)
-        self.assertIn("СВАДЬБА", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("Свадьба", self.session.of("EditMessageText")[-1].text)
         await self.send("/divorce", sender=4)
         sure = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("РАЗВОДИМСЯ?", sure.text)
+        self.assertIn("Разводимся?", sure.text)
         self.assertIsNotNone(self.game.repo.spouse_of(3))  # nothing happens before the answer
         await self.press(self.buttons(sure)[0], sender=4)
         self.assertIsNone(self.game.repo.spouse_of(3))
@@ -185,18 +185,18 @@ class V4BotTest(BotHarness):
 
     async def test_daily_and_quests_screen(self) -> None:
         await self.press("daily", sender=3)
-        self.assertTrue(any("БОНУС ДНЯ" in text for text in self.texts()))
+        self.assertTrue(any("Бонус дня" in text for text in self.texts()))
         self.assertEqual(self.coins(3), 50)
         await self.press("daily", sender=3)
         self.assertEqual(self.coins(3), 50)
         await self.press("m:quests", sender=3)
         quests = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("КВЕСТЫ", quests.text)
+        self.assertIn("Квесты", quests.text)
 
     async def test_chest_opens_with_suspense(self) -> None:
         self.game.grant_chest(3, "legend", announce=False)
         await self.press("ch:legend", sender=3)
-        self.assertIn("ЛЕГЕНДАРНЫЙ СУНДУК", self.session.of("EditMessageText")[-1].text)
+        self.assertIn("Легендарный сундук", self.session.of("EditMessageText")[-1].text)
         self.assertEqual(self.game.chests_of(3)["legend"], 0)
         await self.press("ch:legend", sender=3)
         self.assertEqual(len(self.session.of("EditMessageText")), 1)
@@ -206,13 +206,13 @@ class V4BotTest(BotHarness):
     async def test_boss_fight(self) -> None:
         await self.send("/boss", sender=3)
         card = self.session.of("SendPhoto")[-1]
-        self.assertIn("БОСС", card.caption)
+        self.assertIn("Сбежит через", card.caption)
         boss = self.game.repo.active_boss(-100)
         self.game.repo.db.execute("UPDATE bosses SET hp = 1 WHERE id = ?", (boss["id"],))
         self.game.repo.db.commit()
         await self.press(f"bh:{boss['id']}", sender=4)
         self.assertEqual(self.game.repo.get_boss(boss["id"])["status"], "won")
-        self.assertTrue(any("ПОВЕРЖЕН" in text for text in self.texts()))
+        self.assertTrue(any("повержен" in text for text in self.texts()))
         await self.send("/boss", sender=3)
         self.assertIn("через", self.session.of("SendEphemeralMessage")[-1].text)
 
@@ -242,7 +242,7 @@ class V4BotTest(BotHarness):
         self.fund(ADMIN, 200)
         await self.press(f"ap:{trial.id}", sender=ADMIN)
         appeal = self.session.of("SendPhoto")[-1]
-        self.assertIn("АПЕЛЛЯЦИЯ", appeal.caption)
+        self.assertIn("Апелляция", appeal.caption)
 
     # ── schedule ───────────────────────────────────────────────────────
 
@@ -254,7 +254,7 @@ class V4BotTest(BotHarness):
         self.clock.value = day_start.timestamp()
         await Events(self.bot, self.game, self.live, frozenset({ADMIN}), 0).tick()
         texts = self.texts()
-        self.assertTrue(any("СОБЫТИЕ ДНЯ" in text for text in texts))
+        self.assertTrue(any("Событие дня" in text for text in texts))
         self.assertIsNotNone(self.game.day_event())
 
     async def test_boss_arrives_on_schedule(self) -> None:

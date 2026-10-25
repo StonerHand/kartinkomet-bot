@@ -40,7 +40,7 @@ def quests_screen(
         else "🎁 <i>Сундуков пока нет: они за квесты, челленджи, серию бонусов и боссов</i>"
     )
     return card(
-        f"📜 <b>КВЕСТЫ</b> · {who(label)}",
+        f"📜 <b>Квесты</b> · {who(label)}",
         pick(progress_texts.QUEST_HEADERS, chat_id),
         ["🎁 <b>Бонус дня</b>", bonus],
         ["📋 <b>Квесты дня</b>", "<i>За все три — деревянный сундук</i>"],
@@ -55,20 +55,20 @@ def daily_result(label: str, daily: Daily, chat_id: int) -> str:
     day = daily.streak
     left = progress.DAILY_CHEST_EVERY - day % progress.DAILY_CHEST_EVERY
     return card(
-        f"🎁 <b>БОНУС ДНЯ</b> · {who(label)}",
+        f"🎁 <b>Бонус дня</b> · {who(label)}",
         pick(progress_texts.DAILY, chat_id),
         [
             f"🪙 +{money(daily.reward)} · серия <b>{day}</b> {plural(day, 'день', 'дня', 'дней')}",
             f"💍 Семейная надбавка: +{daily.family_bonus} тебе и супругу" if daily.family_bonus else "",
-            f"🎁 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest else "",
+            f"🎁 За {progress.DAILY_CHEST_EVERY} дней подряд — <b>редкий сундук</b>" if daily.chest
+            else f"⏳ До редкого сундука · <b>{left}</b> {plural(left, 'день', 'дня', 'дней')}",
         ],
-        None if daily.chest else f"<i>До редкого сундука: {left} {plural(left, 'день', 'дня', 'дней')}</i>",
     )
 
 
 def chest_opening(label: str, tier: str, chat_id: int) -> str:
     emoji, name = progress_texts.CHESTS[tier]
-    return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.OPENING, chat_id))
+    return card(f"{emoji} <b>{name}</b> · {who(label)}", pick(progress_texts.OPENING, chat_id))
 
 
 def chest_opened(label: str, opened, chat_id: int) -> str:
@@ -83,7 +83,7 @@ def chest_opened(label: str, opened, chat_id: int) -> str:
         f"🖼 Лучшая пикча теперь в {progress.FRAMES[loot.prize][0]} рамке" if loot.kind == "frame" else "",
         f"🏷 Титул «{escape(loot.prize)}»" if loot.kind == "title" else "",
     ]
-    return card(f"{emoji} <b>{name.upper()}</b> · {who(label)}", pick(progress_texts.LOOT[loot.kind], chat_id), facts)
+    return card(f"{emoji} <b>{name}</b> · {who(label)}", pick(progress_texts.LOOT[loot.kind], chat_id), facts)
 
 
 def day_event_line(code: str | None) -> str | None:
@@ -103,7 +103,7 @@ def day_event(code: str, chat_id: int, tax: tuple[int, int, int] | None = None) 
             f"🤲 {people} {plural(people, 'бедняк', 'бедняка', 'бедняков')} — по {money(share)}",
         ]
     return card(
-        f"📰 <b>СОБЫТИЕ ДНЯ</b> · {escape(bare(name))}",
+        f"📰 <b>Событие дня</b> · {escape(bare(name))}",
         pick(day_texts.FLAVOUR[code], chat_id),
         ["⚡ <b>Что меняется</b>", f"{escape(rule)}. <i>До полуночи</i>"],
         report,

@@ -169,7 +169,7 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
         chat_id,
         pic.file_id,
         views.card(
-            f"🧟 <b>ВОСКРЕШЕНИЕ</b> · спасибо <b>{views.who(label)}</b>",
+            f"🧟 <b>Воскрешение</b> · спасибо <b>{views.who(label)}</b>",
             views.bought("resurrect", chat_id).split(" ", 1)[1],
             views.pic_footer(pic, uploader),
         ),
@@ -196,7 +196,7 @@ async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         bot,
         chat_id,
         views.card(
-            f"🏷 <b>СВОЙ ТИТУЛ</b> · {views.who(label)}",
+            f"🏷 <b>Свой титул</b> · {views.who(label)}",
             texts.TITLE_PROMPT.format(limit=shop.TITLE_MAX_LENGTH, price=price),
         ),
     )

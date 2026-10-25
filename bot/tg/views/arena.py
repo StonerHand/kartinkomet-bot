@@ -11,18 +11,22 @@ from bot.services.types import BattleReport
 from bot.texts import arena as arena_texts
 from bot.texts import events as event_texts
 from bot.texts import social as social_texts
-from bot.texts.pick import pick
+from bot.texts.pick import pick, steady
 from bot.tg.views.layout import (
-    SLOT_COLORS, bar, bare, card, delta, fits, money, num, plural, rating, slot_names, timer, who,
+    SLOT_COLORS, bar, bare, card, delta, money, note, num, plural, rating, slot_names, timer, who,
 )
 
 
-def vote_lines(counts: list[int], labels: tuple[str, ...]) -> list[str]:
+def vote_lines(counts: list[int], labels: tuple[str, ...], marks: list[str] | None = None) -> list[str]:
+    """'🟥 🐉 A · 3 голоса  ▰▰▰▰▰': the square matches the collage strip and the button; the
+    evolution stage (marks) only when the fighters differ."""
     leader = max(counts) if counts else 0
-    return [
-        f"<b>{labels[slot]}</b> · <b>{count}</b>{bar(count, leader, SLOT_COLORS[slot])}"
-        for slot, count in enumerate(counts)
-    ]
+    lines = []
+    for slot, count in enumerate(counts):
+        stage = f"{marks[slot]} " if marks else ""
+        votes = plural(count, "голос", "голоса", "голосов")
+        lines.append(f"{SLOT_COLORS[slot]} {stage}<b>{labels[slot]}</b> · <b>{count}</b> {votes}{bar(count, leader)}")
+    return lines
 
 
 def bets_line(battle: Battle) -> str | None:
@@ -48,30 +52,30 @@ def battle_card(
     is_duel = battle.kind == "duel"
     labels = slot_names(battle.kind)
     if battle.mode == "challenge":
-        head = "🤺 <b>ВЫЗОВ</b>"
+        head = "🤺 <b>Вызов</b>"
     else:
-        head = "⚔️ <b>ДУЭЛЬ</b>" if is_duel else "🏟 <b>ТУРНИР ЧЕТЫРЁХ</b>"
+        head = "⚔️ <b>Дуэль</b>" if is_duel else "🏟 <b>Турнир четырёх</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
     marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
-    # Stages stand in front of every line or of none ("🥚 A · 1" over "🐉 B · 3"), so the
-    # counts stay in one column; a fight of eggs shows no stages at all.
+    # Stages stand on every line or on none, so the counts stay in one column; a fight of eggs
+    # shows no stages at all.
     evolved = any(mark != marks[0] for mark in marks) or marks[0] != "🥚"
-    votes = [f"{mark} {line}" if evolved else line for line, mark in zip(vote_lines(counts, labels), marks)]
+    votes = vote_lines(counts, labels, marks if evolved else None)
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")
     # Overtime is news, not a caption: it stands alone, like the twist of the day.
-    overtime = f"⏳ <b>{escape(bare(pick(event_texts.EXTENDED, battle.chat_id)))}</b>" if battle.extended and not total else ""
+    overtime = f"⏳ <b>{escape(bare(steady(event_texts.EXTENDED, battle.id)))}</b>" if battle.extended and not total else ""
     if overtime:
         status = ""
     elif battle.mode == "challenge":
-        status = "<i>Голосуют только зрители</i>"
+        status = "Голосуют только зрители, бойцы смотрят"
     else:
-        status = f"<i>{escape(pick(status_pool, battle.chat_id))}</i>"
+        status = escape(steady(status_pool, battle.id, total))  # a new line with each vote
     twist = "🙃 <b>Перевёртыш:</b> победит пикча, у которой МЕНЬШЕ голосов" if flipped else ""
     bets = bets_line(battle) or f"💰 Ставок пока нет · по {money(bet_step)}"
-    # The status is the caption of the bets line, unless a long bet line (a tournament) wraps.
-    footer = [[bets, status]] if fits(bets) else [bets, status]
-    return card(f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, overtime, *footer)
+    return card(
+        f"{head} · <b>{timer(remaining)}</b>", battle.title or None, fighters, votes, twist, overtime, bets, note(status)
+    )
 
 
 def battle_result(
@@ -86,9 +90,9 @@ def battle_result(
     is_duel = battle.kind == "duel"
     labels = slot_names(battle.kind)
     if battle.mode == "challenge":
-        title = "🤺 <b>ИТОГ ВЫЗОВА</b>"
+        title = "🤺 <b>Итог вызова</b>"
     else:
-        title = "⚔️ <b>ИТОГ ДУЭЛИ</b>" if is_duel else "🏟 <b>ИТОГ ТУРНИРА</b>"
+        title = "⚔️ <b>Итог дуэли</b>" if is_duel else "🏟 <b>Итог турнира</b>"
     if not report.counted:
         nothing = "🤷 Ни одного голоса: рейтинги не изменились, никто не умер"
         return card(title, pick(arena_texts.NOBODY_VOTED, battle.chat_id), nothing, *(extras or []))
@@ -146,7 +150,7 @@ def battle_result(
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
     pool = {3: arena_texts.STREAK_3, 5: arena_texts.STREAK_5}.get(milestone, arena_texts.STREAK_10)
     wins = plural(streak, "победа", "победы", "побед")
-    return card(f"🔥 <b>СЕРИЯ: {streak} {wins.upper()} ПОДРЯД</b>", pick(pool, chat_id))
+    return card(f"🔥 <b>Серия: {streak} {wins} подряд</b>", pick(pool, chat_id))
 
 
 def bets_result(report, labels: dict[int, str]) -> list[str]:
@@ -187,21 +191,23 @@ def challenge_card(challenge: dict, labels: dict[int, str], chat_id: int, remain
     challenger = who(labels.get(challenge["from_user"], "?"))
     target = challenge["to_user"]
     opponent = f"<b>{who(labels.get(target, '?'))}</b>" if target else "любого смельчака"
+    duel = [
+        f"🥊 <b>{challenger}</b> против {opponent}",
+        f"💰 Ставка {money(challenge['stake'])} · банк <b>{num(challenge['stake'] * 2)}</b>",
+    ]
     if challenge.get("game"):
         info = casino.GAMES[challenge["game"]]
         return card(
-            f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · <b>{timer(remaining)}</b>",
+            f"{info.emoji} <b>{info.name} 1 на 1</b> · <b>{timer(remaining)}</b>",
             pick(social_texts.DICE_DUEL_CALL, chat_id),
-            f"<b>{challenger}</b> ставит {money(challenge['stake'])} и ждёт {opponent}",
-            f"<i>Каждый бросает по разу, у кого больше — забирает {num(challenge['stake'] * 2)} монет. "
-            "Ничья — ставки вернутся</i>",
+            *duel,  # a long name wraps: each line stands alone
+            note("Каждый бросает по разу, у кого больше — забирает банк. Ничья — ставки вернутся"),
         )
     return card(
-        f"🤺 <b>ВЫЗОВ НА ДУЭЛЬ</b> · <b>{timer(remaining)}</b>",
+        f"🤺 <b>Вызов на дуэль</b> · <b>{timer(remaining)}</b>",
         pick(social_texts.CHALLENGE_CALL, chat_id),
-        f"<b>{challenger}</b> ставит {money(challenge['stake'])} и ждёт {opponent}",
-        "<i>Каждый выставит свою пикчу, чат проголосует. Победитель заберёт "
-        f"{num(challenge['stake'] * 2)} монет. Нет своих пикч — склад выдаст наёмника</i>",
+        *duel,
+        note("Каждый выставит свою пикчу, чат проголосует, банк — победителю. Нет своих пикч — склад выдаст наёмника"),
     )
 
 
@@ -213,7 +219,7 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
         "expired": "Никто не принял. Ставка вернулась",
         "accepted": "Вызов принят — бой ниже" if not challenge.get("game") else "Вызов принят — бросаем",
     }[status]
-    return card(f"🤺 <b>ВЫЗОВ</b> · {challenger} · {money(challenge['stake'])}", reason)
+    return card(f"🤺 <b>Вызов</b> · {challenger} · {money(challenge['stake'])}", reason)
 
 
 def score_line(score: tuple[int, int]) -> str:
@@ -232,7 +238,7 @@ def dice_duel_result(duel, labels: dict[int, str], chat_id: int) -> str:
     else:
         verdict = f"🏆 <b>{who(labels.get(duel.winner, '?'))}</b> забирает {money(duel.pot)}"
         flavour = pick(social_texts.DICE_DUEL_WIN, chat_id)
-    return card(f"{info.emoji} <b>{info.name.upper()} 1 НА 1</b> · итог", flavour, throws, verdict, score_line(duel.score))
+    return card(f"{info.emoji} <b>{info.name} 1 на 1</b> · итог", flavour, throws, verdict, score_line(duel.score))
 
 
 def challenge_names(challenge: dict, labels: dict[int, str]) -> str:

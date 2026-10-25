@@ -1,12 +1,17 @@
 """Live cards: ticking timers, final results, recovery after restart.
 
 Battles, courts and bosses share one countdown loop: refresh the card every TICK_SECONDS,
-settle when the deadline passes. Votes and hits ask for a refresh that is debounced, because
-Telegram rate-limits edits per chat.
+settle when the deadline passes. Votes and hits ask for a refresh that is debounced.
+
+Telegram allows a group about 20 messages a minute, edits included, and answers more with flood
+waits that used to stall the whole chat. So all live cards of a chat together are redrawn at most
+once per LIVE_EDIT_GAP seconds, drawn fresh after the wait, not sent when unchanged, and a flood
+wait only holds back further redraws: people's own commands always find room.
 """
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from aiogram import Bot
@@ -19,6 +24,7 @@ TICK_SECONDS = 15
 # A battle nobody voted in gets one overtime instead of ending empty.
 OVERTIME_SECONDS = 30
 REFRESH_DELAY = 1.5
+LIVE_EDIT_GAP = 3.5  # seconds between two live-card redraws in one chat; tests set 0
 # Notes that put a chest in someone's backpack: kind → tier (None = the note's own code).
 CHEST_OF_NOTE = {"chest": None, "quests_all": "wood", "challenge": "rare", "challenges_all": "legend"}
 
@@ -29,6 +35,7 @@ class Live:
         self.game = game
         self._tasks: dict[str, asyncio.Task] = {}
         self._pending_refresh: set[str] = set()
+        self._next_edit: dict[int, float] = {}  # chat → monotonic time of its next live redraw
 
     # ── tasks ──────────────────────────────────────────────────────────
 
@@ -112,16 +119,20 @@ class Live:
         refresh: Callable[[], Awaitable[None]],
         finish: Callable[[], Awaitable[None]],
     ) -> None:
-        """deadline() → unix time, or None when the thing is already settled."""
+        """deadline() → unix time, or None when the thing is already settled. The first tick
+        doesn't redraw: the card was just sent (or, after a restart, is a tick away from it)."""
+        first = True
         while (ends_at := deadline()) is not None:
             remaining = ends_at - self.game.now()
             if remaining <= 0:
                 await finish()
                 return
-            try:
-                await refresh()
-            except Exception:  # a card that failed to redraw must not stop the settlement
-                LOGGER.exception("Live card refresh failed, the countdown goes on")
+            if not first:
+                try:
+                    await refresh()
+                except Exception:  # a card that failed to redraw must not stop the settlement
+                    LOGGER.exception("Live card refresh failed, the countdown goes on")
+            first = False
             await asyncio.sleep(min(TICK_SECONDS, remaining))
 
     def _debounce(self, key: str, refresh: Callable[[], Awaitable[None]]) -> None:
@@ -135,6 +146,25 @@ class Live:
             await refresh()
 
         self._spawn(f"{key}:{id(run)}", run())
+
+    async def _redraw(
+        self, chat_id: int, message_id: int | None, photo: bool, render: Callable[[], tuple[str, object] | None]
+    ) -> None:
+        """Redraw a live card in its turn: render() runs after the wait, so the card shows the
+        latest state; None means the thing has settled meanwhile."""
+        if message_id is None:
+            return
+        now = time.monotonic()
+        slot = max(now, self._next_edit.get(chat_id, 0.0))
+        self._next_edit[chat_id] = slot + LIVE_EDIT_GAP
+        if slot > now:
+            await asyncio.sleep(slot - now)
+        drawn = render()
+        if drawn is None:
+            return
+        hold = await send.live_edit(self.bot, chat_id, message_id, drawn[0], drawn[1], photo)
+        if hold:
+            self._next_edit[chat_id] = max(self._next_edit[chat_id], time.monotonic() + hold)
 
     def _spawn(self, key: str, coroutine) -> None:
         if key in self._tasks and not self._tasks[key].done():
@@ -203,14 +233,17 @@ class Live:
         battle = self.game.repo.get_battle(battle_id)
         if battle is None or battle.status != "active" or battle.message_id is None:
             return
-        edit = send.edit_caption if battle.card_is_photo else send.edit_text
-        await edit(
-            self.bot,
-            battle.chat_id,
-            battle.message_id,
-            self.battle_text(battle, battle.ends_at - self.game.now()),
-            keyboards.battle_vote(battle.id, battle.kind, battle.vote_counts(), self.game.bet_step()),
-        )
+
+        def render():
+            fresh = self.game.repo.get_battle(battle_id)
+            if fresh is None or fresh.status != "active":
+                return None
+            return (
+                self.battle_text(fresh, fresh.ends_at - self.game.now()),
+                keyboards.battle_vote(fresh.id, fresh.kind, fresh.vote_counts(), self.game.bet_step()),
+            )
+
+        await self._redraw(battle.chat_id, battle.message_id, battle.card_is_photo, render)
 
     async def finish_battle(self, battle_id: str) -> None:
         report = self.game.finish_battle(battle_id)
@@ -251,15 +284,18 @@ class Live:
         trial = self.game.repo.get_court(court_id)
         if trial is None or trial.status != "active" or trial.message_id is None:
             return
-        kill, spare = trial.vote_counts()
-        uploader = self.game.repo.user_label(trial.pic.added_by)
-        await send.edit_caption(
-            self.bot,
-            trial.chat_id,
-            trial.message_id,
-            views.court_card(trial, trial.ends_at - self.game.now(), uploader),
-            keyboards.court_vote(trial.id, kill, spare),
-        )
+
+        def render():
+            fresh = self.game.repo.get_court(court_id)
+            if fresh is None or fresh.status != "active":
+                return None
+            uploader = self.game.repo.user_label(fresh.pic.added_by)
+            return (
+                views.court_card(fresh, fresh.ends_at - self.game.now(), uploader),
+                keyboards.court_vote(fresh.id, *fresh.vote_counts()),
+            )
+
+        await self._redraw(trial.chat_id, trial.message_id, True, render)
 
     async def finish_court(self, court_id: str) -> None:
         report = self.game.finish_court(court_id)
@@ -268,7 +304,7 @@ class Live:
         trial = report.court
         uploader = self.game.repo.user_label(trial.pic.added_by)
         extras = [views.bounty_line(report.bounty, self.labels(report.bounty))]
-        markup = None
+        markup = keyboards.more_only()  # never a dead end
         if report.verdict == "executed" and self.game.can_appeal(trial) and isinstance(trial.pic.added_by, int):
             extras.append(views.appeal_hint(uploader, self.game.appeal_bail()))
             markup = keyboards.appeal(trial.id)
@@ -301,24 +337,20 @@ class Live:
         game = self.game.repo.get_game(game_id)
         if game is None or game["phase"] == "done" or game["message_id"] is None:
             return
-        if game["kind"] == "whose":
-            game = self.game.with_options(game)
-            await send.edit_caption(
-                self.bot,
-                game["chat_id"],
-                game["message_id"],
-                views.whose_card(game, game["phase_ends_at"] - self.game.now(), game["chat_id"]),
-                keyboards.whose(game_id, [self.game.repo.user_label(user) for user in game["options"]]),
-            )
-            return
-        markup = keyboards.caption_vote(game_id, len(game["entries"])) if game["phase"] == "vote" else None
-        await send.edit_caption(
-            self.bot,
-            game["chat_id"],
-            game["message_id"],
-            views.caption_card(game, game["phase_ends_at"] - self.game.now(), game["chat_id"]),
-            markup,
-        )
+
+        def render():
+            fresh = self.game.repo.get_game(game_id)
+            if fresh is None or fresh["phase"] == "done":
+                return None
+            remaining = fresh["phase_ends_at"] - self.game.now()
+            if fresh["kind"] == "whose":
+                fresh = self.game.with_options(fresh)
+                labels = [self.game.repo.user_label(user) for user in fresh["options"]]
+                return views.whose_card(fresh, remaining, fresh["chat_id"]), keyboards.whose(game_id, labels)
+            markup = keyboards.caption_vote(game_id, len(fresh["entries"])) if fresh["phase"] == "vote" else None
+            return views.caption_card(fresh, remaining, fresh["chat_id"]), markup
+
+        await self._redraw(game["chat_id"], game["message_id"], True, render)
 
     async def advance_game(self, game_id: str) -> None:
         current = self.game.repo.get_game(game_id)
@@ -362,16 +394,19 @@ class Live:
         boss = self.game.repo.get_boss(boss_id)
         if boss is None or boss["status"] != "active" or boss["message_id"] is None:
             return
-        await send.edit_caption(
-            self.bot,
-            boss["chat_id"],
-            boss["message_id"],
-            views.boss_card(
-                boss, self.labels(boss["damage"]), boss["ends_at"] - self.game.now(), boss["chat_id"],
-                self.game.super_price(), self.boss_counter(boss_id),
-            ),
-            keyboards.boss(boss_id, self.game.super_price()),
-        )
+
+        def render():
+            fresh = self.game.repo.get_boss(boss_id)
+            if fresh is None or fresh["status"] != "active":
+                return None
+            price = self.game.super_price()
+            card = views.boss_card(
+                fresh, self.labels(fresh["damage"]), fresh["ends_at"] - self.game.now(), fresh["chat_id"], price,
+                self.boss_counter(boss_id),
+            )
+            return card, keyboards.boss(boss_id, price)
+
+        await self._redraw(boss["chat_id"], boss["message_id"], True, render)
 
     def boss_counter(self, boss_id: str) -> tuple[str, int] | None:
         """The boss's last counterattack, shown in its card: (victim, coins taken)."""

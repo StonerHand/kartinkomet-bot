@@ -26,7 +26,7 @@ async def run_give(bot: Bot, game: Game, live: Live, chat_id: int, giver: int, s
     if status != "ok":
         return refusals[status]
     labels = (game.repo.user_label(giver), game.repo.user_label(state["to"]))
-    await send.send_text(bot, chat_id, views.gift(*labels, amount, chat_id))
+    await send.send_text(bot, chat_id, views.gift(*labels, amount, chat_id), keyboards.after_people())
     await live.announce(chat_id, granted)
     return None
 
@@ -41,7 +41,7 @@ async def run_rob(bot: Bot, game: Game, live: Live, chat_id: int, robber: int, s
     if result.status not in ("success", "fail"):
         return texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait))
     labels = (game.repo.user_label(robber), game.repo.user_label(state["to"]))
-    sent = await send.send_text(bot, chat_id, views.robbery(*labels, result, chat_id))
+    sent = await send.send_text(bot, chat_id, views.robbery(*labels, result, chat_id), keyboards.after_people())
     if sent:
         await send.react(bot, chat_id, sent.message_id, "😈" if result.status == "success" else "🤡")
     await live.announce(chat_id, result.granted)
@@ -110,10 +110,10 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
     if status == "married":
         text = views.wedding(suitor, beloved, chat_id)
     elif status == "withdrawn":
-        text = views.card("💍 <b>ПРЕДЛОЖЕНИЕ</b>", f"{suitor}: предложение отозвано. Бывает")
+        text = views.card("💍 <b>Предложение</b>", f"{suitor}: предложение отозвано. Бывает")
     else:
         text = views.rejected(suitor, beloved, chat_id)
-    await send.edit_text(bot, chat_id, callback.message.message_id, text, None)
+    await send.edit_text(bot, chat_id, callback.message.message_id, text, keyboards.after_people())
     if status == "married":
         await send.react(bot, chat_id, callback.message.message_id, "❤", big=True)
     await live.announce(chat_id, granted)
@@ -135,7 +135,7 @@ async def run_divorce(bot: Bot, game: Game, live: Live, chat_id: int, user_id: i
     if result.status != "ok" or result.spouse is None:
         return "Ты не в браке. Разводиться не с кем"
     labels = (game.repo.user_label(user_id), game.repo.user_label(result.spouse))
-    sent = await send.send_text(bot, chat_id, views.divorce(*labels, result, chat_id))
+    sent = await send.send_text(bot, chat_id, views.divorce(*labels, result, chat_id), keyboards.after_people())
     if sent:
         await send.react(bot, chat_id, sent.message_id, "💔")
     await live.announce(chat_id, result.granted)

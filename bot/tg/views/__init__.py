@@ -6,7 +6,7 @@ blocks split by empty lines; one emoji per line, at its start; list items fit a 
 
 from bot.tg.views.layout import (
     BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
-    slot_names, rating, delta, who, card, cited, plural, ago, duration, hp_bar
+    slot_names, rating, delta, who, card, cited, plural, ago, duration, hp_bar, note
 )
 from bot.tg.views.pics import pic_footer, pic_caption
 from bot.tg.views.arena import (
@@ -37,7 +37,7 @@ from bot.tg.views.seasons import points, podium_lines, season_results, season_wa
 __all__ = [
     "BAR_CELLS", "DUEL_SLOTS", "GAMES_SCREEN", "PEOPLE_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",
     "RARITY_WORDS", "REMOVAL_REASONS", "SLOT_COLORS", "TOURNAMENT_SLOTS", "Wallet", "admin", "ago",
-    "announcement", "appeal_hint", "ask", "bar", "bare", "battle_card", "battle_report", "battle_result",
+    "announcement", "appeal_hint", "ask", "note", "bar", "bare", "battle_card", "battle_report", "battle_result",
     "bets_line", "bets_result", "boss_card", "boss_result", "bottom", "bought", "bounty_line",
     "caption_cancelled", "caption_card", "caption_result", "card", "casino_result", "casino_screen",
     "casino_title", "challenge_card", "challenge_closed", "challenge_names", "challenge_result",

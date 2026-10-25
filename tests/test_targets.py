@@ -39,13 +39,13 @@ class TargetsTest(Players):
         await self.send("/rob@kartinkomet_bot", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
         self.assertEqual(question.ephemeral_message_parameters.receiver_user_id, 3)
-        self.assertIn("КОГО ГРАБИМ?", question.text)
+        self.assertIn("Кого грабим?", question.text)
         labels = [button.text for row in question.reply_markup.inline_keyboard for button in row]
         self.assertEqual(labels, ["Данил Медведев", "user5", "user4", "✖️ Отмена"])  # most recent first, not the robber
         await self.press(self.buttons(question)[1], sender=4)  # someone else's question
         self.assertIn("не тебе", self.session.of("AnswerCallbackQuery")[-1].text)
         await self.press(self.buttons(question)[1], sender=3)
-        self.assertTrue(any("ОГРАБЛЕНИЕ" in request.text for request in self.session.of("SendMessage")))
+        self.assertTrue(any("Ограбление" in request.text for request in self.session.of("SendMessage")))
         self.assertIsNone(targets.pending(self.game, -100, 3))
         await self.press(self.buttons(question)[1], sender=3)  # a second tap on the old question
         self.assertIn("устарел", self.session.of("AnswerCallbackQuery")[-1].text)
@@ -54,11 +54,11 @@ class TargetsTest(Players):
         await self.send("/give", sender=3)
         await self.press(self.buttons(self.session.of("SendEphemeralMessage")[-1])[2], sender=3)  # user4
         amounts = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("СКОЛЬКО ДАРИМ?", amounts.text)
+        self.assertIn("Сколько дарим?", amounts.text)
         self.assertIn("user4", amounts.text)
         self.assertIsNotNone(amounts.ephemeral_message_parameters.callback_query_id)  # allowed without admin rights
         await self.press(self.buttons(amounts)[1], sender=3)  # 500
-        self.assertIn("ПОДАРОК", self.session.of("SendMessage")[-1].text)
+        self.assertIn("Подарок", self.session.of("SendMessage")[-1].text)
         self.assertEqual((self.coins(3), self.coins(4)), (500, 1000))
 
     async def test_rob_offers_only_people_worth_robbing(self) -> None:
@@ -75,9 +75,9 @@ class TargetsTest(Players):
                   for button in row]
         self.assertIn("user4", labels)  # offered like anyone: that's the trap
         await self.press(self.buttons(self.session.of("SendEphemeralMessage")[-1])[labels.index("user4")], sender=3)
-        card = next(request.text for request in self.session.of("SendMessage") if "ОГРАБЛЕНИЕ" in request.text)
-        self.assertIn("🚔 <b>ОГРАБЛЕНИЕ СОРВАЛОСЬ</b>", card)
-        self.assertIn("вместо добычи", card)
+        card = next(request.text for request in self.session.of("SendMessage") if "Ограбление" in request.text)
+        self.assertIn("🚔 <b>Ограбление сорвалось</b>", card)
+        self.assertIn("⛓ Обезьянник", card)
         self.assertIn("user4", card.split("\n")[1])  # the phrase names the admin
         self.assertLess(self.coins(3), 1000)
         self.assertGreater(self.coins(4), 500)
@@ -98,7 +98,7 @@ class TargetsTest(Players):
     async def test_names_mentions_and_full_names(self) -> None:
         for text, receiver in (("/give @USER4 10", 4), ("/give данил 10", 7), ("/give 10 Данил Медведев", 7)):
             await self.send(text, sender=3)
-            self.assertIn("ПОДАРОК", self.session.of("SendMessage")[-1].text, text)
+            self.assertIn("Подарок", self.session.of("SendMessage")[-1].text, text)
             self.assertIn(self.game.repo.user_label(receiver), self.session.of("SendMessage")[-1].text)
         # Someone without a username, picked from the @ list: Telegram attaches the person.
         text = "/give Вася 10"
@@ -121,7 +121,7 @@ class TargetsTest(Players):
         await self.send("/rob @kcifekzhue", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
         self.assertIn("Не знаю никого по имени kcifekzhue", question.text)
-        self.assertIn("КОГО ГРАБИМ?", question.text)
+        self.assertIn("Кого грабим?", question.text)
         await self.send("/pvp 200 kcifekzhue", sender=3)  # no open challenge for a typo
         self.assertIn("Не знаю никого по имени", self.session.of("SendEphemeralMessage")[-1].text)
         self.assertEqual(self.coins(3), 1000)
@@ -149,10 +149,10 @@ class NotAdminTest(Players):
         self.fund(4, 1000)
         await self.send("/rob", sender=3)
         question = self.session.of("SendMessage")[-1]  # public: nothing triggered a personal one
-        self.assertIn("КОГО ГРАБИМ?", question.text)
+        self.assertIn("Кого грабим?", question.text)
         asked = self.question()["message"]
         await self.send("@user4", sender=3, reply_to=self.bot_message(asked))
-        self.assertTrue(any("ОГРАБЛЕНИЕ" in request.text for request in self.session.of("SendMessage")))
+        self.assertTrue(any("Ограбление" in request.text for request in self.session.of("SendMessage")))
         self.assertIn(asked, [request.message_id for request in self.session.of("DeleteMessage")])  # the question left
 
     async def test_a_pending_question_doesnt_swallow_other_replies(self) -> None:
@@ -207,25 +207,25 @@ class PanelPeopleTest(Players):
 
     async def test_buttons_ask_personally_even_without_admin_rights(self) -> None:
         await self.press("m:people", sender=3)
-        self.assertIn("ЛЮДИ", self.screen())
+        self.assertIn("Люди", self.screen())
         await self.press("pp:rob", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("КОГО ГРАБИМ?", question.text)
+        self.assertIn("Кого грабим?", question.text)
         self.assertIsNotNone(question.ephemeral_message_parameters.callback_query_id)
         self.assertFalse(self.session.of("SendMessage"))  # nothing in the chat
 
     async def test_a_duel_asks_with_whom_and_anyone_opens_it(self) -> None:
         await self.press("pp:pvp", sender=3)
         question = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("С КЕМ ИГРАЕМ?", question.text)
+        self.assertIn("С кем играем?", question.text)
         labels = [button.text for row in question.reply_markup.inline_keyboard for button in row]
         self.assertIn("🌍 Любой", labels)
         await self.press(self.buttons(question)[labels.index("🌍 Любой")], sender=3)
         stakes = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("КАКАЯ СТАВКА?", stakes.text)
+        self.assertIn("Какая ставка?", stakes.text)
         await self.press(self.buttons(stakes)[0], sender=3)  # 100
         card = self.session.of("SendMessage")[-1]
-        self.assertIn("КОСТИ 1 НА 1", card.text)
+        self.assertIn("Кости 1 на 1", card.text)
         self.assertIsNone(self.game.repo.pending_challenge_of(3)["to_user"])  # open to anyone
         self.assertEqual(self.coins(3), 900)
 
@@ -238,5 +238,5 @@ class PanelPeopleTest(Players):
     async def test_daily_by_button_is_personal(self) -> None:
         await self.press("daily", sender=3)
         card = self.session.of("SendEphemeralMessage")[-1]
-        self.assertIn("БОНУС ДНЯ", card.text)
+        self.assertIn("Бонус дня", card.text)
         self.assertIsNotNone(card.ephemeral_message_parameters.callback_query_id)

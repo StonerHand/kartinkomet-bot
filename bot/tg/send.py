@@ -100,6 +100,41 @@ async def edit_caption(
     )
 
 
+_drawn: dict[tuple[int, int], int] = {}  # (chat, message) → what a live card shows now
+
+
+async def live_edit(
+    bot: Bot, chat_id: int, message_id: int, text: str, markup: InlineKeyboardMarkup | None, photo: bool
+) -> float:
+    """Redraw a live card (timer, votes, health). Unchanged content isn't sent at all. A flood wait
+    isn't slept through, the next redraw is newer anyway: returns its seconds so the caller holds
+    back this chat's redraws, else 0."""
+    key = (chat_id, message_id)
+    drawn = hash((text, markup.model_dump_json() if markup else None))
+    if _drawn.get(key) == drawn:
+        return 0.0
+    try:
+        if photo:
+            await bot.edit_message_caption(
+                chat_id=chat_id, message_id=message_id, caption=text, parse_mode="HTML", reply_markup=markup
+            )
+        else:
+            await bot.edit_message_text(
+                chat_id=chat_id, message_id=message_id, text=text, parse_mode="HTML", reply_markup=markup
+            )
+    except TelegramRetryAfter as error:
+        LOGGER.info("Live card %s/%s waits %ss: the chat is at its message limit", chat_id, message_id, error.retry_after)
+        return float(error.retry_after)
+    except TelegramAPIError as error:
+        if not not_modified(error):
+            LOGGER.warning("Failed to redraw live card %s/%s: %s", chat_id, message_id, error)
+            return 0.0
+    if len(_drawn) > 5000:  # cards long settled; what's drawn is only a shortcut
+        _drawn.clear()
+    _drawn[key] = drawn
+    return 0.0
+
+
 async def edit_photo(
     bot: Bot, chat_id: int, message_id: int, photo: InputFile, caption: str, markup: InlineKeyboardMarkup | None
 ) -> bool:

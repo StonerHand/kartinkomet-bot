@@ -9,7 +9,7 @@ from bot.db.repo import UserStats
 from bot.texts import tops as top_texts
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick
-from bot.tg.views.layout import bare, money, num, plural, rating, who
+from bot.tg.views.layout import bare, money, note, num, plural, rating, who
 from bot.tg.views.seasons import points, season_badges
 
 
@@ -78,14 +78,14 @@ def profile(
     if wallet.season and (wallet.season[1] or wallet.podiums):
         season, score, standing = wallet.season
         where = f" · {standing}-е место" if standing else ""
-        lines += ["", f"🏆 <b>Сезон</b> · {escape(seasons.name(season))}", f"{points(score)}{where}"]
+        lines += ["", f"🏆 <b>Сезон</b> · {escape(seasons.name(season))}", f"📊 {points(score)}{where}"]
         lines += season_badges(list(wallet.podiums))
 
     rank = f" · {place}-е место" if place else ""
     lines += ["", f"📦 <b>Склад</b>{rank}"]
     alive = "все живы" if stats.pics_alive == stats.uploads else f"живых {stats.pics_alive}"
     lines.append(
-        f"<b>{stats.uploads}</b> {plural(stats.uploads, 'пикча', 'пикчи', 'пикч')} · {alive}"
+        f"🖼 <b>{stats.uploads}</b> {plural(stats.uploads, 'пикча', 'пикчи', 'пикч')} · {alive}"
         + (f" · казнено {stats.pics_executed}" if stats.pics_executed else "")
     )
     lines.append(
@@ -153,5 +153,5 @@ def profile(
         lines.append(f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>\n")
     else:
         lines += [f"<i>Пока ни одной{secret}. Проголосуй в дуэли — это уже начало</i>", ""]
-    lines.append(f"<i>{escape(pick(top_texts.PROFILE_ROASTS))}</i>")
+    lines.append(note(escape(pick(top_texts.PROFILE_ROASTS))))
     return "\n".join(lines)

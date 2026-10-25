@@ -24,6 +24,7 @@ from aiogram.types import (
 from bot.__main__ import build_dispatcher
 from bot.core.arena import DUEL_SECONDS
 from bot.core.court import COURT_SECONDS
+from bot.tg import arena as arena_tg
 from bot.tg import games, pics, send, timers, upload
 from bot.tg.events import Events
 from bot.tg.timers import Live
@@ -155,6 +156,9 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         games.DICE_ANIMATION_SECONDS = 0
         self.session.dice_values = []
         send._no_ephemeral.clear()
+        send._drawn.clear()  # message ids repeat from test to test
+        arena_tg._downloads.clear()  # file ids repeat too
+        timers.LIVE_EDIT_GAP = 0
 
     async def asyncTearDown(self) -> None:
         await self.live.stop()
@@ -226,19 +230,22 @@ class BotTest(BotHarness):
         self.assertEqual(len(self.session.of("SendMessage")), 2)
         self.assertEqual(len(self.session.of("DeleteMessage")), 1)
         self.assertNotIn("m:adm", self.buttons(self.session.of("SendMessage")[0]))
+        panel = self.game.repo.panel_message(-100)
         for screen in ("m:hall", "m:bottom", "m:grave", "m:top:loved", "m:up", "m:help"):
-            await self.press(screen)  # each opens for the presser only, the panel stays home
+            await self.press(screen, message_id=panel)  # each opens for the presser only, in the panel's place
         self.assertEqual(len(self.session.of("SendEphemeralMessage")), 6)
         self.assertTrue(all(request.ephemeral_message_parameters.replace_callback_query_message
                             for request in self.session.of("SendEphemeralMessage")))
-        await self.press("m:home:refresh")
+        await self.press("m:home:refresh", message_id=panel)
         self.assertEqual(len(self.session.of("EditMessageText")), 1)  # the shared panel itself
+        await self.press("m:people", message_id=777)  # from a result card: below it, the card stays
+        self.assertFalse(self.session.of("SendEphemeralMessage")[-1].ephemeral_message_parameters.replace_callback_query_message)
         await self.press("m:top:rich", personal=True)  # inside a personal copy: redrawn in place
-        self.assertIn("БОГАЧИ", self.session.of("EditEphemeralMessageText")[-1].text)
+        self.assertIn("Богачи", self.session.of("EditEphemeralMessageText")[-1].text)
         self.assertEqual(len(self.session.of("EditMessageText")), 1)
         self.session.refuse = {"EditEphemeralMessageText"}  # the copy vanished: a fresh one comes
         await self.press("m:shop", personal=True)
-        self.assertIn("ЛАВКА", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertIn("Лавка", self.session.of("SendEphemeralMessage")[-1].text)
         self.assertEqual(len(self.session.of("EditMessageText")), 1)
 
     async def test_someones_browsing_doesnt_move_anothers_screen(self) -> None:
@@ -252,7 +259,7 @@ class BotTest(BotHarness):
 
     async def test_casino_is_personal_and_the_stake_mark_follows_the_press(self) -> None:
         await self.send("/casino", sender=3)
-        self.assertIn("КАЗИНО", self.session.of("SendEphemeralMessage")[-1].text)
+        self.assertIn("Казино", self.session.of("SendEphemeralMessage")[-1].text)
         self.assertFalse(self.session.of("SendMessage"))  # nobody else sees one person's coins
         await self.press("cs:p25", sender=3, personal=True)
         redrawn = self.session.of("EditEphemeralMessageText")[-1]
@@ -298,7 +305,7 @@ class BotTest(BotHarness):
         await self.press(f"c:k:{court_id}", sender=4)
         self.clock.advance(COURT_SECONDS + 1)
         await self.live.finish_court(court_id)
-        self.assertIn("КАЗНЕНА", self.session.of("EditMessageCaption")[-1].caption)
+        self.assertIn("казнена", self.session.of("EditMessageCaption")[-1].caption)
         emojis = [r.reaction[0].emoji for r in self.session.of("SetMessageReaction")]
         self.assertIn("🤡", emojis)  # verdict
         self.assertIn("🎉", emojis)  # voters got the "first blood" achievement
@@ -356,7 +363,7 @@ class BotTest(BotHarness):
 
     async def test_upload_refused_in_group(self) -> None:
         await self.send("/upload")
-        self.assertIn("ТОЛЬКО В ЛИЧКЕ", self.session.of("SendMessage")[-1].text)
+        self.assertIn("только в личке", self.session.of("SendMessage")[-1].text)
 
 
     async def test_v1_reaction_buttons_still_work(self) -> None:
@@ -417,14 +424,14 @@ class BotTest(BotHarness):
         await self.send("/duel")
         self.assertEqual(self.session.of("SendMediaGroup"), [])
         card = self.session.of("SendPhoto")[-1]
-        self.assertIn("ДУЭЛЬ", card.caption)
+        self.assertIn("Дуэль", card.caption)
         battle_id = self.buttons(card)[0].split(":")[1]
         self.assertTrue(self.game.repo.get_battle(battle_id).card_is_photo)
 
         await self.press(f"v:{battle_id}:0", sender=3)
         self.clock.advance(DUEL_SECONDS + 1)
         await self.live.finish_battle(battle_id)
-        self.assertIn("ИТОГ ДУЭЛИ", self.session.of("EditMessageCaption")[-1].caption)
+        self.assertIn("Итог дуэли", self.session.of("EditMessageCaption")[-1].caption)
 
 
     async def test_profile_and_command_menus(self) -> None:
@@ -523,7 +530,7 @@ class BotTest(BotHarness):
         events = self.events()
         await events.tick()
         await events.tick()
-        photos = [r for r in self.session.of("SendPhoto") if "ПИКЧА ДНЯ" in (r.caption or "")]
+        photos = [r for r in self.session.of("SendPhoto") if "Пикча дня" in (r.caption or "")]
         self.assertEqual(len(photos), 1)
         self.assertEqual(photos[0].photo, pic.file_id)
 
@@ -544,7 +551,7 @@ class BotTest(BotHarness):
         await self.events().tick()
         self.assertIsNotNone(self.game.repo.active_court_for_pic(pic.id))
         self.assertFalse(self.session.of("SendMessage"))  # the robot speaks inside the court card
-        self.assertIn("НАРОДНЫЙ СУД", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Народный суд", self.session.of("SendPhoto")[-1].caption)
 
     async def test_weekly_digest_on_sunday(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
@@ -552,7 +559,7 @@ class BotTest(BotHarness):
         self.at_hour(18, weekday=6)
         await self.events().tick()
         texts = [getattr(r, "text", None) or getattr(r, "caption", None) or "" for r in self.session.requests]
-        self.assertTrue(any("ИТОГИ НЕДЕЛИ" in text for text in texts))
+        self.assertTrue(any("Итоги недели" in text for text in texts))
 
     async def test_events_can_be_switched_off_by_admin(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
@@ -616,7 +623,7 @@ class BotTest(BotHarness):
     async def test_caption_contest_end_to_end(self) -> None:
         await self.send("/caption")
         card = self.session.of("SendPhoto")[-1]
-        self.assertIn("ПОДПИШИ ПИКЧУ", card.caption)
+        self.assertIn("Подпиши пикчу", card.caption)
         contest = self.game.repo.active_game(-100, "caption")
         message = Message(message_id=contest["message_id"], date=datetime.now(UTC), chat=GROUP, from_user=BOT_USER)
         await self.send("когда бот выдал легенду", sender=3, reply_to=message)
@@ -625,20 +632,20 @@ class BotTest(BotHarness):
         self.clock.advance(61)
         await self.live.advance_game(contest["id"])
         vote_card = self.session.of("EditMessageCaption")[-1]
-        self.assertIn("ЛУЧШАЯ ПОДПИСЬ", vote_card.caption)
+        self.assertIn("Лучшая подпись", vote_card.caption)
         self.assertEqual(self.buttons(vote_card), [f"cv:{contest['id']}:0", f"cv:{contest['id']}:1"])
         await self.press(f"cv:{contest['id']}:1", sender=5)
         self.clock.advance(46)
         await self.live.advance_game(contest["id"])
         result = self.session.of("EditMessageCaption")[-1].caption
-        self.assertIn("ИТОГИ", result)
+        self.assertIn("Итоги", result)
         self.assertIn("👑 «рейтинг 1090 не трогай»\n<i>user4 · 1 голос</i>", result)
 
     async def test_wheel_shows_slot_machine_then_prize(self) -> None:
         await self.send("/wheel", sender=3)
         self.assertEqual(self.session.of("SendDice")[0].emoji, "🎰")
         prize = self.session.of("SendMessage")[0]
-        self.assertIn("ДЖЕКПОТ", prize.text)
+        self.assertIn("джекпот", prize.text)
         self.assertEqual(self.game.repo.player(3)[0], 100)
         self.assertIn("m:casino", self.buttons(prize))
 
@@ -649,7 +656,7 @@ class BotTest(BotHarness):
 
     async def test_horoscope_from_panel(self) -> None:
         await self.press("gm:horo", sender=3)
-        self.assertIn("ГОРОСКОП", self.session.of("SendPhoto")[-1].caption)
+        self.assertIn("Гороскоп", self.session.of("SendPhoto")[-1].caption)
         await self.press("gm:horo", sender=3)
         self.assertEqual(len(self.session.of("SendPhoto")), 1)
 
@@ -664,7 +671,7 @@ class BotTest(BotHarness):
         self.game.roll_gold = lambda chat_id: True
         await self.send("/pic")
         gold = self.session.of("SendPhoto")[-1]
-        self.assertIn("ЗОЛОТАЯ", gold.caption)
+        self.assertIn("Золотая", gold.caption)
         token_data = self.buttons(gold)[0]
         await self.press(token_data, sender=3)
         await self.press(token_data, sender=4)
@@ -674,7 +681,7 @@ class BotTest(BotHarness):
 
     async def test_games_screen(self) -> None:
         await self.press("m:games")
-        self.assertIn("ИГРЫ", self.screen())
+        self.assertIn("Игры", self.screen())
 
 
     async def test_crowns_in_tops_profile_and_digest(self) -> None:

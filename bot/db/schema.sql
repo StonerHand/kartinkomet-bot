@@ -199,6 +199,9 @@ CREATE TABLE IF NOT EXISTS chat_members (
     last_seen INTEGER NOT NULL,
     PRIMARY KEY (chat_id, user_id)
 ) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_members_recent ON chat_members(chat_id, last_seen);
+-- «/rob vasya»: names are found by username without scanning every user.
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(lower(username));
 
 -- One live control panel per chat.
 CREATE TABLE IF NOT EXISTS panels (

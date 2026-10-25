@@ -314,6 +314,11 @@ def more_only() -> InlineKeyboardMarkup:
     return markup([more()])
 
 
+def after_people() -> InlineKeyboardMarkup:
+    """Under a gift, a robbery, a wedding: what to do next, so the card isn't a dead end."""
+    return markup([button("👥 Люди", "m:people", PRIMARY), more()])
+
+
 def battle_vote(battle_id: str, kind: str, counts: list[int], step: int = 50) -> InlineKeyboardMarkup:
     labels = DUEL_LABELS if kind == "duel" else TOURNAMENT_LABELS
     buttons = [

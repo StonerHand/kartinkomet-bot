@@ -1,6 +1,7 @@
 """Phrase picking without short-term repeats."""
 
 import random
+import zlib
 from collections import OrderedDict, deque
 from collections.abc import Sequence
 
@@ -40,6 +41,15 @@ def pick(pool: Sequence[str], scope: object = None) -> str:
     index = _RNG.choice(choices)
     memory.append(index)
     return pool[index]
+
+
+def steady(pool: Sequence[str], *key: object) -> str:
+    """The same phrase for the same key. Live cards are redrawn every few seconds: a phrase
+    picked anew each time made their text jump and cost an edit even when nothing happened.
+    Put what should change the phrase into the key (the card's id, its vote count)."""
+    if not pool:
+        return ""
+    return pool[zlib.crc32(repr(key).encode()) % len(pool)]
 
 
 def reset() -> None:

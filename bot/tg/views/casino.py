@@ -6,7 +6,7 @@ from bot.core import casino
 from bot.services.casino import CasinoResult
 from bot.texts import casino as casino_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import card, money, num, who
+from bot.tg.views.layout import card, money, note, num, who
 
 
 def stake_words(mode: str, value: int, stake: int) -> str:
@@ -26,7 +26,7 @@ def casino_screen(
         for game in casino.GAMES.values()
     ]
     return card(
-        "🎰 <b>КАЗИНО</b>",
+        "🎰 <b>Казино</b>",
         pick(casino_texts.HEADERS, chat_id),
         [
             f"💼 <b>{who(label)}</b>: {money(balance)}",
@@ -34,9 +34,11 @@ def casino_screen(
             "🍀 <b>Счастливый день:</b> выигрыши ×1.5" if lucky else "",
         ],
         *games,
-        "<i>Ставка у каждого своя: кнопки с процентами и «ва-банк» меняют её тому, кто нажал. "
-        "Своей суммой — /spin 300, /dice все</i>",
-        "🤝 <b>1 на 1</b> · /pvp\n<i>Кости, дартс или боулинг против человека, без казино: /pvp 200 дартс</i>",
+        "🤝 <b>1 на 1</b> · /pvp\n<i>Кости, дартс или боулинг против человека, без казино</i>",
+        note(
+            "Ставка у каждого своя: кнопки с процентами и «ва-банк» меняют её тому, кто нажал. "
+            "Своей суммой — /spin 300, /dice все"
+        ),
     )
 
 

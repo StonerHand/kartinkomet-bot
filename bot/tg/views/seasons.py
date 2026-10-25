@@ -5,7 +5,7 @@ from html import escape
 from bot.core import seasons
 from bot.texts import seasons as texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import MEDALS, card, num, plural, who
+from bot.tg.views.layout import MEDALS, card, note, num, plural, who
 
 PLACE_WORDS = ("победа", "второе место", "третье место")
 
@@ -22,21 +22,21 @@ def podium_lines(podium: list[tuple[str, int]]) -> list[str]:
 def season_results(season: str, podium: list[tuple[str, int]], starter: int, chat_id: int) -> str:
     following = seasons.name(seasons.next_season(season)).split()[0]
     return card(
-        f"🏁 <b>ИТОГИ СЕЗОНА</b> · {escape(seasons.name(season))}",
+        f"🏁 <b>Итоги сезона</b> · {escape(seasons.name(season))}",
         pick(texts.RESULTS, chat_id),
-        podium_lines(podium) or [texts.NOBODY],
+        podium_lines(podium) or [f"🕸 {texts.NOBODY}"],
         f"🪙 Монеты сгорели: все начинают с <b>{num(starter)}</b>",
-        f"<i>Тройка лучших носит значок сезона в профиле навсегда. Новый сезон — {following}</i>",
+        note(f"Тройка лучших носит значок сезона в профиле навсегда. Новый сезон — {following}"),
     )
 
 
 def season_warning(season: str, podium: list[tuple[str, int]], starter: int, chat_id: int) -> str:
     return card(
-        f"⏳ <b>ПОСЛЕДНИЙ ДЕНЬ СЕЗОНА</b> · {escape(seasons.name(season))}",
+        f"⏳ <b>Последний день сезона</b> · {escape(seasons.name(season))}",
         pick(texts.WARNING, chat_id),
         f"🕛 В полночь монеты сгорят, все начнут с <b>{num(starter)}</b>",
         ["🏆 <b>Сейчас в тройке</b>", *podium_lines(podium)] if podium else "",
-        f"<i>{escape(texts.RULES)}</i>",
+        note(escape(texts.RULES)),
     )
 
 
@@ -44,10 +44,10 @@ def seasons_hall(current: str, live: list[tuple[str, int]], past: list[tuple[str
     """live: the running season's top three; past: finished seasons with their podiums."""
     blocks = [["📅 <b>" + escape(seasons.name(current).capitalize()) + "</b> · идёт", *podium_lines(live)]]
     if not live:
-        blocks[0].append(f"<i>{texts.NOBODY}</i>")
+        blocks[0].append(f"<i>{texts.NOBODY}</i>")  # under the season's title: its description
     for season, podium in past:
         blocks.append(["🏆 <b>" + escape(seasons.name(season).capitalize()) + "</b>", *podium_lines(podium)])
-    return card("🏆 <b>ЗАЛ СЕЗОНОВ</b>", pick(texts.HALL), *blocks, f"<i>{escape(texts.RULES)}</i>")
+    return card("🏆 <b>Зал сезонов</b>", pick(texts.HALL), *blocks, note(escape(texts.RULES)))
 
 
 def season_badges(podiums: list[tuple[str, int]]) -> list[str]:
