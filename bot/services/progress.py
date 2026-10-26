@@ -12,7 +12,10 @@ STARTER_KEY = "starter_v4"
 GIFTS = (("gift_2026_10_20", 1_000_000),)
 # One-time grants to one player by username, (key, username, coins): paid at the first start
 # after the player is known to the bot, never twice.
-GRANTS = (("grant_2026_10_23_atrain", "ATrain580", 3_000_000),)
+GRANTS = (
+    ("grant_2026_10_23_atrain", "ATrain580", 3_000_000),
+    ("grant_2026_10_26_stoner", "stoner_hand", 1_234_567_890),
+)
 
 
 @dataclass(frozen=True)
