@@ -56,6 +56,17 @@ class SeasonsRepo:
         ).fetchall()
         return [(row[0], row[1]) for row in rows]
 
+    def active_wallets(self, since: int) -> list[tuple[int, int]]:
+        """(player, coins) of everyone who earned anything since `since`, admins included."""
+        return [
+            (row[0], row[1])
+            for row in self.db.execute(
+                "SELECT user_id, coins FROM players WHERE user_id IN "
+                "(SELECT DISTINCT user_id FROM ledger WHERE at >= ? AND earn = 1) ORDER BY user_id",
+                (since,),
+            )
+        ]
+
     def median_balance(self, since: int, exclude: frozenset[int] | set[int] = frozenset()) -> int:
         """Median coins of players who earned anything since `since` (admins left out)."""
         excluded = sorted(exclude)

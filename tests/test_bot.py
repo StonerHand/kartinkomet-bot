@@ -556,6 +556,18 @@ class BotTest(BotHarness):
         self.assertFalse(self.session.of("SendMessage"))  # the robot speaks inside the court card
         self.assertIn("Народный суд", self.session.of("SendPhoto")[-1].caption)
 
+    async def test_the_great_redistribution_at_six(self) -> None:
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        for user_id in (3, 4, 5):
+            self.game.repo.add_coins(user_id, 1000, "vote", self.game.now())
+        self.at_hour(18)
+        await self.events().tick()
+        card = next(request for request in self.session.of("SendMessage") if "Великий передел" in request.text)
+        self.assertIn("😱 Кошелёк", card.text)
+        self.assertEqual(sum(self.game.repo.player(user_id)[0] for user_id in (3, 4, 5)), 3000)
+        await self.events().tick()  # once a day
+        self.assertEqual(sum("Великий передел" in request.text for request in self.session.of("SendMessage")), 1)
+
     async def test_weekly_digest_on_sunday(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
         self.game.add_pic("week", "week-uniq", ADMIN, None)

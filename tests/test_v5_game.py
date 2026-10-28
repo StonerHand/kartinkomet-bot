@@ -299,3 +299,48 @@ class RewardsFollowWealthTest(V4Case):
         self.game.repo.reset_coins(1111, frozenset(), "season_reset", self.game.now())
         self.game._wealth = None
         self.assertEqual(self.game.reward(economy.VOTE), economy.VOTE)
+
+
+class RedistributionTest(V4Case):
+    """Every day one player's whole wallet goes to everyone else who plays, in random shares."""
+
+    def players(self, wallets: dict[int, int]) -> None:
+        for user, coins in wallets.items():
+            self.game.repo.add_coins(user, 1, "vote", self.game.now())  # played lately
+            self.fund(user, coins - 1)
+
+    def test_one_wallet_goes_to_everyone_else_and_nothing_is_lost(self) -> None:
+        self.players({3: 1000, 4: 2000, 5: 3000, 6: 4000})
+        before = sum(self.coins(user) for user in (3, 4, 5, 6))
+        report = self.game.redistribute()
+        self.assertEqual(self.coins(report.victim), 0)
+        self.assertNotIn(report.victim, [player for player, _ in report.shares])
+        self.assertEqual(sum(amount for _, amount in report.shares), report.total)
+        self.assertEqual(sum(self.coins(user) for user in (3, 4, 5, 6)), before)
+        self.assertEqual([amount for _, amount in report.shares], sorted((a for _, a in report.shares), reverse=True))
+
+    def test_once_a_day(self) -> None:
+        self.players({3: 1000, 4: 2000, 5: 3000})
+        first = self.game.redistribute()
+        balances = [self.coins(user) for user in (3, 4, 5)]
+        self.assertEqual(self.game.redistribute(), first)  # every chat announces the same one
+        self.assertEqual([self.coins(user) for user in (3, 4, 5)], balances)
+        self.clock.advance(86400)
+        self.assertIsNotNone(self.game.redistribute())  # tomorrow: another one
+
+    def test_admins_are_not_spared(self) -> None:
+        self.game.admins = frozenset({2})
+        self.players({2: 1_000_000, 3: 1, 4: 1})
+        self.game.repo.add_coins(3, -1, "test", self.game.now(), earn=False)
+        self.game.repo.add_coins(4, -1, "test", self.game.now(), earn=False)
+        report = self.game.redistribute()
+        self.assertEqual((report.victim, report.total), (2, 1_000_000))  # the only wallet with coins
+
+    def test_the_first_victim_is_the_admin_s_choice(self) -> None:
+        self.clock.value = 1_793_199_600  # 2026-10-28 18:00 in Moscow
+        self.game.repo.remember_user(9, "toyota_celica_fun", "Toyota", None, self.game.now())
+        self.players({3: 1000, 4: 2000})
+        self.fund(9, 5000)  # hasn't played lately: still the chosen one
+        report = self.game.redistribute()
+        self.assertEqual((report.victim, report.total), (9, 5000))
+        self.assertEqual({player for player, _ in report.shares} | {3, 4}, {3, 4})

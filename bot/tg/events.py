@@ -50,6 +50,7 @@ JOBS = (
     Job("day_event", days.START_HOUR, None, per_chat=True),
     Job("pic_of_the_day", 12, None, per_chat=True),
     Job("boss", 16, None, per_chat=True),
+    Job("redistribution", 18, None, per_chat=True),
     Job("auto_court", 19, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
     Job("season_warning", 12, None, per_chat=True),  # posts only on the last day of a month
@@ -72,6 +73,7 @@ class Events:
             "day_event": self.day_event,
             "boss": self.daily_boss,
             "season_warning": self.season_warning,
+            "redistribution": self.redistribution,
         }
 
     def start(self) -> None:
@@ -153,6 +155,21 @@ class Events:
         await send.react(self.bot, chat_id, message.message_id, "⚡")
         if code == "invasion":
             await summon(self.bot, self.game, self.live, chat_id, double=True, forced=True)
+        return True
+
+    async def redistribution(self, chat_id: int) -> bool:
+        """18:00: one wallet goes to everyone. Moved once a day, announced in every chat."""
+        report = self.game.redistribute()
+        if report is None:
+            return False
+        label = self.game.repo.user_label
+        text = views.redistribution(
+            label(report.victim), report.total, [(label(player), amount) for player, amount in report.shares], chat_id
+        )
+        message = await send.send_text(self.bot, chat_id, text, keyboards.after_people())
+        if message is None:
+            return False
+        await send.react(self.bot, chat_id, message.message_id, "😱", big=True)
         return True
 
     async def daily_boss(self, chat_id: int) -> bool:

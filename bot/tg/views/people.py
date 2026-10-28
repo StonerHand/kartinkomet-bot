@@ -3,13 +3,37 @@
 from bot.core import shop
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
-from bot.tg.views.layout import card, duration, money, note, num, who
+from bot.tg.views.layout import MEDALS, card, duration, money, note, num, who
 
 
 def ask(emoji: str, question: str, about: str | None, hint: str, remark: str | None = None) -> str:
     """The bot's question when a command leaves out the person or the amount."""
     head = f"{emoji} <b>{question}</b>" + (f" · {who(about)}" if about else "")
     return card(head, hint, note(remark) if remark else "")
+
+
+REDISTRIBUTION_SHOWN = 10
+
+
+def redistribution(victim: str, total: int, shares: list[tuple[str, int]], chat_id: int) -> str:
+    """The great redistribution: whose wallet went, and who caught how much of it."""
+    from bot.texts.events import REDISTRIBUTION  # local: people's views don't speak the events' voice elsewhere
+
+    caught = []
+    for index, (label, amount) in enumerate(shares[:REDISTRIBUTION_SHOWN]):
+        place = MEDALS[index] if index < len(MEDALS) else f"{index + 1}."
+        caught.append(f"{place} {who(label)} · +<b>{num(amount)}</b>")  # coins: named in the line above
+    rest = shares[REDISTRIBUTION_SHOWN:]
+    if rest:
+        caught.append(f"▫️ Ещё {len(rest)} · +<b>{num(sum(amount for _, amount in rest))}</b>")
+    return card(
+        "💸 <b>Великий передел</b>",
+        pick(REDISTRIBUTION, chat_id),
+        f"😱 Кошелёк <b>{who(victim)}</b> · {money(total)}",
+        caught,
+        note("Каждый день в 18:00 у одного игрока забирают все монеты и раздают тем, кто играл последние "
+             "две недели, в случайных долях. Завтра — кто-то другой"),
+    )
 
 
 def gift(giver: str, receiver: str, amount: int, chat_id: int) -> str:

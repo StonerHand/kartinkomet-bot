@@ -32,7 +32,7 @@ from bot.tg.views.progress import (
     task_line, quests_screen, daily_result, chest_opening, chest_opened, day_event_line, day_event
 )
 from bot.tg.views.boss import boss_card, boss_result
-from bot.tg.views.people import ask, gift, robbery, proposal, wedding, rejected, divorce
+from bot.tg.views.people import ask, gift, redistribution, robbery, proposal, wedding, rejected, divorce
 from bot.tg.views.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
 
 __all__ = [
@@ -46,7 +46,7 @@ __all__ = [
     "day_event_line", "delta", "divorce", "duration", "evolution_lines", "gift", "gold_caption",
     "graveyard", "hall", "has_legendary", "home", "horoscope", "hp_bar", "money", "note_line", "num",
     "pic_caption", "pic_footer", "pic_menu", "plural", "podium_lines", "points", "profile", "proposal",
-    "purchase_notice", "season_badges", "season_results", "season_warning", "seasons_hall",
+    "purchase_notice", "redistribution", "season_badges", "season_results", "season_warning", "seasons_hall",
     "quests_screen", "rating", "rejected", "robbery", "shop_screen", "slot_names", "spin_result",
     "streak_announcement", "task_line", "timer", "top", "upload_hub", "upload_progress", "vote_lines",
     "wanted_poster", "wedding", "who", "whose_card", "whose_result", "hl_card", "hl_over", "hl_reveal",
