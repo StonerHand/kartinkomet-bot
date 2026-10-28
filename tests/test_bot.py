@@ -466,16 +466,19 @@ class BotTest(BotHarness):
         battle = self.game.start_duel(-100).battle
         self.game.repo.set_battle_message(battle.id, 90)
 
+        original = timers.asyncio.sleep
+
         async def fake_sleep(seconds: float) -> None:
+            for _ in range(10 if seconds else 1):  # a tick lets the redraw it asked for draw first
+                await original(0)
             self.clock.advance(seconds)
 
-        original = timers.asyncio.sleep
-        timers.asyncio.sleep = fake_sleep
+        timers.asyncio.sleep, timers.REFRESH_DELAY = fake_sleep, 0
         try:
             self.clock.advance(DUEL_SECONDS)
             await self.live.battle_countdown(battle.id)
         finally:
-            timers.asyncio.sleep = original
+            timers.asyncio.sleep, timers.REFRESH_DELAY = original, 1.5
         finished = self.game.repo.get_battle(battle.id)
         self.assertTrue(finished.extended)
         self.assertEqual(finished.status, "done")

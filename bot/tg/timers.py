@@ -27,6 +27,7 @@ TICK_SECONDS = 15
 OVERTIME_SECONDS = 30
 REFRESH_DELAY = 1.5
 LIVE_EDIT_GAP = 3.5  # seconds between two live-card redraws in one chat; tests set 0
+MAX_FLOOD_HOLD = 60  # a flood wait holds back a chat's redraws at most this long
 # Notes that put a chest in someone's backpack: kind → tier (None = the note's own code).
 CHEST_OF_NOTE = {"chest": None, "quests_all": "wood", "challenge": "rare", "challenges_all": "legend"}
 
@@ -47,7 +48,7 @@ class Live:
     def battle_countdown(self, battle_id: str):
         return self._countdown(
             lambda: self._battle_deadline(battle_id),
-            lambda: self.refresh_battle(battle_id),
+            lambda: self.request_refresh_battle(battle_id),
             lambda: self.finish_battle(battle_id),
         )
 
@@ -57,7 +58,7 @@ class Live:
             return trial.ends_at if trial and trial.status == "active" else None
 
         self._spawn(f"c:{court_id}", self._countdown(
-            deadline, lambda: self.refresh_court(court_id), lambda: self.finish_court(court_id)
+            deadline, lambda: self.request_refresh_court(court_id), lambda: self.finish_court(court_id)
         ))
 
     def watch_boss(self, boss_id: str) -> None:
@@ -74,7 +75,7 @@ class Live:
             return boss["ends_at"] if boss["hp"] > 0 else 0  # killed: settle now
 
         self._spawn(f"boss:{boss_id}", self._countdown(
-            deadline, lambda: self.refresh_boss(boss_id), lambda: self.finish_boss(boss_id)
+            deadline, lambda: self.request_refresh_boss(boss_id), lambda: self.finish_boss(boss_id)
         ))
 
     def watch_game(self, game_id: str) -> None:
@@ -118,11 +119,14 @@ class Live:
     async def _countdown(
         self,
         deadline: Callable[[], int | None],
-        refresh: Callable[[], Awaitable[None]],
+        request_refresh: Callable[[], None],
         finish: Callable[[], Awaitable[None]],
     ) -> None:
-        """deadline() → unix time, or None when the thing is already settled. The first tick
-        doesn't redraw: the card was just sent (or, after a restart, is a tick away from it)."""
+        """deadline() → unix time, or None when the thing is already settled. The clock never
+        waits for a redraw: it only asks for one (coalesced with the votes' and hits' requests)
+        and settles on time. A countdown that waited in the chat's redraw queue let a busy boss
+        fight push every battle of the chat past its deadline. The first tick doesn't ask: the
+        card was just sent (or, after a restart, is a tick away from it)."""
         first = True
         while (ends_at := deadline()) is not None:
             remaining = ends_at - self.game.now()
@@ -130,22 +134,25 @@ class Live:
                 await finish()
                 return
             if not first:
-                try:
-                    await refresh()
-                except Exception:  # a card that failed to redraw must not stop the settlement
-                    LOGGER.exception("Live card refresh failed, the countdown goes on")
+                request_refresh()
             first = False
             await asyncio.sleep(min(TICK_SECONDS, remaining))
 
     def _debounce(self, key: str, refresh: Callable[[], Awaitable[None]]) -> None:
+        """At most one waiting redraw per card. It renders the newest state when its turn comes,
+        so requests made while it waits are covered by it; the key is free again only after it
+        has drawn. (Freeing it before the wait let every hit queue one more redraw, and the
+        chat's queue grew faster than one redraw per LIVE_EDIT_GAP could drain it.)"""
         if key in self._pending_refresh:
             return
         self._pending_refresh.add(key)
 
         async def run() -> None:
-            await asyncio.sleep(REFRESH_DELAY)
-            self._pending_refresh.discard(key)
-            await refresh()
+            try:
+                await asyncio.sleep(REFRESH_DELAY)
+                await refresh()
+            finally:
+                self._pending_refresh.discard(key)
 
         self._spawn(f"{key}:{id(run)}", run())
 
@@ -164,7 +171,7 @@ class Live:
         drawn = render()
         if drawn is None:
             return
-        hold = await send.live_edit(self.bot, chat_id, message_id, drawn[0], drawn[1], photo)
+        hold = min(await send.live_edit(self.bot, chat_id, message_id, drawn[0], drawn[1], photo), MAX_FLOOD_HOLD)
         if hold:
             self._next_edit[chat_id] = max(self._next_edit[chat_id], time.monotonic() + hold)
 

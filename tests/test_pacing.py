@@ -1,11 +1,13 @@
 """Live cards share a chat's message budget: redraws are paced, unchanged ones skipped, and a
 flood wait holds back only the redraws."""
 
+import asyncio
 import time
 
 from aiogram.exceptions import TelegramRetryAfter
 from aiogram.methods import EditMessageCaption
 
+from bot.core import boss as boss_rules
 from bot.tg import timers
 from tests.test_bot import BotHarness
 
@@ -45,3 +47,26 @@ class PacingTest(BotHarness):
             await self.live.refresh_boss(boss["id"])
         self.assertGreaterEqual(time.monotonic() - started, 0.1)  # three redraws, two gaps
         self.assertEqual(len(self.session.of("EditMessageCaption")) - before, 3)
+
+    async def test_a_busy_card_keeps_one_redraw_waiting(self) -> None:
+        timers.LIVE_EDIT_GAP, timers.REFRESH_DELAY = 0.5, 0
+        self.addCleanup(setattr, timers, "REFRESH_DELAY", 1.5)
+        boss = await self.boss()
+        for hitter in range(10, 30):
+            await self.press(f"bh:{boss['id']}", sender=hitter)
+            await asyncio.sleep(0.01)  # each request gets past its delay and waits for the chat's turn
+        waiting = [key for key, task in self.live._tasks.items() if key.startswith("rboss:") and not task.done()]
+        self.assertLessEqual(len(waiting), 1)  # one redraw covers them all; the queue doesn't grow
+
+    async def test_the_clock_settles_on_time_whatever_the_redraw_queue(self) -> None:
+        timers.TICK_SECONDS = 0.01
+        self.addCleanup(setattr, timers, "TICK_SECONDS", 15)
+        timers.LIVE_EDIT_GAP = 30  # the chat's redraws are far behind
+        boss = await self.boss()
+        await asyncio.sleep(0.05)  # a few ticks: they only ask for redraws, never wait for one
+        self.clock.advance(boss_rules.DURATION_SECONDS + 1)
+        for _ in range(100):
+            if self.game.repo.get_boss(boss["id"])["status"] != "active":
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(self.game.repo.get_boss(boss["id"])["status"], "lost")

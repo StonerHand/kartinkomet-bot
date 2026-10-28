@@ -68,23 +68,27 @@ class WatchdogTest(unittest.IsolatedAsyncioTestCase):
 
 
 class CountdownTest(unittest.IsolatedAsyncioTestCase):
-    async def test_a_broken_refresh_does_not_stop_the_settlement(self) -> None:
+    async def test_a_broken_redraw_does_not_stop_the_settlement(self) -> None:
         game, clock, temp = make_game(pics=4)
         self.addCleanup(temp.cleanup)
         live = Live(Bot(token="42:TEST", session=FakeSession()), game)
+        self.addAsyncCleanup(live.stop)
         ends_at = game.now() + 1
         finished = []
 
         async def refresh() -> None:
-            clock.advance(5)
             raise ValueError("a view bug")
+
+        def request_refresh() -> None:  # the clock only asks for a redraw, it never waits for one
+            clock.advance(5)
+            live._debounce("card", refresh)
 
         async def finish() -> None:
             finished.append(True)
 
         real_sleep = asyncio.sleep
-        with self.assertLogs("bot.tg.timers", "ERROR"), mock.patch.object(asyncio, "sleep", lambda _: real_sleep(0)):
-            await asyncio.wait_for(live._countdown(lambda: ends_at, refresh, finish), 2)
+        with mock.patch.object(asyncio, "sleep", lambda _: real_sleep(0)):
+            await asyncio.wait_for(live._countdown(lambda: ends_at, request_refresh, finish), 2)
         self.assertEqual(finished, [True])
 
 
