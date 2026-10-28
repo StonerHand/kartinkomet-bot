@@ -42,116 +42,155 @@ def profile(
     owners: dict[str, int],
     players: int,
 ) -> str:
+    """The player card: who you are, then one block per side of the game; blocks that would be
+    empty are left out."""
+    blocks = [
+        identity(label, wallet),
+        level_progress(wallet),
+        pocket(wallet),
+        statuses(wallet),
+        season_block(wallet),
+        storage(stats, place, wallet),
+        uploader_title(stats),
+        arena_and_courts(stats, wallet),
+        casino_block(wallet),
+        records(wallet),
+        *achievements(owned, owners, players),
+        [note(escape(pick(top_texts.PROFILE_ROASTS)))],
+    ]
+    return "\n\n".join("\n".join(block) for block in blocks if block)
+
+
+def identity(label: str, wallet: Wallet) -> list[str]:
     level = economy.level_for(wallet.earned)
+    title = [f"🏷 «{escape(wallet.title)}»"] if wallet.title else []
+    return [f"👤 <b>{who(label)}</b>", *title, f"<i>{escape(level.name)} · уровень {level.index + 1} из {len(economy.LEVELS)}</i>"]
+
+
+def level_progress(wallet: Wallet) -> list[str]:
     upcoming = economy.next_level(wallet.earned)
-    lines = [f"👤 <b>{who(label)}</b>"]
-    if wallet.title:
-        lines.append(f"🏷 «{escape(wallet.title)}»")
-    lines += [f"<i>{escape(level.name)} · уровень {level.index + 1} из {len(economy.LEVELS)}</i>", ""]
-    if upcoming:
-        lines += [
-            f"<code>{economy.progress(wallet.earned)}</code>  {num(wallet.earned)} / {num(upcoming.threshold)}",
-            f"<i>дальше — {escape(bare(upcoming.name))}</i>",
-            "",
-        ]
-    lines.append(f"🪙 {money(wallet.coins)}")
+    if not upcoming:
+        return []
+    return [
+        f"<code>{economy.progress(wallet.earned)}</code>  {num(wallet.earned)} / {num(upcoming.threshold)}",
+        f"<i>дальше — {escape(bare(upcoming.name))}</i>",
+    ]
+
+
+def pocket(wallet: Wallet) -> list[str]:
+    lines = [f"🪙 {money(wallet.coins)}"]
     if wallet.streak > 1:
         lines.append(f"🔥 {wallet.streak} {plural(wallet.streak, 'день', 'дня', 'дней')} подряд на складе")
-    owned_chests = [(tier, count) for tier, count in (wallet.chests or {}).items() if count]
-    if owned_chests:
-        total = sum(count for _, count in owned_chests)
+    total = sum(count for count in (wallet.chests or {}).values() if count)
+    if total:
         lines.append(
             f"🎁 {total} {plural(total, 'сундук', 'сундука', 'сундуков')} {plural(total, 'ждёт', 'ждут', 'ждут')} в /quests"
         )
-    statuses = []
+    return lines
+
+
+def statuses(wallet: Wallet) -> list[str]:
+    lines = []
     for kind in wallet.crowns:
         badge, crown = economy.CROWNS[kind]
-        statuses.append(f"{badge} {escape(crown)}")
+        lines.append(f"{badge} {escape(crown)}")
     if wallet.spouse:
         name, days_married = wallet.spouse
-        statuses.append(f"💍 В браке с <b>{who(name)}</b> · {days_married} {plural(days_married, 'день', 'дня', 'дней')}")
+        lines.append(f"💍 В браке с <b>{who(name)}</b> · {days_married} {plural(days_married, 'день', 'дня', 'дней')}")
     if wallet.jailed:
-        statuses.append(f"🚔 В обезьяннике ещё {wallet.jailed // 60 + 1} мин")
-    if statuses:
-        lines += ["", *statuses]
+        lines.append(f"🚔 В обезьяннике ещё {wallet.jailed // 60 + 1} мин")
+    return lines
 
-    if wallet.season and (wallet.season[1] or wallet.podiums):
-        season, score, standing = wallet.season
-        where = f" · {standing}-е место" if standing else ""
-        lines += ["", f"🏆 <b>Сезон</b> · {escape(seasons.name(season))}", f"📊 {points(score)}{where}"]
-        lines += season_badges(list(wallet.podiums))
 
+def season_block(wallet: Wallet) -> list[str]:
+    if not wallet.season or not (wallet.season[1] or wallet.podiums):
+        return []
+    season, score, standing = wallet.season
+    where = f" · {standing}-е место" if standing else ""
+    return [f"🏆 <b>Сезон</b> · {escape(seasons.name(season))}", f"📊 {points(score)}{where}",
+            *season_badges(list(wallet.podiums))]
+
+
+def storage(stats: UserStats, place: int | None, wallet: Wallet) -> list[str]:
     rank = f" · {place}-е место" if place else ""
-    lines += ["", f"📦 <b>Склад</b>{rank}"]
     alive = "все живы" if stats.pics_alive == stats.uploads else f"живых {stats.pics_alive}"
-    lines.append(
+    lines = [
+        f"📦 <b>Склад</b>{rank}",
         f"🖼 <b>{stats.uploads}</b> {plural(stats.uploads, 'пикча', 'пикчи', 'пикч')} · {alive}"
-        + (f" · казнено {stats.pics_executed}" if stats.pics_executed else "")
-    )
-    lines.append(
+        + (f" · казнено {stats.pics_executed}" if stats.pics_executed else ""),
         f"🤙🏻 <b>{stats.likes_received}</b> {plural(stats.likes_received, 'лайк', 'лайка', 'лайков')}"
-        f" · <b>{stats.dislikes_received}</b> {plural(stats.dislikes_received, 'дизлайк', 'дизлайка', 'дизлайков')}"
-    )
+        f" · <b>{stats.dislikes_received}</b> {plural(stats.dislikes_received, 'дизлайк', 'дизлайка', 'дизлайков')}",
+    ]
     if stats.legends or stats.best_streak > 1:
         lines.append(f"🏛 В зале славы: <b>{stats.legends}</b> · серия <b>{stats.best_streak}</b>")
     if wallet.best_pic:
         _, best_rating, wins, losses = wallet.best_pic
         lines.append(f"⭐ Лучшая пикча: <b>{rating(best_rating)}</b> · {wins}–{losses}")
+    return lines
+
+
+def uploader_title(stats: UserStats) -> list[str]:
+    """The uploader title: its own item, «📦 <b>Title</b>» over the way to the next one."""
     title_code = rules.upload_title_code(stats.uploads)
+    if not title_code:
+        return []
+    badge, _, name = ACHIEVEMENTS[title_code][0].partition(" ")
     goal = rules.next_upload_goal(stats.uploads)
-    if title_code:  # the uploader title: its own item, "📦 <b>Title</b>" over the way to the next one
-        badge, _, name = ACHIEVEMENTS[title_code][0].partition(" ")
-        lines += ["", f"{badge} <b>{escape(name)}</b>"]
-        if goal:
-            left = goal.threshold - stats.uploads
-            lines.append(
-                f"<i>до «{escape(bare(ACHIEVEMENTS[goal.code][0]))}» ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}</i>"
-            )
-        else:
-            lines.append("<i>высший титул загрузчика</i>")
+    if goal is None:
+        return [f"{badge} <b>{escape(name)}</b>", "<i>высший титул загрузчика</i>"]
+    left = goal.threshold - stats.uploads
+    upcoming = escape(bare(ACHIEVEMENTS[goal.code][0]))
+    return [f"{badge} <b>{escape(name)}</b>", f"<i>до «{upcoming}» ещё {left} {plural(left, 'пикча', 'пикчи', 'пикч')}</i>"]
 
+
+def arena_and_courts(stats: UserStats, wallet: Wallet) -> list[str]:
     voice = economy.people_voice(wallet.right_guesses, wallet.wrong_guesses)
-    if voice or wallet.nemesis or stats.kill_votes or stats.spare_votes:
-        lines += ["", "⚔️ <b>Арена и суды</b>"]
-        if stats.kill_votes or stats.spare_votes:
-            lines.append(f"⚖️ За казнь — <b>{stats.kill_votes}</b> · за помилование — <b>{stats.spare_votes}</b>")
-        if voice:
-            lines.append(f"🎯 <b>{voice[0]}%</b> угаданных · {escape(bare(voice[1]))}")
-        if wallet.nemesis:
-            name, defeats = wallet.nemesis
-            lines.append(
-                f"😈 немезида — <b>{who(name)}</b> · {defeats} "
-                f"{plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч"
-            )
+    if not (voice or wallet.nemesis or stats.kill_votes or stats.spare_votes):
+        return []
+    lines = ["⚔️ <b>Арена и суды</b>"]
+    if stats.kill_votes or stats.spare_votes:
+        lines.append(f"⚖️ За казнь — <b>{stats.kill_votes}</b> · за помилование — <b>{stats.spare_votes}</b>")
+    if voice:
+        lines.append(f"🎯 <b>{voice[0]}%</b> угаданных · {escape(bare(voice[1]))}")
+    if wallet.nemesis:
+        name, defeats = wallet.nemesis
+        lines.append(
+            f"😈 немезида — <b>{who(name)}</b> · {defeats} "
+            f"{plural(defeats, 'поражение', 'поражения', 'поражений')} твоих пикч"
+        )
+    return lines
 
-    if wallet.casino and wallet.casino[0]:
-        bets, staked, returned, biggest = wallet.casino
-        net = returned - staked
-        result = f"плюс {money(net)}" if net > 0 else f"минус {money(-net)}" if net < 0 else "по нулям"
-        lines += ["", "🎰 <b>Казино</b>", f"<b>{num(bets)}</b> {plural(bets, 'ставка', 'ставки', 'ставок')} · {result}"]
-        if biggest:
-            lines.append(f"<i>лучший выигрыш — {num(biggest)}</i>")
 
-    if wallet.records:
-        lines += ["", "📈 <b>Рекорды</b>"]
-        lines += [f"{escape(what)} — <b>{num(value)}</b>" for what, value in wallet.records]
+def casino_block(wallet: Wallet) -> list[str]:
+    if not wallet.casino or not wallet.casino[0]:
+        return []
+    bets, staked, returned, biggest = wallet.casino
+    net = returned - staked
+    result = f"плюс {money(net)}" if net > 0 else f"минус {money(-net)}" if net < 0 else "по нулям"
+    lines = ["🎰 <b>Казино</b>", f"<b>{num(bets)}</b> {plural(bets, 'ставка', 'ставки', 'ставок')} · {result}"]
+    if biggest:
+        lines.append(f"<i>лучший выигрыш — {num(biggest)}</i>")
+    return lines
 
+
+def records(wallet: Wallet) -> list[str]:
+    if not wallet.records:
+        return []
+    return ["📈 <b>Рекорды</b>", *(f"{escape(what)} — <b>{num(value)}</b>" for what, value in wallet.records)]
+
+
+def achievements(owned: set[str], owners: dict[str, int], players: int) -> list[list[str]]:
+    """The showcase block and, in a box of its own, the whole collection with how rare each is."""
     hidden = len(rules.SECRET - owned)
     secret = f" · ещё {hidden} {plural(hidden, 'секретная', 'секретные', 'секретных')}" if hidden else ""
-    lines += ["", f"🏅 <b>Ачивки</b> · {len(owned)} из {len(rules.ALL_CODES)}"]
-    if owned:
-        lines += [escape(ACHIEVEMENTS[code][0]) for code in rules.showcase(owned, owners)]
-        lines.append("")  # the collection is a box of its own, not one more line of the showcase
-        listing = [f"Вся коллекция · % — у скольких она есть{secret}"]
-        for tier, heading in ((rules.LEGENDARY, "🌟 Легендарные"), ("rare", "✨ Редкие"), ("common", "▫️ Обычные")):
-            codes = sorted(code for code in owned if rules.rarity(code) == tier)
-            if codes:
-                listing += ["", heading]
-                for code in codes:
-                    share = round(100 * owners.get(code, 1) / players)
-                    listing.append(f"{ACHIEVEMENTS[code][0]} · {share}%")
-        lines.append(f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>\n")
-    else:
-        lines += [f"<i>Пока ни одной{secret}. Проголосуй в дуэли — это уже начало</i>", ""]
-    lines.append(note(escape(pick(top_texts.PROFILE_ROASTS))))
-    return "\n".join(lines)
+    head = f"🏅 <b>Ачивки</b> · {len(owned)} из {len(rules.ALL_CODES)}"
+    if not owned:
+        return [[head, f"<i>Пока ни одной{secret}. Проголосуй в дуэли — это уже начало</i>"]]
+    listing = [f"Вся коллекция · % — у скольких она есть{secret}"]
+    for tier, heading in ((rules.LEGENDARY, "🌟 Легендарные"), ("rare", "✨ Редкие"), ("common", "▫️ Обычные")):
+        codes = sorted(code for code in owned if rules.rarity(code) == tier)
+        if codes:
+            listing += ["", heading]
+            listing += [f"{ACHIEVEMENTS[code][0]} · {round(100 * owners.get(code, 1) / players)}%" for code in codes]
+    showcase = [escape(ACHIEVEMENTS[code][0]) for code in rules.showcase(owned, owners)]
+    return [[head, *showcase], [f"<blockquote expandable>{escape(chr(10).join(listing))}</blockquote>"]]

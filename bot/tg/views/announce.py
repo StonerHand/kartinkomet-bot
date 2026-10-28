@@ -6,6 +6,7 @@ from bot.core import achievements as rules
 from bot.services.types import Granted
 from bot.texts.achievements import ACHIEVEMENTS, LEVEL_UP, UNLOCKED
 from bot.texts.pick import pick
+from bot.texts.progress import quest_name
 from bot.tg.views.layout import bare, card, num, who
 
 
@@ -14,8 +15,6 @@ NOTE_CHESTS = {"wood": "деревянный сундук", "rare": "редки�
 
 def note_line(label: str, note) -> str:
     """Two lines: what happened and to whom, then the details in italics."""
-    from bot.texts.progress import quest_name  # local: progress texts are only needed here
-
     name = f"<b>{who(label)}</b>"
     if note.kind == "quest":
         return f"📜 Квест выполнен — {name}\n<i>{escape(quest_name(note.code, note.target))} · +{num(note.amount)} монет</i>"

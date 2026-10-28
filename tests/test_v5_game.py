@@ -331,8 +331,8 @@ class RedistributionTest(V4Case):
     def test_admins_are_not_spared(self) -> None:
         self.game.admins = frozenset({2})
         self.players({2: 1_000_000, 3: 1, 4: 1})
-        self.game.repo.add_coins(3, -1, "test", self.game.now(), earn=False)
-        self.game.repo.add_coins(4, -1, "test", self.game.now(), earn=False)
+        self.fund(3, -1)
+        self.fund(4, -1)
         report = self.game.redistribute()
         self.assertEqual((report.victim, report.total), (2, 1_000_000))  # the only wallet with coins
 

@@ -12,6 +12,14 @@ DUEL_SLOTS = ("A", "B")
 TOURNAMENT_SLOTS = ("1", "2", "3", "4")
 
 
+EMOJI_START = re.compile("^[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B50\u2B06\u2194-\u21FF\u2300-\u23FF\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE]")
+
+
+def marked(text: str, emoji: str) -> str:
+    """'💸 Столько у тебя нет': every message opens with its mechanic's emoji, short answers too."""
+    return text if EMOJI_START.match(text) else f"{emoji} {text}"
+
+
 def plain(line: str) -> str:
     """What the reader sees: no tags, no entities."""
     return re.sub(r"<[^>]+>", "", line).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")

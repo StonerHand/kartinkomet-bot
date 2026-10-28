@@ -90,7 +90,7 @@ async def help_command(message: Message, bot: Bot) -> None:
 @router.message(Command("id"))
 async def my_id(message: Message, bot: Bot) -> None:
     if message.from_user:
-        await send.reply_personal(bot, message, f"Твой ID: <code>{message.from_user.id}</code>")
+        await send.reply_personal(bot, message, f"🆔 Твой ID: <code>{message.from_user.id}</code>")
 
 
 @router.callback_query(F.data.startswith("m:"))

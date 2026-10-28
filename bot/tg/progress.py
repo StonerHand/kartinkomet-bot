@@ -27,7 +27,7 @@ async def claim(
     daily = game.claim_daily(user_id)
     if daily.status != "ok":
         days = plural(daily.streak, "день", "дня", "дней")
-        return f"{pick(texts.DAILY_AGAIN)}. Серия — {daily.streak} {days}, следующий бонус после полуночи"
+        return views.marked(f"{pick(texts.DAILY_AGAIN)}. Серия — {daily.streak} {days}, следующий бонус после полуночи", "🎁")
     label = game.repo.user_label(user_id)
     markup = keyboards.open_chests([progress.RARE], chat_id) if daily.chest else None
     # Everyone claims it every day: in a group only its owner sees the card.

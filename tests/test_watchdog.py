@@ -87,8 +87,10 @@ class CountdownTest(unittest.IsolatedAsyncioTestCase):
             finished.append(True)
 
         real_sleep = asyncio.sleep
-        with mock.patch.object(asyncio, "sleep", lambda _: real_sleep(0)):
-            await asyncio.wait_for(live._countdown(lambda: ends_at, request_refresh, finish), 2)
+        with self.assertLogs("bot.tg.timers", "ERROR"):  # the broken redraw is logged, nothing more
+            with mock.patch.object(asyncio, "sleep", lambda _: real_sleep(0)):
+                await asyncio.wait_for(live._countdown(lambda: ends_at, request_refresh, finish), 2)
+            await real_sleep(0.01)  # the redraw task runs, fails and is logged
         self.assertEqual(finished, [True])
 
 

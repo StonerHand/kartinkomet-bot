@@ -24,12 +24,6 @@ class Harness(BotHarness):
         await super().asyncSetUp()
         challenges_tg.DICE_ANIMATION_SCALE = 0
 
-    def fund(self, user_id: int, amount: int) -> None:
-        self.game.repo.add_coins(user_id, amount, "test", self.game.now(), earn=False)
-
-    def coins(self, user_id: int) -> int:
-        return self.game.repo.player(user_id)[0]
-
     def reply_to(self, user_id: int) -> Message:
         return Message(message_id=500, date=datetime.now(UTC), chat=GROUP, from_user=user(user_id), text="привет")
 

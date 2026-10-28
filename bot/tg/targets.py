@@ -127,7 +127,7 @@ async def start(bot: Bot, game: Game, live: Live, message: Message, do: str, fou
         await send.reply_personal(bot, message, f"{action.emoji} {unknown_note(found.unknown)}")
         return
     if do in CHECKS and (refusal := CHECKS[do](game, message.from_user.id)):
-        await send.reply_personal(bot, message, refusal)
+        await send.reply_personal(bot, message, views.marked(refusal, action.emoji))
         return
     state = {"to": found.user, "amount": amount_of(found.words), **extra}
     note = unknown_note(found.unknown) if found.unknown and found.user is None else None
@@ -160,7 +160,7 @@ async def go(
     if action.confirm and not state.get("sure"):
         return await ask(bot, game, chat_id, author, do, state, "sure", message=message, callback=callback)
     if refusal := await RUNNERS[do](bot, game, live, chat_id, author, state):
-        return await tell(bot, refusal, message=message, callback=callback)
+        return await tell(bot, views.marked(refusal, action.emoji), message=message, callback=callback)
     return False
 
 
@@ -180,7 +180,7 @@ async def begin(
     if state is not None and do in CHECKS and (refusal := CHECKS[do](game, author)):
         state = None
     if state is None:
-        return await tell(bot, refusal or "Не вышло", message=message, callback=callback)
+        return await tell(bot, views.marked(refusal or "Не вышло", ACTIONS[do].emoji), message=message, callback=callback)
     return await go(bot, game, live, chat_id, author, do, state, message=message, callback=callback)
 
 
@@ -315,13 +315,13 @@ async def answer(message: Message, bot: Bot, game: Game, live: Live) -> bool:
     if state["need"] == "person":
         found = named(message, game, words)
         if found.user is None:
-            await send.reply_personal(bot, message, "Никого с таким именем. Жми на имя в списке")
+            await send.reply_personal(bot, message, "🔍 Никого с таким именем. Жми на имя в списке")
             return True
         state["to"] = found.user
     else:
         amount = amount_of(words)
         if amount is None:
-            await send.reply_personal(bot, message, "Нужна сумма числом, например 500")
+            await send.reply_personal(bot, message, "🔢 Нужна сумма числом, например 500")
             return True
         state["amount"] = amount
     forget(game, chat_id, author)

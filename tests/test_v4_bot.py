@@ -23,12 +23,6 @@ class V4BotTest(BotHarness):
         for user_id in range(2, 8):
             self.game.repo.remember_user(user_id, f"user{user_id}", f"user{user_id}", None, self.game.now())
 
-    def fund(self, user_id: int, amount: int = 1000) -> None:
-        self.game.repo.add_coins(user_id, amount, "test", self.game.now(), earn=False)
-
-    def coins(self, user_id: int) -> int:
-        return self.game.repo.player(user_id)[0]
-
     def texts(self) -> list[str]:
         return [getattr(r, "text", None) or getattr(r, "caption", None) or "" for r in self.session.requests]
 
@@ -175,7 +169,7 @@ class V4BotTest(BotHarness):
         self.assertIsNone(self.game.repo.spouse_of(3))
 
     async def test_rob_without_target_explains(self) -> None:
-        self.game.repo.add_coins(3, 500, "test", self.game.now(), earn=False)
+        self.fund(3, 500)
         await self.send("/rob", sender=3)
         hint = self.session.of("SendEphemeralMessage")[-1]  # only the author sees it
         self.assertEqual(hint.ephemeral_message_parameters.receiver_user_id, 3)

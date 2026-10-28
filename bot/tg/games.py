@@ -196,7 +196,7 @@ async def grab_gold(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
 async def spin(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
     """Returns a toast for refusals, None when the wheel actually spun."""
     if not game.take_free_spin(user_id):
-        return pick(game_texts.WHEEL_USED)
+        return views.marked(pick(game_texts.WHEEL_USED), "🎡")
     try:
         dice = await bot.send_dice(chat_id, emoji="🎰")
     except TelegramAPIError:
@@ -231,7 +231,7 @@ async def wheel_command(message: Message, bot: Bot, game: Game, live: Live) -> N
 async def horoscope(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int) -> str | None:
     pic, already, granted = game.horoscope(user_id)
     if already:
-        return pick(game_texts.HOROSCOPE_AGAIN)
+        return views.marked(pick(game_texts.HOROSCOPE_AGAIN), "🔮")
     if pic is None:
         return pick(ui.EMPTY_POOL)
     await send.send_photo(bot, chat_id, pic.file_id, views.horoscope(game.repo.user_label(user_id), chat_id))
@@ -270,13 +270,13 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         return
     if callback.data == "gm:spin":
         if not game.free_spin_available(callback.from_user.id):
-            await callback.answer(pick(game_texts.WHEEL_USED), show_alert=True)
+            await callback.answer(views.marked(pick(game_texts.WHEEL_USED), "🎡"), show_alert=True)
             return
         await send.answer_quietly(callback, "🎡 Крутим!")
         refusal = await spin(bot, game, live, chat_id, callback.from_user.id)
     else:
         if not game.horoscope_available(callback.from_user.id):
-            await callback.answer(pick(game_texts.HOROSCOPE_AGAIN), show_alert=True)
+            await callback.answer(views.marked(pick(game_texts.HOROSCOPE_AGAIN), "🔮"), show_alert=True)
             return
         await send.answer_quietly(callback, "🔮 Спрашиваю звёзды…")
         refusal = await horoscope(bot, game, live, chat_id, callback.from_user.id)

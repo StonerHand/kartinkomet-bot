@@ -183,7 +183,7 @@ async def receive(message: Message, bot: Bot, game: Game, live: Live) -> None:
     session = sessions.get(user_id)
     if session is None:
         if image_of(message):
-            await message.answer("Хочешь закинуть на склад? Сначала /upload")
+            await message.answer("📥 Хочешь закинуть на склад? Сначала /upload")
         return
 
     image = image_of(message)

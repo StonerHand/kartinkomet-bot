@@ -138,25 +138,15 @@ async def trial_placeholder(callback: CallbackQuery) -> None:
     await callback.answer("Пикча под судом. Голосуй в карточке суда", show_alert=True)
 
 
-@router.message(F.reply_to_message.from_user.is_bot & F.text)
-async def reply_to_bot(message: Message, bot: Bot, game: Game, live: Live) -> None:
-    """Replies to the bot: a defendant's last word, a title, a name or an amount the bot asked for,
-    or a caption-contest entry."""
+async def last_word_reply(message: Message, bot: Bot, game: Game, live: Live) -> bool:
+    """The uploader answering the court card: their pic's last word. True if it was one."""
     if message.from_user is None or message.reply_to_message is None:
-        return
+        return False
     trial = game.last_word(
-        message.chat.id,
-        message.reply_to_message.message_id,
-        message.from_user.id,
-        message.text or "",
+        message.chat.id, message.reply_to_message.message_id, message.from_user.id, message.text or ""
     )
     if trial is None:
-        from bot.tg.games import caption_reply  # local: games imports arena, which shares helpers
-        from bot.tg.shop import title_reply
-        from bot.tg.targets import answer
-
-        if not await title_reply(message, bot, game) and not await answer(message, bot, game, live):
-            await caption_reply(message, bot, game, live)
-        return
+        return False
     await live.refresh_court(trial.id)
     await send.react(bot, message.chat.id, message.message_id, "✍")  # the card shows the word; no reply needed
+    return True

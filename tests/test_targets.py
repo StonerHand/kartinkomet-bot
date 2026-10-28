@@ -62,7 +62,7 @@ class TargetsTest(Players):
         self.assertEqual((self.coins(3), self.coins(4)), (500, 1000))
 
     async def test_rob_offers_only_people_worth_robbing(self) -> None:
-        self.game.repo.add_coins(5, -450, "test", self.game.now(), earn=False)  # 50 left: too poor
+        self.fund(5, -450)  # 50 left: too poor
         await self.send("/rob", sender=3)
         labels = [button.text for row in self.session.of("SendEphemeralMessage")[-1].reply_markup.inline_keyboard
                   for button in row]

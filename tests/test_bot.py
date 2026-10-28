@@ -213,6 +213,12 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
     def buttons(self, request) -> list[str]:
         return [button.callback_data for row in request.reply_markup.inline_keyboard for button in row]
 
+    def fund(self, user_id: int, amount: int = 1000) -> None:
+        self.game.repo.add_coins(user_id, amount, "test", self.game.now(), earn=False)
+
+    def coins(self, user_id: int) -> int:
+        return self.game.repo.player(user_id)[0]
+
     SCREENS = ("EditMessageText", "SendEphemeralMessage", "EditEphemeralMessageText")
 
     def shown(self):

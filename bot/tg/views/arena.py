@@ -98,9 +98,7 @@ def battle_result(
         return card(title, pick(arena_texts.NOBODY_VOTED, battle.chat_id), nothing, *(extras or []))
 
     if battle.mode == "challenge":
-        from bot.texts.social import CHALLENGE_WIN  # local: only challenges speak this voice
-
-        pool = CHALLENGE_WIN if report.winner is not None else arena_texts.DUEL_DRAW
+        pool = social_texts.CHALLENGE_WIN if report.winner is not None else arena_texts.DUEL_DRAW
     elif is_duel:
         pool = arena_texts.DUEL_DRAW if report.winner is None else arena_texts.DUEL_WIN
     else:

@@ -1,8 +1,20 @@
 """Duels, tournaments and player challenges: start, vote, settle."""
 
+from dataclasses import dataclass
+
 from bot.core import arena, days, deck, economy, shop
 from bot.db.repo import Battle, Pic
 from bot.services.types import BattleReport, StartResult
+
+
+@dataclass(frozen=True)
+class BattleOutcome:
+    winner: int | None
+    after: list[float]  # ratings after the battle, by slot
+    outcomes: list
+    counted: bool  # anyone voted
+    streak: int  # the duel champion's streak after it
+    executed_slot: int | None
 
 
 class ArenaMixin:
@@ -90,68 +102,25 @@ class ArenaMixin:
         return "ok", self.repo.get_battle(battle_id)
 
     def finish_battle(self, battle_id: str) -> BattleReport | None:
+        """Settle a battle once: the outcome, ratings, a death, then votes, bets, bounty, a
+        challenge's pot and evolutions. None if it was already settled."""
         if not self.repo.close_battle(battle_id):
             return None
         battle = self.repo.get_battle(battle_id)
         assert battle is not None
-        fighters = [
-            arena.Fighter(pic.id, pic.rating, pic.games, pic.loss_streak) for pic in battle.pics
-        ]
         votes = battle.vote_counts()
         before = [pic.rating for pic in battle.pics]
         stages_before = [shop.stage(pic.wins).index for pic in battle.pics]
-        now = self.now()
         challenge_mode = battle.mode == "challenge"
         # "Upside down" day: the pic with fewer votes wins a regular duel.
         flipped = battle.kind == "duel" and not challenge_mode and self.day_is("upside_down") and sum(votes) > 0
-        decisive = list(reversed(votes)) if flipped else votes
+        death_rating = days.BLOOD_MOON_DEATH_RATING if self.day_is("blood_moon") else arena.DEATH_RATING
+        result = self._resolve_battle(battle, list(reversed(votes)) if flipped else votes, death_rating)
+        if result.counted:
+            self._apply_battle_ratings(battle, result)
+        executed = self._execute_loser(battle, result.executed_slot)
 
-        if battle.kind == "duel":
-            death = days.BLOOD_MOON_DEATH_RATING if self.day_is("blood_moon") else arena.DEATH_RATING
-            outcome = arena.resolve_duel(
-                fighters, decisive, battle.streak, death_rating=death, deadly=not challenge_mode
-            )
-            winner = outcome.winner
-            after = list(outcome.ratings)
-            outcomes = list(outcome.outcomes)
-            counted = outcome.counted
-            streak = outcome.streak if winner is not None else battle.streak
-            executed_slot = outcome.executed
-            if challenge_mode:
-                streak = 0
-                self.repo.set_battle_result(battle_id, winner, None)
-            else:
-                self.repo.set_meta(f"last_duel:{battle.chat_id}", battle.id)
-                # A champion that drew keeps its streak; otherwise only a winner carries one.
-                result_slot = winner if winner is not None else (0 if battle.streak > 0 else None)
-                self.repo.set_battle_result(battle_id, result_slot, streak if result_slot is not None else None)
-        else:
-            outcome_t = arena.resolve_tournament(fighters, votes)
-            winner = outcome_t.winner
-            after = outcome_t.ratings
-            outcomes = outcome_t.outcomes
-            counted = outcome_t.counted
-            streak = 0
-            executed_slot = None
-            self.repo.set_battle_result(battle_id, winner, None)
-
-        if counted:
-            for slot, pic in enumerate(battle.pics):
-                pic_streak = streak if (battle.kind == "duel" and slot == winner and not challenge_mode) else None
-                self.repo.apply_battle_result(pic.id, after[slot], outcomes[slot], pic_streak)
-            if battle.kind == "duel" and winner is not None and not challenge_mode:
-                record = self.repo.meta_int(f"streak_record:{battle.chat_id}")
-                if streak > record:
-                    self.repo.set_meta(f"streak_record:{battle.chat_id}", streak)
-            self.repo.incr_meta(f"{battle.kind}s_total")
-
-        executed = None
-        if executed_slot is not None:
-            loser = battle.pics[executed_slot]
-            if self.repo.remove_pic(loser.id, "executed", "duel", now):
-                executed = self.repo.get_pic(loser.id)
-                self.repo.incr_meta("duel_executions")
-
+        winner, counted, streak = result.winner, result.counted, result.streak
         milestone = (
             arena.streak_milestone(streak)
             if battle.kind == "duel" and winner is not None and counted and not challenge_mode
@@ -161,21 +130,7 @@ class ArenaMixin:
         bets, burned = self._settle_bets(battle, winner, counted)
         bounty = self._pay_bounty(executed.id, guessers) if executed is not None else {}
         challenge, champion = self._settle_challenge(battle, winner, counted) if challenge_mode else (None, None)
-
-        evolved = []
-        if counted:
-            for slot, pic in enumerate(battle.pics):
-                fresh = self.repo.get_pic(pic.id)
-                if fresh is None:
-                    continue
-                stage = shop.stage(fresh.wins).index
-                if stage > stages_before[slot]:
-                    evolved.append((slot, stages_before[slot], stage))
-                    if isinstance(pic.added_by, int):
-                        if stage >= 2:
-                            events.setdefault(pic.added_by, []).append("breeder")
-                        if stage >= 3:
-                            events.setdefault(pic.added_by, []).append("dragon")
+        evolved = self._evolutions(battle, stages_before, events) if counted else []
 
         owners = [pic.added_by for pic in battle.pics] if counted else []
         players = [challenge["from_user"], challenge["to_user"]] if challenge else []
@@ -185,7 +140,7 @@ class ArenaMixin:
             winner=winner,
             executed=executed,
             rating_before=before,
-            rating_after=after,
+            rating_after=result.after,
             streak=streak if battle.kind == "duel" else 0,
             milestone=milestone,
             granted=self.check_achievements(owners + list(battle.votes) + list(battle.bets) + players, events),
@@ -198,8 +153,69 @@ class ArenaMixin:
             evolved=evolved,
             challenge=challenge,
             champion=champion,
-            death_rating=days.BLOOD_MOON_DEATH_RATING if self.day_is("blood_moon") else arena.DEATH_RATING,
+            death_rating=death_rating,
         )
+
+    def _resolve_battle(self, battle: Battle, decisive: list[int], death_rating: float) -> BattleOutcome:
+        """Who won, the new ratings and who dies; records the battle's result and the duel streak."""
+        fighters = [arena.Fighter(pic.id, pic.rating, pic.games, pic.loss_streak) for pic in battle.pics]
+        challenge_mode = battle.mode == "challenge"
+        if battle.kind != "duel":
+            outcome = arena.resolve_tournament(fighters, decisive)
+            self.repo.set_battle_result(battle.id, outcome.winner, None)
+            return BattleOutcome(outcome.winner, list(outcome.ratings), list(outcome.outcomes), outcome.counted, 0, None)
+        outcome = arena.resolve_duel(
+            fighters, decisive, battle.streak, death_rating=death_rating, deadly=not challenge_mode
+        )
+        winner = outcome.winner
+        streak = outcome.streak if winner is not None else battle.streak
+        if challenge_mode:
+            streak = 0
+            self.repo.set_battle_result(battle.id, winner, None)
+        else:
+            self.repo.set_meta(f"last_duel:{battle.chat_id}", battle.id)
+            # A champion that drew keeps its streak; otherwise only a winner carries one.
+            result_slot = winner if winner is not None else (0 if battle.streak > 0 else None)
+            self.repo.set_battle_result(battle.id, result_slot, streak if result_slot is not None else None)
+        return BattleOutcome(winner, list(outcome.ratings), list(outcome.outcomes), outcome.counted, streak, outcome.executed)
+
+    def _apply_battle_ratings(self, battle: Battle, result: BattleOutcome) -> None:
+        challenge_mode = battle.mode == "challenge"
+        for slot, pic in enumerate(battle.pics):
+            pic_streak = result.streak if (battle.kind == "duel" and slot == result.winner and not challenge_mode) else None
+            self.repo.apply_battle_result(pic.id, result.after[slot], result.outcomes[slot], pic_streak)
+        if battle.kind == "duel" and result.winner is not None and not challenge_mode:
+            record = self.repo.meta_int(f"streak_record:{battle.chat_id}")
+            if result.streak > record:
+                self.repo.set_meta(f"streak_record:{battle.chat_id}", result.streak)
+        self.repo.incr_meta(f"{battle.kind}s_total")
+
+    def _execute_loser(self, battle: Battle, slot: int | None) -> Pic | None:
+        if slot is None:
+            return None
+        loser = battle.pics[slot]
+        if not self.repo.remove_pic(loser.id, "executed", "duel", self.now()):
+            return None
+        self.repo.incr_meta("duel_executions")
+        return self.repo.get_pic(loser.id)
+
+    def _evolutions(self, battle: Battle, stages_before: list[int], events: dict[int, list[str]]) -> list:
+        """(slot, old stage, new stage) for every pic that grew; their owners earn the breeder
+        and dragon events."""
+        evolved = []
+        for slot, pic in enumerate(battle.pics):
+            fresh = self.repo.get_pic(pic.id)
+            if fresh is None:
+                continue
+            stage = shop.stage(fresh.wins).index
+            if stage > stages_before[slot]:
+                evolved.append((slot, stages_before[slot], stage))
+                if isinstance(pic.added_by, int):
+                    if stage >= 2:
+                        events.setdefault(pic.added_by, []).append("breeder")
+                    if stage >= 3:
+                        events.setdefault(pic.added_by, []).append("dragon")
+        return evolved
 
     def _settle_battle_votes(
         self,

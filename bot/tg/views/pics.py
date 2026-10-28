@@ -25,4 +25,7 @@ def pic_footer(pic: Pic, uploader: str | None, bounty: int = 0) -> str:
 
 def pic_caption(pic: Pic, bucket: str, chat_id: int, uploader: str | None, bounty: int = 0) -> str:
     pool = {"fresh": captions.FRESH, "legend": captions.LEGEND}.get(bucket, captions.CAPTIONS)
-    return f"{escape(pick(pool, chat_id))}\n\n{pic_footer(pic, uploader, bounty)}"
+    line = escape(pick(pool, chat_id))
+    if pool is captions.CAPTIONS:
+        line = f"<i>{line}</i>"  # the pic's own voice, like a card's flavour line
+    return f"{line}\n\n{pic_footer(pic, uploader, bounty)}"

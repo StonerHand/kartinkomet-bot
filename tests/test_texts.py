@@ -143,6 +143,7 @@ def layout_problems(text: str) -> list[str]:
     """The message layout rules (see bot/tg/views/layout.py), as checks:
 
     - one emoji per line, and at its start;
+    - a message opens with its mechanic's emoji (a pic's caption: with its italic line);
     - every block opens with an emoji or a list mark; a list (several marked lines) has no
       unmarked lines in it, a single item may have description lines under it;
     - rules and explanations sit in a quote box (<blockquote>), where text may wrap freely;
@@ -174,6 +175,9 @@ def layout_problems(text: str) -> list[str]:
             paragraphs[-1].append(index)
         elif paragraphs[-1]:
             paragraphs.append([])
+    first = raw_lines[0]
+    if not (marked(first) or CAPTION.match(first) or first.startswith("<blockquote")):
+        problems.append(f"message without its emoji: {lines[0]}")  # a pic's caption is italic instead
     for index in paragraphs[0][:-1]:
         if not fits(raw_lines[index]):  # bold capitals are wide: a header wraps sooner than text
             problems.append(f"header wraps: {lines[index]}")

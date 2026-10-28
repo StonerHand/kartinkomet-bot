@@ -11,7 +11,7 @@ from bot.db.repo import Repo
 from bot.game import Game
 from bot.tg import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, shop,
-    social, targets, upload,
+    replies, social, targets, upload,
 )
 from bot.tg.events import Events
 from bot.tg.middleware import RememberUser
@@ -124,6 +124,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         boss.router,
         inline.router,
         court.router,
+        replies.router,
         targets.router,
         fallback.router,
     )

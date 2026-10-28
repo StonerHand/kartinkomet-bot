@@ -45,14 +45,14 @@ async def play(
     """Roll one casino game. Returns a refusal to show the player, None when it was played.
     on_started runs once the stake is taken, so a button press is answered before the animation."""
     if code not in casino.GAMES:
-        return pick(ui.ERRORS)
+        return views.marked(pick(ui.ERRORS), "⚠️")
     if cooling_down(user_id):
-        return pick(texts.COOLDOWN)
+        return views.marked(pick(texts.COOLDOWN), "🎰")
     status = game.place_casino_bet(user_id, stake)
     if status == "small":
-        return pick(texts.SMALL)
+        return views.marked(pick(texts.SMALL), "🎰")
     if status == "broke":
-        return pick(texts.BROKE)
+        return views.marked(pick(texts.BROKE), "💸")
     info = casino.GAMES[code]
     if on_started is not None:
         await on_started()

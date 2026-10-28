@@ -44,9 +44,8 @@ async def summon(
 
 
 def refusal(game: Game, chat_id: int, status: str) -> str:
-    return texts.SUMMON_REFUSED.get(status, "Босс не пришёл. Telegram подвёл").format(
-        wait=views.duration(game.boss_cooldown_left(chat_id))
-    )
+    text = texts.SUMMON_REFUSED.get(status, "Босс не пришёл. Telegram подвёл")
+    return views.marked(text.format(wait=views.duration(game.boss_cooldown_left(chat_id))), "👹")
 
 
 @router.message(Command("boss"))
