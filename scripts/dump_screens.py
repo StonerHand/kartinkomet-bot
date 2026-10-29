@@ -17,7 +17,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 importlib.import_module("tests")  # lean aiogram loading, as in the suite
 
-from tests import test_bot, test_screens, test_texts  # noqa: E402
+from tests import harness, layout  # noqa: E402
+from tests.ui import test_screens  # noqa: E402
 
 NAMES = r"(user|Михаил|Захар|train|stoner_hand|fata11st|kcifekzhue|uploader)\S*"
 seen: dict[str, str] = {}
@@ -30,19 +31,19 @@ def plain(text: str) -> str:
 def remember(text: str, where: str) -> None:
     lines = re.sub(r"\d+", "#", text).split("\n")
     shape = [lines[0]] + [
-        line if test_texts.EMOJI.match(plain(line)) else ("~" if line.strip() else "") for line in lines[1:]
+        line if layout.EMOJI.match(plain(line)) else ("~" if line.strip() else "") for line in lines[1:]
     ]
     seen.setdefault(re.sub(NAMES, "N", "\n".join(shape)), f"[{where}]\n{text}")
 
 
 def main(output: str) -> None:
-    check_outgoing = test_bot.BotHarness.check_outgoing
-    layout_problems = test_texts.layout_problems
+    check_outgoing = harness.BotHarness.check_outgoing
+    layout_problems = layout.layout_problems
 
     def check(self) -> None:
         for request in self.session.requests:
             text = getattr(request, "text", None) or getattr(request, "caption", None)
-            if isinstance(text, str) and self.session.kind(request) in test_bot.CHECKED_METHODS:
+            if isinstance(text, str) and self.session.kind(request) in harness.CHECKED_METHODS:
                 remember(text, f"{type(self).__name__}.{self._testMethodName} {self.session.kind(request)}")
         check_outgoing(self)
 
@@ -50,8 +51,8 @@ def main(output: str) -> None:
         remember(text, "direct render")
         return layout_problems(text)
 
-    test_bot.BotHarness.check_outgoing = check
-    test_texts.layout_problems = test_screens.layout_problems = test_bot.layout_problems = problems
+    harness.BotHarness.check_outgoing = check
+    layout.layout_problems = test_screens.layout_problems = harness.layout_problems = problems
     suite = unittest.defaultTestLoader.discover("tests", top_level_dir=".")
     with open("/dev/null", "w") as quiet:
         unittest.TextTestRunner(verbosity=0, stream=quiet).run(suite)

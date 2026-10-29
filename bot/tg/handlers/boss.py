@@ -1,0 +1,99 @@
+"""Pic boss fights."""
+
+from aiogram import Bot, F, Router
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, Message
+
+from bot.game import Game
+from bot.texts import boss as texts
+from bot.texts.pick import pick
+from bot.tg.runtime import send
+from bot.tg.runtime.timers import Live
+from bot.tg.ui import keyboards, views
+
+router = Router(name="boss")
+
+
+async def summon(
+    bot: Bot, game: Game, live: Live, chat_id: int, double: bool = False, forced: bool = False, raid: bool = False
+) -> str:
+    """'started' | 'active' | 'cooldown' | 'shortage' | 'failed'."""
+    status, boss = game.summon_boss(chat_id, pick(texts.NAMES, chat_id), double=double, forced=forced, raid=raid)
+    if status == "active" and boss is not None:
+        if boss["ends_at"] <= game.now():
+            await live.finish_boss(boss["id"])
+            status, boss = game.summon_boss(chat_id, pick(texts.NAMES, chat_id), double=double, forced=True, raid=raid)
+        else:
+            return "active"
+    if status != "ok" or boss is None:
+        return status
+    pic = game.repo.get_pic(boss["pic_id"])
+    message = await send.send_photo(
+        bot,
+        chat_id,
+        pic.file_id,
+        views.boss_card(boss, {}, boss["ends_at"] - game.now(), game.super_price()),
+        keyboards.boss(boss["id"], game.super_price()),
+    )
+    if message is None:
+        game.repo.drop_boss(boss["id"])
+        return "failed"
+    game.repo.set_boss_message(boss["id"], message.message_id)
+    await send.react(bot, chat_id, message.message_id, "👾", big=True)
+    live.watch_boss(boss["id"])
+    return "started"
+
+
+def refusal(game: Game, chat_id: int, status: str) -> str:
+    text = texts.SUMMON_REFUSED.get(status, "Босс не пришёл. Telegram подвёл")
+    return views.marked(text.format(wait=views.duration(game.boss_cooldown_left(chat_id))), "👹")
+
+
+@router.message(Command("boss"))
+async def boss_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    status = await summon(bot, game, live, message.chat.id)
+    if status != "started":
+        await send.reply_personal(bot, message, refusal(game, message.chat.id, status))
+
+
+@router.callback_query(F.data == "boss", F.message)
+async def boss_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    chat_id = callback.message.chat.id
+    if game.repo.active_boss(chat_id) is None and game.boss_cooldown_left(chat_id):
+        await callback.answer(refusal(game, chat_id, "cooldown"), show_alert=True)
+        return
+    status = await summon(bot, game, live, chat_id)
+    if status == "started":
+        await send.answer_quietly(callback, "👹 Призван!")
+    else:  # only the one who pressed needs to know why not
+        await send.answer_quietly_alert(callback, refusal(game, chat_id, status))
+
+
+@router.callback_query(F.data.regexp(r"^b[hs]:"))
+async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
+    kind, boss_id = callback.data.split(":", 1)
+    result = game.hit_boss(boss_id, callback.from_user.id, super_hit=kind == "bs")
+    if result.status == "cooldown":
+        await callback.answer("Замах ещё не готов. Секунду")
+        return
+    if result.status == "broke":
+        await callback.answer(f"Супер-удар стоит {views.num(game.super_price())} 🪙", show_alert=True)
+        return
+    if result.status in ("over", "gone"):
+        await callback.answer("Бой с боссом окончен")
+        if result.status == "over":
+            await live.finish_boss(boss_id)
+        return
+    pool = texts.CRIT if result.crit or kind == "bs" else texts.HIT
+    shield = " · щит держит" if result.phase == "shield" and kind != "bs" else ""
+    struck = ""
+    if result.counter_victim is not None:
+        # The card shows the counterattack; only its victim, if it's the hitter, hears it here.
+        game.repo.set_meta(f"boss_counter:{boss_id}", f"{result.counter_victim}:{result.fine}")
+        if result.counter_victim == callback.from_user.id and result.fine:
+            struck = f" · босс дал сдачи: −{result.fine} 🪙"
+    await callback.answer(f"{pick(pool)} · −{result.damage} ❤️ (осталось {result.hp}){shield}{struck}")
+    if result.killed:
+        await live.finish_boss(boss_id)
+    else:
+        live.request_refresh_boss(boss_id)

@@ -2,16 +2,16 @@
 
 from pathlib import Path
 
-from bot.db.repo.core import MetaRepo
-from bot.db.repo.pics import PicsRepo
 from bot.db.repo.arena import ArenaRepo
+from bot.db.repo.chats import ChatsRepo
+from bot.db.repo.core import MetaRepo
 from bot.db.repo.court import CourtRepo
-from bot.db.repo.stats import StatsRepo
 from bot.db.repo.economy import EconomyRepo
 from bot.db.repo.games import GamesRepo
-from bot.db.repo.chats import ChatsRepo
 from bot.db.repo.people import PeopleRepo
+from bot.db.repo.pics import PicsRepo
 from bot.db.repo.seasons import SeasonsRepo
+from bot.db.repo.stats import StatsRepo
 from bot.db.repo.models import (
     LEGEND_POOL_SIZE,
     MIN_EXPERIENCE,

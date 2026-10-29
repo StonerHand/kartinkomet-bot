@@ -9,14 +9,14 @@ from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandSc
 from bot.config import load_config
 from bot.db.repo import Repo
 from bot.game import Game
-from bot.tg import (
-    admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, shop,
-    replies, social, targets, upload,
+from bot.tg.handlers import (
+    admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, replies,
+    shop, social, targets, upload,
 )
-from bot.tg.events import Events
-from bot.tg.middleware import RememberUser
-from bot.tg.timers import Live
-from bot.tg.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
+from bot.tg.runtime.events import Events
+from bot.tg.runtime.middleware import RememberUser
+from bot.tg.runtime.timers import Live
+from bot.tg.runtime.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
 
 LOGGER = logging.getLogger("kartinkomet")
 STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
