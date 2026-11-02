@@ -327,6 +327,18 @@ class ScreensTest(BotHarness):
         texts.append(views.heist_result("cancelled", crew[:1], [], 0, 21600, -100))
         texts.append(views.cup_intro(list(NAMES.values()), -100))
         texts.append(views.cup_champion(pic, "kcifekzhue", 1_500_000, -100))
+        texts.append(views.croc_card("kcifekzhue", 179, 9, "c1"))
+        texts.append(views.croc_result("день рождения", "kcifekzhue", "Михаил", 90_000, -100))
+        texts.append(views.croc_result("день рождения", "kcifekzhue", None, 0, -100))
+        theme = "Лицо, когда кто-то пишет «есть минутка?»"
+        texts.append(views.theme_card(theme, 0, 20, "t1"))
+        texts.append(views.theme_card(theme, 7, 20, "t1"))
+        texts.append(views.theme_vote_card(theme, [3, 0, 7, 1, 2, 0, 0, 1, 4, 10], 1799, "t1"))
+        texts.append(views.theme_result(theme, list(NAMES.values()), [3, 0, 7, 1, 2, 7], ["Михаил", "kcifekzhue"],
+                                        600_000, -100))
+        texts.append(views.theme_few(theme))
+        texts.append(views.owner_change("kcifekzhue", "stoner_hand", 1_500_000))
+        texts.append(views.owner_change("Михаил", None, 500))
         shares = [(name, 6_000 - index * 900) for index, name in enumerate(NAMES.values())]
         texts.append(views.redistribution("stoner_hand", 1_834_220, shares, -100, burned=1_814_220))
         texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (

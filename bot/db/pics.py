@@ -279,3 +279,30 @@ class PicsRepo:
             "SELECT user_id FROM users WHERE lower(username) = ? LIMIT 1", (clean,)
         ).fetchone()
         return row[0] if row else None
+
+    def owner_of(self, pic_id: str) -> tuple[int, int] | None:
+        """(owner, what they paid)."""
+        row = self.db.execute("SELECT user_id, price FROM owners WHERE pic_id = ?", (pic_id,)).fetchone()
+        return (row[0], row[1]) if row else None
+
+    def set_owner(self, pic_id: str, user_id: int, price: int, now: int, previous: int | None) -> bool:
+        """Change hands only if the owner is still `previous` (None: nobody): two taps can't both buy."""
+        with self.db:
+            if previous is None:
+                cursor = self.db.execute(
+                    "INSERT OR IGNORE INTO owners (pic_id, user_id, price, since) VALUES (?, ?, ?, ?)",
+                    (pic_id, user_id, price, now),
+                )
+            else:
+                cursor = self.db.execute(
+                    "UPDATE owners SET user_id = ?, price = ?, since = ? WHERE pic_id = ? AND user_id = ?",
+                    (user_id, price, now, pic_id, previous),
+                )
+        return cursor.rowcount == 1
+
+    def owned_count(self, user_id: int) -> int:
+        row = self.db.execute(
+            "SELECT COUNT(*) FROM owners o JOIN pics p ON p.id = o.pic_id WHERE o.user_id = ? AND p.status = 'alive'",
+            (user_id,),
+        ).fetchone()
+        return row[0]

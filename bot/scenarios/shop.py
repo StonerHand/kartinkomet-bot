@@ -74,8 +74,11 @@ async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         game.repo.bounty_on(pic.id),
         cursed,
         game.now(),
+        game.repo.user_label(owned[0]) if (owned := game.repo.owner_of(pic.id)) else None,
     )
     prices = {item: game.price(item) for item in ("shield", "boost", "court", "uncurse")}
+    if not owned or owned[0] != user_id:
+        prices["own"] = game.own_price(pic.id)
     chat_id = callback.message.chat.id
     token = menu_token(game, pic.id, user_id, chat_id, callback.message.message_id)
     markup = keyboards.pic_menu(token, bool(cursed), prices, game.bounty_amounts())
@@ -118,6 +121,17 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
                 keyboards.pic_actions(pic.id, pic.likes, pic.dislikes),
             )
             await live.announce(chat_id, game.flush([pic.added_by, user_id]))
+        return
+    if code == "o":
+        status, price, previous = game.buy_ownership(user_id, pic_id)
+        if status != "ok":
+            refusals = {"own": "Эта пикча уже твоя", "dead": "Пикчи больше нет на складе",
+                        "poor": f"На покупку нужно {price} 🪙", "taken": "Кто-то купил её раньше тебя"}
+            await callback.answer(f"🏷 {refusals[status]}", show_alert=True)
+            return
+        await callback.answer("🏷 Пикча твоя")
+        previous_label = game.repo.user_label(previous) if previous is not None else None
+        await send.send_text(bot, chat_id, views.owner_change(label, previous_label, price), reply_to=pic_message)
         return
     item = ITEM_CODES.get(code)
     if item is None:

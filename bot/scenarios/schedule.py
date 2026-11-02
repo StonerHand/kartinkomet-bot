@@ -25,6 +25,7 @@ from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.rules import boss as boss_rules
 from bot.rules import days, economy
+from bot.rules import party as party_rules
 from bot.rules import show as show_rules
 from bot.scenarios import party, show
 from bot.scenarios.boss import summon
@@ -53,6 +54,7 @@ JOBS = (
     Job("day_event", days.START_HOUR, None, per_chat=True),
     Job("pic_of_the_day", 12, None, per_chat=True),
     Job("boss", 16, None, per_chat=True),
+    Job("theme", party_rules.THEME_OPEN_HOUR, None, per_chat=True),
     Job("who_of_us", 13, None, per_chat=True),
     Job("redistribution", 18, None, per_chat=True),
     Job("auto_court", 19, None, per_chat=True),
@@ -81,6 +83,7 @@ class Events:
             "redistribution": self.redistribution,
             "who_of_us": self.who_of_us,
             "evening_show": self.evening_show,
+            "theme": self.theme,
         }
 
     def start(self) -> None:
@@ -169,6 +172,10 @@ class Events:
     async def who_of_us(self, chat_id: int) -> bool:
         """13:00: the day's "who of us" poll, unless one is running."""
         return await party.start_who(self.bot, self.game, self.live, chat_id, scheduled=True) == "started"
+
+    async def theme(self, chat_id: int) -> bool:
+        """11:00: the theme of the day; answers until 20:00, then the vote."""
+        return await party.open_theme(self.bot, self.game, self.live, chat_id)
 
     async def evening_show(self, chat_id: int) -> bool:
         """21:00: a heist one night, the big cup the next."""

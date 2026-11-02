@@ -131,6 +131,7 @@ class ArenaMixin:
         bounty = self._pay_bounty(executed.id, guessers) if executed is not None else {}
         challenge, champion = self._settle_challenge(battle, winner, counted) if challenge_mode else (None, None)
         evolved = self._evolutions(battle, stages_before, events) if counted else []
+        owner_income = self.pay_pic_owner(battle.pics[winner].id) if counted and winner is not None else None
 
         owners = [pic.added_by for pic in battle.pics] if counted else []
         players = [challenge["from_user"], challenge["to_user"]] if challenge else []
@@ -154,6 +155,7 @@ class ArenaMixin:
             challenge=challenge,
             champion=champion,
             death_rating=death_rating,
+            owner_income=owner_income,
         )
 
     def _resolve_battle(self, battle: Battle, decisive: list[int], death_rating: float) -> BattleOutcome:

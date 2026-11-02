@@ -38,7 +38,8 @@ def shop_screen(
     )
 
 
-def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: int, now: int) -> str:
+def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: int, now: int,
+             owner: str | None = None) -> str:
     stage = shop.stage(pic.wins)
     facts = [stage.name, f"рейтинг {rating(pic.rating)}"]
     if uploader:
@@ -47,6 +48,7 @@ def pic_menu(pic: Pic, uploader: str | None, balance: int, bounty: int, cursed: 
         f"🛡 Под щитом ещё {duration(pic.immune_until - now)}" if pic.immune_until and pic.immune_until > now else "",
         f"🧿 Проклята ещё {duration(cursed - now)}" if cursed else "",
         f"🎯 Награда за голову: {money(bounty)}" if bounty else "",
+        f"🏷 Владелец: <b>{who(owner)}</b>" if owner else "",
     ]
     return card(
         "🛒 <b>Что сделать с пикчей</b>",

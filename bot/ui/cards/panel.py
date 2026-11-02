@@ -6,6 +6,7 @@ from html import escape
 from bot.models.records import Pic
 from bot.rules import economy, seasons
 from bot.rules import games as game_rules
+from bot.rules import party as party_rules
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
@@ -141,6 +142,7 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, pr
             "🕒 <b>Расписание</b>",
             "💾 04:00 — бэкап админам",
             "📰 10:00 — событие дня",
+            "🎯 11:00 — тема дня",
             "🌅 12:00 — пикча дня",
             "🗳 13:00 — кто из нас",
             "👹 16:00 — босс, в субботу рейд",
@@ -174,6 +176,12 @@ def games_screen(reward: Callable[[int], int] = lambda amount: amount) -> str:
         "🤝 <b>Спор</b> · /bet\n"
         "Спор о жизни чата: /bet и сам спор. Все ставят на «сбудется» или «не сбудется», автор решает, "
         "победители делят ставки\n"
+        "\n"
+        "🐊 <b>Крокодил</b> · /croc\n"
+        f"Тебе слово, объясняй его только пикчами со склада, чат угадывает. Угадавшему и тебе по +{money(reward(party_rules.CROC_REWARD))}\n"
+        "\n"
+        "🎯 <b>Тема дня</b> · 11:00\n"
+        "Отвечай на тему своей пикчей до 20:00, потом чат выбирает лучшую\n"
         "\n"
         "🎬 <b>Вечернее шоу</b> · 21:00\n"
         "Через день: ограбление банка всем чатом (/heist) или большой турнир восьми пикч (/cup)\n"

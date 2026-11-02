@@ -109,3 +109,16 @@ def divorce_split(first: int, second: int) -> tuple[int, int]:
 
 CHALLENGE_MIN = 50
 CHALLENGE_SECONDS = 180  # to accept
+
+
+# ── owning pics ───────────────────────────────────────────────────────
+OWN_BASE_PRICE = 500  # for a pic rated 1000, × the chat's prices
+OWN_RESALE = 1.5  # buying a pic someone owns costs this much over what they paid, paid to them
+OWN_WIN_INCOME = 15  # base coins to the owner for every counted win of the pic
+
+
+def own_price(rating: float, last_price: int | None) -> int:
+    """What a pic costs before the chat's prices: dearer with rating, and an owned pic at least
+    OWN_RESALE × what its owner paid."""
+    by_rating = int(OWN_BASE_PRICE * max(0.5, rating / 1000) ** 2)
+    return max(by_rating, int(last_price * OWN_RESALE)) if last_price else by_rating

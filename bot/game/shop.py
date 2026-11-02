@@ -107,3 +107,41 @@ class ShopMixin:
                 paid[user_id] = share
                 self._pending_events.setdefault(user_id, []).append("bounty_hunter")
         return paid
+
+    # ── owning pics ────────────────────────────────────────────────────
+
+    def own_price(self, pic_id: str) -> int:
+        pic = self.repo.get_pic(pic_id)
+        owned = self.repo.owner_of(pic_id)
+        if pic is None:
+            return 0
+        if owned is not None:  # what the owner paid is already in today's money
+            return max(int(owned[1] * shop.OWN_RESALE), self.scaled(shop.own_price(pic.rating, None)))
+        return self.scaled(shop.own_price(pic.rating, None))
+
+    def buy_ownership(self, user_id: int, pic_id: str) -> tuple[str, int, int | None]:
+        """('ok' | 'own' | 'dead' | 'poor' | 'taken', price, previous owner). Buying out an owner
+        pays them the price."""
+        pic = self.repo.get_pic(pic_id)
+        if pic is None or pic.status != "alive":
+            return "dead", 0, None
+        owned = self.repo.owner_of(pic_id)
+        previous = owned[0] if owned else None
+        if previous == user_id:
+            return "own", 0, None
+        price = self.own_price(pic_id)
+        if not self.repo.spend(user_id, price, "own_buy", self.now()):
+            return "poor", price, previous
+        if not self.repo.set_owner(pic_id, user_id, price, self.now(), previous):
+            self.repo.add_coins(user_id, price, "own_refund", self.now(), earn=False)  # someone was quicker
+            return "taken", price, previous
+        if previous is not None:
+            self.repo.add_coins(previous, price, "own_sold", self.now(), earn=False)
+        return "ok", price, previous
+
+    def pay_pic_owner(self, pic_id: str) -> tuple[int, int] | None:
+        """A counted win of an owned pic: its owner earns. (owner, coins)."""
+        owned = self.repo.owner_of(pic_id)
+        if owned is None:
+            return None
+        return owned[0], self.pay(owned[0], shop.OWN_WIN_INCOME, "own_income")

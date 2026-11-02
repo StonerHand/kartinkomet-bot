@@ -120,3 +120,72 @@ def bet_hint(claim_max: int = party.BET_CLAIM_MAX) -> str:
         "✍️ Напиши /bet и сам спор",
         note(f"Например: /bet в пятницу половина чата проспит. До {claim_max} символов"),
     )
+
+
+# ── crocodile with pics ───────────────────────────────────────────────
+
+
+def croc_card(explainer: str, remaining: int, letters: int, round_id: str = "") -> str:
+    return card(
+        f"🐊 <b>Крокодил</b> · <b>{timer(remaining)}</b>",
+        steady(texts.CROC_FLAVOUR, round_id),
+        f"🎨 Объясняет <b>{who(explainer)}</b>",
+        f"🔤 В слове {letters} {plural(letters, 'буква', 'буквы', 'букв')}",
+        note(texts.CROC_HINT),
+    )
+
+
+def croc_result(word: str, explainer: str, guesser: str | None, reward: int, chat_id: int) -> str:
+    if guesser is None:
+        return card("🐊 <b>Крокодил</b> · время вышло", pick(texts.CROC_MISSED, chat_id),
+                    f"🔤 Было слово <b>{escape(word)}</b>", f"🎨 Объяснение: <b>{who(explainer)}</b>")
+    return card(
+        "🐊 <b>Крокодил</b> · угадано",
+        pick(texts.CROC_GUESSED, chat_id),
+        f"🔤 <b>{escape(word)}</b>",
+        [f"🎯 <b>{who(guesser)}</b> · +{money(reward)}", f"🎨 <b>{who(explainer)}</b> · +{money(reward)}"],
+    )
+
+
+# ── the theme of the day ──────────────────────────────────────────────
+
+
+def theme_card(theme: str, answers: int, closes_at_hour: int, round_id: str = "") -> str:
+    return card(
+        "🎯 <b>Тема дня</b>",
+        steady(texts.THEME_FLAVOUR, round_id),
+        f"🖼 <b>{escape(theme)}</b>",
+        f"📨 Ответов: <b>{answers}</b>" if answers else "",
+        note(f"Ответь на это сообщение своей пикчей до {closes_at_hour}:00 — одна от человека, новая заменяет "
+             f"старую. Потом чат выберет лучшую: автору титул на сутки и монеты"),
+    )
+
+
+def theme_vote_card(theme: str, counts: list[int], remaining: int, round_id: str = "") -> str:
+    leader = max(counts, default=0)
+    return card(
+        f"🎯 <b>Тема дня</b> · голосование · <b>{timer(remaining)}</b>",
+        escape(theme),
+        [f"▫️ Ответ {index + 1} · <b>{count}</b>{bar(count, leader)}" for index, count in enumerate(counts)],
+        note("Ответы — в альбоме выше, по порядку. Жми номер лучшего, за свой голосовать нельзя"),
+    )
+
+
+def theme_result(theme: str, authors: list[str], counts: list[int], winners: list[str], prize: int,
+                 chat_id: int) -> str:
+    ranked = sorted(zip(authors, counts), key=lambda item: -item[1])
+    lines = [f"{MEDALS[index] if index < len(MEDALS) else f'{index + 1}.'} {who(name)} · {count} {votes_word(count)}"
+             for index, (name, count) in enumerate(item for item in ranked if item[1])]
+    verdict = (f"👑 {', '.join(f'<b>{who(name)}</b>' for name in winners)} · +{money(prize)}" if winners else "")
+    return card("🎯 <b>Тема дня</b> · итог", pick(texts.THEME_RESULT, chat_id), f"🖼 {escape(theme)}", lines, verdict)
+
+
+def theme_few(theme: str) -> str:
+    return card("🎯 <b>Тема дня</b> · без голосования", texts.THEME_FEW, f"🖼 {escape(theme)}")
+
+
+def owner_change(buyer: str, previous: str | None, price: int) -> str:
+    """A pic changed hands: shown under the pic."""
+    deal = f"🏷 <b>{who(buyer)}</b> · {money(price)}" + (f" → {who(previous)}" if previous else "")
+    return card("🏷 <b>Новый владелец</b>", "Пикча теперь работает на хозяина",
+                deal, note("Каждая победа пикчи на арене приносит владельцу монеты. Перекупить можно дороже"))

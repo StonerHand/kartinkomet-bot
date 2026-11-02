@@ -252,6 +252,9 @@ def battle_report(report: BattleReport, labels: dict[int, str], score: tuple[int
     if report.challenge:
         extras.append("\n".join([challenge_names(report.challenge, labels), *challenge_result(report, labels, score)]))
     extras += ["\n".join(evolution_lines(report)), "\n".join(bets_result(report, labels)), bounty_line(report.bounty, labels)]
+    if report.owner_income and report.owner_income[1]:
+        owner, coins = report.owner_income
+        extras.append(f"🏷 Владелец <b>{who(labels.get(owner, '?'))}</b> · +{money(coins)}")
     uploaders = [labels.get(pic.added_by, "аноним") for pic in battle.pics]
     guessers = [labels.get(user, "?") for user in report.guessers]
     return battle_result(report, uploaders, guessers, [extra for extra in extras if extra])

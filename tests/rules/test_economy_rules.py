@@ -107,3 +107,11 @@ class BossShopTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnPriceTest(unittest.TestCase):
+    def test_dearer_with_rating_and_an_owned_pic_costs_more_than_its_owner_paid(self) -> None:
+        self.assertEqual(shop.own_price(1000, None), shop.OWN_BASE_PRICE)
+        self.assertGreater(shop.own_price(1200, None), shop.own_price(1000, None))
+        self.assertEqual(shop.own_price(400, None), shop.own_price(500, None))  # a floor for the worst
+        self.assertEqual(shop.own_price(1000, 2000), int(2000 * shop.OWN_RESALE))

@@ -275,10 +275,143 @@ async def announce_expired_bets(bot: Bot, game: Game) -> int:
     return len(results)
 
 
+# ── crocodile with pics ───────────────────────────────────────────────
+
+
+async def start_croc(bot: Bot, game: Game, live: Live, chat_id: int, explainer: int) -> str:
+    word = pick(texts.CROC_WORDS, chat_id)
+    status, found = game.start_croc(chat_id, explainer, word)
+    if status == "active" and found is not None and found["ends_at"] <= game.now():
+        await live.finish_round(found["id"])
+        status, found = game.start_croc(chat_id, explainer, word)
+    if status != "started" or found is None:
+        return status
+    text, markup = live.round_card(found)
+    message = await send.send_text(bot, chat_id, text, markup)
+    if message is None:
+        game.repo.drop_round(found["id"])
+        return "failed"
+    game.repo.set_round_message(found["id"], message.message_id)
+    live.watch_round(found["id"])
+    return "started"
+
+
+CROC_REFUSALS = {
+    "active": "Крокодил уже идёт — угадывай выше",
+    "cooldown": "Следующее слово — через {wait}",
+}
+
+
+def croc_refusal(game: Game, chat_id: int, status: str) -> str:
+    return views.marked(CROC_REFUSALS[status].format(wait=views.duration(game.croc_cooldown_left(chat_id))), "🐊")
+
+
+@router.message(Command("croc"))
+async def croc_command(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    if message.chat.type == "private":
+        await send.reply_personal(bot, message, GROUP_ONLY)
+        return
+    status = await start_croc(bot, game, live, message.chat.id, message.from_user.id)
+    if status in CROC_REFUSALS:
+        await send.reply_personal(bot, message, croc_refusal(game, message.chat.id, status))
+
+
+@router.callback_query(F.data.startswith("cw:"))
+async def croc_word(callback: CallbackQuery, game: Game) -> None:
+    found = game.repo.get_round(callback.data.split(":", 1)[1])
+    if found is None or found["status"] != "open":
+        await send.answer_quietly(callback, "🐊 Раунд закончился")
+    elif found["author"] != callback.from_user.id:
+        await send.answer_quietly_alert(callback, "🐊 Слово видит только тот, кто объясняет")
+    else:
+        await send.answer_quietly_alert(callback, f"🤫 Твоё слово: {found['text']}. Объясняй только пикчами!")
+
+
+async def guesses_croc(message: Message, game: Game) -> bool:
+    """A plain text in a chat with a crocodile running, from anyone but the explainer."""
+    if message.chat.type == "private" or not message.text or message.text.startswith("/") or message.from_user is None:
+        return False
+    found = game.croc_in(message.chat.id)
+    return found is not None and found["author"] != message.from_user.id and \
+        rules.normalize(message.text) == rules.normalize(found["text"])
+
+
+@router.message(guesses_croc)
+async def croc_guess(message: Message, bot: Bot, game: Game, live: Live) -> None:
+    found = game.croc_in(message.chat.id)
+    result = game.guess_croc(found["id"], message.from_user.id, message.text) if found else None
+    if result is None:
+        return
+    await send.react(bot, message.chat.id, message.message_id, "🎉", big=True)
+    await live.settle_croc(result)
+
+
+# ── the theme of the day ──────────────────────────────────────────────
+
+
+async def open_theme(bot: Bot, game: Game, live: Live, chat_id: int) -> bool:
+    """11:00: the theme; answers until THEME_VOTE_HOUR, local time."""
+    local_hour_now = (game.now() // 3600 + game.tz_offset_hours) % 24
+    closes_at = game.now() + (rules.THEME_VOTE_HOUR - local_hour_now) * 3600 - game.now() % 3600
+    if closes_at <= game.now():
+        return False
+    status, found = game.open_theme(chat_id, pick(texts.THEMES, chat_id), closes_at)
+    if status != "opened" or found is None:
+        return False
+    text = views.theme_card(game.theme_state(found)["theme"], 0, rules.THEME_VOTE_HOUR, found["id"])
+    message = await send.send_text(bot, chat_id, text)
+    if message is None:
+        game.repo.drop_round(found["id"])
+        return False
+    game.repo.set_round_message(found["id"], message.message_id)
+    live.watch_theme(found["id"])
+    return True
+
+
+async def answers_theme(message: Message, game: Game) -> bool:
+    """A photo sent in reply to the open theme's card."""
+    reply = message.reply_to_message
+    if not message.photo or reply is None or message.chat.type == "private":
+        return False
+    found = game.repo.round_by_message(message.chat.id, reply.message_id)
+    return found is not None and found["kind"] == "theme" and found["status"] == "open"
+
+
+@router.message(answers_theme)
+async def theme_answer(message: Message, bot: Bot, game: Game) -> None:
+    found = game.repo.round_by_message(message.chat.id, message.reply_to_message.message_id)
+    status = game.answer_theme(found, message.from_user.id, message.photo[-1].file_id)
+    if status == "ok":
+        await send.react(bot, message.chat.id, message.message_id, "👍")
+        answers = len(game.repo.entries_of(found["id"]))
+        text = views.theme_card(game.theme_state(found)["theme"], answers, rules.THEME_VOTE_HOUR, found["id"])
+        await send.edit_text(bot, message.chat.id, found["message_id"], text, None)
+    elif status == "full":
+        await send.reply_personal(bot, message, views.marked(f"Ответов уже {rules.THEME_MAX_ENTRIES}, мест нет", "🎯"))
+
+
+THEME_TOASTS = {
+    "ok": "🗳 Голос принят",
+    "own": "За свой ответ голосовать нельзя",
+    "same": "Твой голос уже здесь",
+    "closed": "Голосование закончилось",
+    "gone": "Этой темы больше нет",
+}
+
+
+@router.callback_query(F.data.startswith("tv:"))
+async def theme_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, round_id, raw = callback.data.split(":", 2)
+    status = game.vote_theme(round_id, callback.from_user.id, int(raw) if raw.isdigit() else -1)
+    await send.answer_quietly(callback, THEME_TOASTS[status])
+    if status == "ok":
+        live.request_refresh_round(round_id)
+
+
 # ── the games menu ────────────────────────────────────────────────────
 
 
-@router.callback_query(F.data.in_({"gm:who", "gm:bomb", "gm:bet"}), F.message)
+@router.callback_query(F.data.in_({"gm:who", "gm:bomb", "gm:bet", "gm:croc"}), F.message)
 async def party_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     chat_id = callback.message.chat.id
     if chat_id > 0:
@@ -291,6 +424,9 @@ async def party_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Liv
     if callback.data == "gm:who":
         status = await start_who(bot, game, live, chat_id)
         refusal = who_refusal(game, chat_id, status) if status in WHO_REFUSALS else None
+    elif callback.data == "gm:croc":
+        status = await start_croc(bot, game, live, chat_id, callback.from_user.id)
+        refusal = croc_refusal(game, chat_id, status) if status in CROC_REFUSALS else None
     else:
         status = await start_bomb(bot, game, live, chat_id)
         refusal = bomb_refusal(game, chat_id, status) if status in BOMB_REFUSALS else None
