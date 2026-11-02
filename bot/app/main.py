@@ -162,6 +162,8 @@ async def main() -> None:
         LOGGER.info("Handed out one-time gifts to %s players", gifted)
     for username, amount in game.give_grants():
         LOGGER.info("Granted %s coins to %s", amount, username)
+    for username, before, after in game.set_balances():
+        LOGGER.info("Set the balance of %s: %s → %s", username, before, after)
     repaired = game.repair_boss_xp()
     if repaired:
         LOGGER.info("Recounted inflated boss XP of %s players", repaired)
