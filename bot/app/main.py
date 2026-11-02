@@ -16,7 +16,7 @@ from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.scenarios import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, party, pics, progress,
-    replies, shop, social, targets, upload,
+    replies, shop, show, social, targets, upload,
 )
 from bot.scenarios.schedule import Events
 
@@ -40,6 +40,8 @@ GROUP_COMMANDS = [
     BotCommand(command="who", description="🗳 кто из нас: вопрос про чат"),
     BotCommand(command="bomb", description="💣 бомба: передай, пока не рванула"),
     BotCommand(command="bet", description="🤝 спор на монеты: /bet и сам спор"),
+    BotCommand(command="heist", description="🏦 ограбление банка всем чатом"),
+    BotCommand(command="cup", description="🏆 большой турнир восьми пикч"),
     BotCommand(command="whose", description="🕵️ угадай, чья пикча"),
     BotCommand(command="higher", description="🎯 выше-ниже: угадай рейтинг"),
     BotCommand(command="give", description="🎁 подарить монеты"),
@@ -121,6 +123,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
         upload.router,
         admin.router,
         games.router,
+        show.router,
         higher.router,
         casino.router,
         shop.router,

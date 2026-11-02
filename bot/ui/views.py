@@ -19,6 +19,7 @@ from bot.ui.cards.games import (
     caption_card, caption_result, caption_cancelled, gold_caption, spin_result, horoscope, whose_card, whose_result,
     hl_card, hl_over, hl_reveal
 )
+from bot.ui.cards.show import cup_champion, cup_intro, heist_card, heist_result
 from bot.ui.cards.party import bet_card, bet_hint, bet_result, bomb_card, bomb_result, who_card, who_result
 from bot.ui.cards.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
@@ -54,4 +55,5 @@ __all__ = [
     "wanted_poster", "wedding", "who", "whose_card", "whose_result", "hl_card", "hl_over", "hl_reveal",
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
+    "heist_card", "heist_result", "cup_intro", "cup_champion",
 ]

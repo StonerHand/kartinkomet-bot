@@ -10,6 +10,7 @@ wait only holds back further redraws: people's own commands always find room.
 """
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -20,7 +21,9 @@ from bot.game.engine import Game
 from bot.game.types import Granted
 from bot.rules import economy
 from bot.rules import games as game_rules
+from bot.rules import shop
 from bot.telegram import send
+from bot.texts import show as show_texts
 from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
@@ -101,6 +104,13 @@ class Live:
             deadline, lambda: self.request_refresh_round(round_id), lambda: self.finish_round(round_id)
         ))
 
+    def watch_heist(self, round_id: str) -> None:
+        found = self.game.repo.get_round(round_id)
+        if found is not None and found["status"] == "open" and found["message_id"] is None:
+            self.game.repo.drop_round(round_id)
+            return
+        self._spawn(f"h:{round_id}", self._heist_loop(round_id))
+
     def request_refresh_battle(self, battle_id: str) -> None:
         self._debounce(f"rb:{battle_id}", lambda: self.refresh_battle(battle_id))
 
@@ -125,6 +135,7 @@ class Live:
             (repo.active_boss_ids(), self.watch_boss),
             (repo.pending_challenge_ids(), self.watch_challenge),
             (repo.open_round_ids(("who", "bomb")), self.watch_round),
+            (repo.open_round_ids(("heist",)), self.watch_heist),
         )
         for ids, watch in watchers:
             for item_id in ids:
@@ -284,7 +295,7 @@ class Live:
         if battle.mode == "challenge" and report.challenge and report.challenge["to_user"]:
             markup = keyboards.rematch(report.challenge["id"], report.challenge["stake"], dice=False)
             score = self.game.head_to_head(report.challenge["from_user"], report.challenge["to_user"])
-        elif battle.mode == "challenge":
+        elif battle.mode in ("challenge", "cup"):  # a cup match: the cup itself goes on
             markup = keyboards.more_only()
         elif battle.kind == "duel":
             markup = keyboards.after_duel(battle.id, battle.winner_slot is not None)
@@ -425,8 +436,10 @@ class Live:
     # ── games about people ─────────────────────────────────────────────
 
     def round_card(self, found: dict) -> tuple[str, object]:
-        """The live card of an open poll or bomb, with its buttons."""
+        """The live card of an open poll, bomb or heist, with its buttons."""
         remaining = found["ends_at"] - self.game.now()
+        if found["kind"] == "heist":
+            return self.heist_card(found, remaining)
         if found["kind"] == "bomb":
             passes = sum(count for count, _ in found["votes"].values())
             text = views.bomb_card(self.game.repo.user_label(found["holder"]), remaining, passes, found["id"])
@@ -478,6 +491,47 @@ class Live:
             if result.winners:
                 await send.react(self.bot, chat_id, message_id, "🏆")
         await self.announce(chat_id, result.granted)
+
+    def heist_crew(self, found: dict) -> list[tuple[str, str]]:
+        return [(self.game.repo.user_label(user), role) for user, role in self.game.heist_crew(found)]
+
+    def heist_card(self, found: dict, remaining: int) -> tuple[str, object]:
+        state = json.loads(found["text"])
+        stage = state["stage"]
+        votes = [choice for choice, _ in found["votes"].values()]
+        text = views.heist_card(stage, self.heist_crew(found), remaining, state["events"],
+                                state["log"], (votes.count(0), votes.count(1)), found["id"])
+        if stage == 0:
+            return text, keyboards.heist_recruit(found["id"])
+        labels = show_texts.EVENTS[state["events"][stage - 1]][1]
+        return text, keyboards.heist_vote(found["id"], labels)
+
+    async def _heist_loop(self, round_id: str) -> None:
+        """Recruiting, then a vote per stage: each phase ends on its clock and the card moves on."""
+        first = True
+        while (found := self.game.repo.get_round(round_id)) is not None and found["status"] == "open":
+            remaining = found["ends_at"] - self.game.now()
+            if remaining <= 0:
+                step = self.game.advance_heist(round_id)
+                if step is not None and step.kind != "stage":
+                    await self.settle_heist(step)
+                elif step is not None:
+                    await self.refresh_round(round_id)
+                first = True
+                continue
+            if not first:
+                self.request_refresh_round(round_id)
+            first = False
+            await asyncio.sleep(min(TICK_SECONDS, remaining))
+
+    async def settle_heist(self, step) -> None:
+        found = step.round
+        state = json.loads(found["text"])
+        text = views.heist_result(step.kind, self.heist_crew(found), state["log"], step.loot,
+                                  shop.JAIL_SECONDS, found["chat_id"])
+        message_id = await self._settle_card(found["chat_id"], found["message_id"], text, keyboards.more_only(), False)
+        await send.react(self.bot, found["chat_id"], message_id, "🤑" if step.kind == "clean" else "😱")
+        await self.announce(found["chat_id"], list(step.granted))
 
     # ── bosses ─────────────────────────────────────────────────────────
 

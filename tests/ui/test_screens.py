@@ -13,6 +13,7 @@ from bot.game.progress import Opened
 from bot.rules import days as day_rules
 from bot.rules import games as game_rules
 from bot.rules import progress as progress_rules
+from bot.rules import show as show_rules
 from bot.rules.arena import DUEL_SECONDS
 from bot.scenarios import casino as casino_tg
 from bot.scenarios import pics as pics_tg
@@ -314,6 +315,18 @@ class ScreensTest(BotHarness):
             texts.append(views.bet_result(claim, "train", outcome, stakes, payouts if outcome != -1 else {}, -100))
         texts.append(views.bet_result(claim, "train", 1, stakes[:1], {"stoner_hand": 1_500_000}, -100))
         texts.append(views.bet_hint())
+        crew = [(name, show_rules.role_of(index)) for index, name in enumerate([*NAMES.values(), "kcifekzhue2", "Захарушка"])]
+        events = ["guards", "vault", "chase"]
+        log = [("guards", 1, True), ("vault", 0, True)]
+        texts.append(views.heist_card(0, [], 120, events, [], round_id="h1"))
+        texts.append(views.heist_card(0, crew, 75, events, [], round_id="h1"))
+        for stage in (1, 2, 3):
+            texts.append(views.heist_card(stage, crew, 59, events, log[: stage - 1], (3, 5), "h1"))
+        texts.append(views.heist_result("clean", crew, [*log, ("chase", 1, True)], 900_000, 21600, -100))
+        texts.append(views.heist_result("busted", crew[:2], [("guards", 0, False)], 0, 21600, -100))
+        texts.append(views.heist_result("cancelled", crew[:1], [], 0, 21600, -100))
+        texts.append(views.cup_intro(list(NAMES.values()), -100))
+        texts.append(views.cup_champion(pic, "kcifekzhue", 1_500_000, -100))
         shares = [(name, 6_000 - index * 900) for index, name in enumerate(NAMES.values())]
         texts.append(views.redistribution("stoner_hand", 1_834_220, shares, -100, burned=1_814_220))
         texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (
