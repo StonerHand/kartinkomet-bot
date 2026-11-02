@@ -304,3 +304,43 @@ CREATE TABLE IF NOT EXISTS seasons (
 ) WITHOUT ROWID;
 
 CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger(user_id, at);
+
+-- ── v6.4: games about the people in the chat ───────────────────────────
+
+-- One row per round: a "who of us" poll, a bomb, a bet on life.
+CREATE TABLE IF NOT EXISTS rounds (
+    id TEXT PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('who', 'bomb', 'bet')),
+    message_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+    ends_at INTEGER NOT NULL,  -- the poll closes, the holder's time runs out, the bet is called off
+    author INTEGER,  -- who asked the question or made the claim
+    text TEXT NOT NULL DEFAULT '',  -- the question, the claim
+    options TEXT NOT NULL DEFAULT '',  -- the poll's people, comma-separated
+    holder INTEGER,  -- the bomb: who holds it now
+    fuse_at INTEGER,  -- the bomb: when it goes off whoever holds it
+    result INTEGER,  -- the bomb's victim; a bet: 1 came true, 0 didn't, -1 called off
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rounds_open ON rounds(status, chat_id, kind);
+
+-- A poll's votes (choice = the person), a bet's stakes (choice = 1 yes / 0 no), the bomb's
+-- passes (choice = how many times this person passed it).
+CREATE TABLE IF NOT EXISTS round_votes (
+    round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    choice INTEGER NOT NULL,
+    stake INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (round_id, user_id)
+) WITHOUT ROWID;
+
+-- Titles worn for a day: the poll's answer, the bomb's victim.
+CREATE TABLE IF NOT EXISTS badges (
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    until INTEGER NOT NULL,
+    PRIMARY KEY (user_id, kind)
+) WITHOUT ROWID;

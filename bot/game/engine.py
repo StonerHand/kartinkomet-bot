@@ -16,6 +16,7 @@ from bot.game.challenges import ChallengesMixin
 from bot.game.court import CourtMixin
 from bot.game.economy import EconomyMixin
 from bot.game.minigames import MiniGamesMixin
+from bot.game.party import PartyMixin
 from bot.game.pics import PicsMixin
 from bot.game.progress import STARTER_BONUS, ProgressMixin
 from bot.game.quiz import QuizMixin
@@ -30,13 +31,13 @@ ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 # Coins the game creates (not moved between players, not a share of a pool): they grow with the
 # chat's wealth. The wheel's spin_* reasons too.
 REWARD_REASONS = ACTIVITY_REASONS | {
-    "quest", "challenge", "daily", "daily_family", "caption_win", "gold", "whose", "hl", "chest",
+    "quest", "challenge", "daily", "daily_family", "caption_win", "gold", "whose", "hl", "chest", "bomb_pass",
 }
 
 
 class Game(
     PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, QuizMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
-    SocialMixin, ChallengesMixin, BossMixin, EconomyMixin,
+    SocialMixin, ChallengesMixin, BossMixin, EconomyMixin, PartyMixin,
 ):
 
     def __init__(

@@ -86,6 +86,21 @@ class Live:
     def watch_challenge(self, challenge_id: str) -> None:
         self._spawn(f"cl:{challenge_id}", self._challenge_loop(challenge_id))
 
+    def watch_round(self, round_id: str) -> None:
+        """A "who of us" poll or a bomb: settles when its time is up (a pass moves the bomb's)."""
+        found = self.game.repo.get_round(round_id)
+        if found is not None and found["status"] == "open" and found["message_id"] is None:
+            self.game.repo.drop_round(round_id)  # its card never reached the chat
+            return
+
+        def deadline() -> int | None:
+            fresh = self.game.repo.get_round(round_id)
+            return fresh["ends_at"] if fresh and fresh["status"] == "open" else None
+
+        self._spawn(f"r:{round_id}", self._countdown(
+            deadline, lambda: self.request_refresh_round(round_id), lambda: self.finish_round(round_id)
+        ))
+
     def request_refresh_battle(self, battle_id: str) -> None:
         self._debounce(f"rb:{battle_id}", lambda: self.refresh_battle(battle_id))
 
@@ -98,6 +113,9 @@ class Live:
     def request_refresh_boss(self, boss_id: str) -> None:
         self._debounce(f"rboss:{boss_id}", lambda: self.refresh_boss(boss_id))
 
+    def request_refresh_round(self, round_id: str) -> None:
+        self._debounce(f"rr:{round_id}", lambda: self.refresh_round(round_id))
+
     def restore(self) -> int:
         repo = self.game.repo
         watchers = (
@@ -106,6 +124,7 @@ class Live:
             (repo.active_game_ids(), self.watch_game),
             (repo.active_boss_ids(), self.watch_boss),
             (repo.pending_challenge_ids(), self.watch_challenge),
+            (repo.open_round_ids(("who", "bomb")), self.watch_round),
         )
         for ids, watch in watchers:
             for item_id in ids:
@@ -402,6 +421,63 @@ class Live:
         if right:
             await send.react(self.bot, game["chat_id"], game["message_id"], "👀")
         await self.announce(game["chat_id"], granted)
+
+    # ── games about people ─────────────────────────────────────────────
+
+    def round_card(self, found: dict) -> tuple[str, object]:
+        """The live card of an open poll or bomb, with its buttons."""
+        remaining = found["ends_at"] - self.game.now()
+        if found["kind"] == "bomb":
+            passes = sum(count for count, _ in found["votes"].values())
+            text = views.bomb_card(self.game.repo.user_label(found["holder"]), remaining, passes, found["id"])
+            return text, keyboards.bomb(found["id"])
+        question = found["text"].partition("\n")[0]
+        labels = [self.game.repo.user_label(person) for person in found["options"]]
+        votes = [choice for choice, _ in found["votes"].values()]
+        counts = [votes.count(person) for person in found["options"]]
+        text = views.who_card(question, labels, counts, remaining, self.game.who_question_price(), found["id"])
+        return text, keyboards.who(found["id"], labels)
+
+    async def refresh_round(self, round_id: str) -> None:
+        found = self.game.repo.get_round(round_id)
+        if found is None or found["status"] != "open":
+            return
+
+        def render():
+            fresh = self.game.repo.get_round(round_id)
+            return self.round_card(fresh) if fresh and fresh["status"] == "open" else None
+
+        await self._redraw(found["chat_id"], found["message_id"], False, render)
+
+    async def finish_round(self, round_id: str) -> None:
+        found = self.game.repo.get_round(round_id)
+        if found is None:
+            return
+        chat_id = found["chat_id"]
+        if found["kind"] == "bomb":
+            result = self.game.finish_bomb(round_id)
+            if result is None:
+                return
+            labels = self.labels([result.victim, *result.passers])
+            text = views.bomb_result(labels[result.victim], result.fine, [labels[user] for user in result.passers],
+                                     result.reward, chat_id)
+            message_id = await self._settle_card(chat_id, found["message_id"], text, keyboards.after_party("bomb"), False)
+            await send.react(self.bot, chat_id, message_id, "🤯", big=True)
+        else:
+            result = self.game.finish_who(round_id)
+            if result is None:
+                return
+            question, _, title = found["text"].partition("\n")
+            labels = self.labels(found["options"])
+            text = views.who_result(
+                question, title, [labels[person] for person in found["options"]],
+                [result.counts.get(person, 0) for person in found["options"]],
+                [labels[person] for person in result.winners], chat_id,
+            )
+            message_id = await self._settle_card(chat_id, found["message_id"], text, keyboards.after_party("who"), False)
+            if result.winners:
+                await send.react(self.bot, chat_id, message_id, "🏆")
+        await self.announce(chat_id, result.granted)
 
     # ── bosses ─────────────────────────────────────────────────────────
 

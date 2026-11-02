@@ -13,6 +13,9 @@ from bot.ui.cards.seasons import points, season_badges
 from bot.ui.layout import bare, money, note, num, plural, rating, who
 
 
+BADGE_MARKS = {"who": "🗳", "bomb": "💥"}
+
+
 @dataclass(frozen=True)
 class Wallet:
     coins: int
@@ -31,6 +34,7 @@ class Wallet:
     casino: tuple[int, int, int, int] | None = None  # (bets, staked, returned, biggest single win)
     best_pic: tuple[str, float, int, int] | None = None  # (pic id, rating, wins, losses)
     records: tuple[tuple[str, int], ...] = ()  # (what, best value), only the ones above zero
+    badges: tuple[tuple[str, str], ...] = ()  # (kind, text): titles worn for a day ("who of us", the bomb)
 
 
 def profile(
@@ -99,6 +103,8 @@ def statuses(wallet: Wallet) -> list[str]:
         lines.append(f"💍 В браке с <b>{who(name)}</b> · {days_married} {plural(days_married, 'день', 'дня', 'дней')}")
     if wallet.jailed:
         lines.append(f"🚔 В обезьяннике ещё {wallet.jailed // 60 + 1} мин")
+    for kind, text in wallet.badges:
+        lines.append(f"{BADGE_MARKS.get(kind, '🏷')} {escape(text)} · сегодня")
     return lines
 
 

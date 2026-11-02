@@ -295,6 +295,25 @@ class ScreensTest(BotHarness):
             texts.append(views.spin_result("stoner_hand", spin, None, 5_000_000, -100))
         texts.append(views.admin_stats({key: 12345 for key in ("players_today", "duels", "spin", "higher")}))
         texts.append(views.admin({"alive": 1234, "executed": 56}, 12, "/data/kartinkomet_v2.sqlite", 1_234_567, 617.3, 3.0))
+        people = list(NAMES.values())
+        question = "Кто ответит на сообщение через три дня и сделает вид, что так и надо?"
+        for counts in ([0] * 6, [5, 0, 2, 11, 1, 0]):
+            texts.append(views.who_card(question, people, counts, 1799, 1_500_000, "r1"))
+        for winners in ([], ["Михаил"], ["Михаил", "kcifekzhue"]):
+            texts.append(views.who_result(question, "Мастер игнора", people, [5, 0, 2, 11, 1, 0], winners, -100))
+        texts.append(views.bomb_card("kcifekzhue", 15, 0, "b1"))
+        texts.append(views.bomb_card("Михаил", 9, 12, "b1"))
+        texts.append(views.bomb_result("kcifekzhue", 450_000, ["stoner_hand", "Михаил", "train"], 30_000, -100))
+        texts.append(views.bomb_result("train", 0, [], 0, -100))
+        claim = "В пятницу половина чата проспит, а вторая половина опоздает на час"
+        stakes = [("stoner_hand", 1, 1_500_000), ("Михаил", 0, 300_000), ("kcifekzhue", 1, 300_000)]
+        texts.append(views.bet_card(claim, "train", [], 7, "s1"))
+        texts.append(views.bet_card(claim, "train", stakes, 1, "s1"))
+        for outcome in (1, 0, -1):
+            payouts = {"stoner_hand": 1_750_000, "kcifekzhue": 350_000} if outcome == 1 else {"Михаил": 2_100_000}
+            texts.append(views.bet_result(claim, "train", outcome, stakes, payouts if outcome != -1 else {}, -100))
+        texts.append(views.bet_result(claim, "train", 1, stakes[:1], {"stoner_hand": 1_500_000}, -100))
+        texts.append(views.bet_hint())
         shares = [(name, 6_000 - index * 900) for index, name in enumerate(NAMES.values())]
         texts.append(views.redistribution("stoner_hand", 1_834_220, shares, -100, burned=1_814_220))
         texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (

@@ -8,6 +8,7 @@ from bot.db.court import CourtRepo
 from bot.db.economy import EconomyRepo
 from bot.db.games import GamesRepo
 from bot.db.meta import MetaRepo
+from bot.db.party import PartyRepo
 from bot.db.people import PeopleRepo
 from bot.db.pics import PicsRepo
 from bot.db.schema import apply_schema, connect
@@ -16,7 +17,8 @@ from bot.db.stats import StatsRepo
 
 
 class Repo(
-    MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, GamesRepo, ChatsRepo, PeopleRepo, SeasonsRepo
+    MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, GamesRepo, ChatsRepo, PeopleRepo, SeasonsRepo,
+    PartyRepo,
 ):
 
     def __init__(self, database_path: Path | str) -> None:
