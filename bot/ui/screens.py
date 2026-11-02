@@ -226,7 +226,7 @@ def admin(ctx: Ctx) -> Screen:
     game = ctx.game
     text = views.admin(
         ctx.repo.totals(), ctx.repo.count_users(), str(ctx.repo.database_path),
-        game.typical_wallet(), game.wealth(), game.reward_factor(), ctx.repo.duplicate_stats(),
+        game.typical_wallet(), game.wealth(), ctx.repo.duplicate_stats(),
     )
     events_on = None if ctx.is_private else ctx.repo.chat_events_on(ctx.chat_id)
     return text, keyboards.admin(events_on)

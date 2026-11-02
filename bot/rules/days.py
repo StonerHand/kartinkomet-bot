@@ -60,12 +60,12 @@ def roll(rng: random.Random, yesterday: str | None) -> str:
     return pool[-1].code
 
 
-def tax(balances: list[tuple[int, int]]) -> tuple[dict[int, int], dict[int, int]]:
+def tax(balances: list[tuple[int, int]], poor_below: int = TAX_POOR_BELOW) -> tuple[dict[int, int], dict[int, int]]:
     """balances: (user, coins). Returns (taken from the rich, given to the poor)."""
-    rich = sorted((item for item in balances if item[1] >= TAX_POOR_BELOW), key=lambda item: -item[1])
+    rich = sorted((item for item in balances if item[1] >= poor_below), key=lambda item: -item[1])
     rich = rich[:TAX_RICH_COUNT]
     rich_ids = {user for user, _ in rich}
-    poor = [user for user, coins in balances if coins < TAX_POOR_BELOW and user not in rich_ids]
+    poor = [user for user, coins in balances if coins < poor_below and user not in rich_ids]
     taken = {user: int(coins * TAX_SHARE) for user, coins in rich if int(coins * TAX_SHARE) > 0}
     if not poor or not taken:
         return {}, {}

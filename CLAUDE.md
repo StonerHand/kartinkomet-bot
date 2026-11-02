@@ -59,7 +59,8 @@ changed cards at phone width. After touching scenarios' hot paths, sending or li
   fails on one that doesn't. Card titles read `emoji <b>Title</b> · detail`, results `· итог`.
 - Answers that concern one person go through `send.personal` / `send.reply_personal`; a button's answer
   passes `callback.id`, which lets a non-admin bot answer personally.
-- Coins the game creates go through `Game.pay` (scaled by the chat's wealth); coins moving between
+- Every amount of coins (a price, reward, fine, minimum, button amount) goes through `game.scaled` /
+  `Game.pay`: one factor from the chat's money pool, nothing fixed. Coins moving between
   players go through `repo.add_coins(..., earn=False)`. One-off grants: `GIFTS` / `GRANTS` in
   `game/progress.py`.
 - Live cards redraw through `Live.request_refresh_*`; countdowns ask for a redraw and keep time.

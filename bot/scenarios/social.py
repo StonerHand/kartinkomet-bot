@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.scenarios import targets
+from bot.rules import shop
 from bot.telegram import send
 from bot.texts import social as texts
 from bot.ui import keyboards, views
@@ -41,7 +42,7 @@ async def rob(message: Message, command: CommandObject, bot: Bot, game: Game, li
 async def run_rob(bot: Bot, game: Game, live: Live, chat_id: int, robber: int, state: dict) -> str | None:
     result = game.rob(robber, state["to"])
     if result.status not in ("success", "fail"):
-        return texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait))
+        return texts.ROB_REFUSED[result.status].format(wait=views.duration(result.wait), minimum=views.num(game.scaled(shop.ROB_MIN_BALANCE)))
     labels = (game.repo.user_label(robber), game.repo.user_label(state["to"]))
     sent = await send.send_text(bot, chat_id, views.robbery(*labels, result, chat_id), keyboards.after_people())
     if sent:
@@ -71,7 +72,9 @@ async def run_marry(bot: Bot, game: Game, live: Live, chat_id: int, suitor: int,
 
 def check_rob(game: Game, robber: int) -> str | None:
     blocked = game.rob_block(robber)
-    return texts.ROB_REFUSED[blocked.status].format(wait=views.duration(blocked.wait)) if blocked else None
+    return texts.ROB_REFUSED[blocked.status].format(
+        wait=views.duration(blocked.wait), minimum=views.num(game.scaled(shop.ROB_MIN_BALANCE))
+    ) if blocked else None
 
 
 def check_marry(game: Game, suitor: int) -> str | None:

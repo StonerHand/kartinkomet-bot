@@ -24,7 +24,7 @@ router = Router(name="targets")
 ASK_SECONDS = 300
 PEOPLE = 8
 ACTIVE_SECONDS = 30 * 86400
-AMOUNTS = (100, 500, 1000, 5000)
+AMOUNTS = (100, 500, 1000, 5000)  # × the chat's money, like every amount
 
 
 @dataclass(frozen=True)
@@ -227,11 +227,12 @@ async def ask(
         question, hint = action.confirm, action.stakes
     else:
         balance = game.repo.player(author)[0]
-        options = [amount for amount in AMOUNTS if action.minimum <= amount <= balance]
-        if not options and balance >= action.minimum:
+        minimum = game.scaled(action.minimum)
+        options = [amount for amount in (game.scaled(base) for base in AMOUNTS) if minimum <= amount <= balance]
+        if not options and balance >= minimum:
             options = [balance]
         if not options:
-            text = f"{action.emoji} Нужно хотя бы {views.money(action.minimum)}, а у тебя {views.num(balance)}"
+            text = f"{action.emoji} Нужно хотя бы {views.money(minimum)}, а у тебя {views.num(balance)}"
             return await tell(bot, text, message=message, callback=callback)
         labels = [keyboards.short(amount) for amount in options]
         question, hint = action.amount, "Жми на сумму или ответь числом"

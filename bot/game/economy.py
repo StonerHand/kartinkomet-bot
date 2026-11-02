@@ -37,7 +37,7 @@ XP_REPAIR_KEY = "xp_repair:2026_11"
 
 class EconomyMixin:
     admins: frozenset[int]
-    _wealth: tuple[int, int, float] | None  # (when, typical wallet, factor)
+    _wealth: tuple[int, float, float] | None  # (when, average wallet, factor)
 
     # ── seasons ────────────────────────────────────────────────────────
 
@@ -91,7 +91,8 @@ class EconomyMixin:
         if victim is None or not recipients:
             return None
         total = self.repo.player(victim)[0]
-        given = min(total, economy.redistribution_cap(self.reward_factor()))
+        self._wealth = None  # once a day: measure the pool now, not a minute ago
+        given = min(total, economy.redistribution_cap(self._measure_wealth()[1]))
         weights = [self.rng.expovariate(1.0) for _ in recipients]  # different, sometimes very different, shares
         amounts = [int(given * weight / sum(weights)) for weight in weights]
         amounts[weights.index(max(weights))] += given - sum(amounts)  # the rounding's leftovers: to the luckiest
@@ -116,32 +117,33 @@ class EconomyMixin:
 
     # ── prices ─────────────────────────────────────────────────────────
 
-    def _measure_wealth(self) -> tuple[int, int, float]:
-        """(when, the median balance of active players, its factor), cached for a minute."""
+    def _measure_wealth(self) -> tuple[int, float, float]:
+        """(when, the average wallet of the money pool, its factor), cached for a minute."""
         now = self.now()
         if self._wealth and now - self._wealth[0] < WEALTH_CACHE_SECONDS:
             return self._wealth
-        median = self.repo.median_balance(now - economy.WEALTH_ACTIVE_DAYS * 86400, self.admins)
-        self._wealth = (now, median, economy.wealth_factor(median))
+        coins, players = self.repo.money_pool(now - economy.WEALTH_ACTIVE_DAYS * 86400)
+        average = coins / players if players else 0.0
+        self._wealth = (now, average, economy.wealth_factor(average))
         return self._wealth
 
     def wealth(self) -> float:
-        """How much richer than usual the chat is (≥ 1): prices grow by this much."""
+        """How the chat's money pool compares with the base chat: every amount moves by this."""
         return self._measure_wealth()[2]
 
     def typical_wallet(self) -> int:
-        """The median balance of players active in the last two weeks, admins left out."""
-        return self._measure_wealth()[1]
+        """The average wallet of the players active in the last two weeks, admins included."""
+        return round(self._measure_wealth()[1])
 
     def reward_factor(self) -> float:
-        """How much the game's own rewards grow: like prices, but at most ×REWARD_FACTOR_CAP."""
-        return economy.reward_factor(self.wealth())
+        """The same factor as prices: rewards follow the pool exactly like everything else."""
+        return self.wealth()
 
     def scaled(self, amount: int) -> int:
+        """Any amount in today's money: prices, rewards, fines, minimums."""
         return economy.scaled(amount, self.wealth())
 
-    def reward_scaled(self, amount: int) -> int:
-        return economy.scaled(amount, self.reward_factor())
+    reward_scaled = scaled
 
     # ── one-off repairs ────────────────────────────────────────────────
 

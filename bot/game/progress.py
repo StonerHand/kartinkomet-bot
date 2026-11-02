@@ -140,7 +140,7 @@ class ProgressMixin:
         code = days.roll(self.rng, self.repo.meta_str(f"day_event:{today - 1}"))
         self.repo.set_meta(f"day_event:{today}", code)
         if code == "tax":
-            taken, given = days.tax(self.repo.balances())
+            taken, given = days.tax(self.repo.balances(), self.scaled(days.TAX_POOR_BELOW))
             for user_id, amount in taken.items():
                 self.repo.add_coins(user_id, -amount, "tax", self.now(), earn=False)
             for user_id, amount in given.items():

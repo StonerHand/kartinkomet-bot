@@ -104,8 +104,8 @@ def payout(stake: int, roll: Roll, lucky: bool = False) -> int:
     return int(stake * multiplier + 1e-9)  # 100 × 2.3 is 229.999… in floats
 
 
-def share_stake(balance: int, share: int) -> int:
-    return max(STAKE_MIN, balance * share // 100)
+def share_stake(balance: int, share: int, minimum: int = STAKE_MIN) -> int:
+    return max(minimum, balance * share // 100)
 
 
 def parse_stake(raw: str, balance: int, default: int) -> int | None:

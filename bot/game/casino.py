@@ -26,6 +26,10 @@ class CasinoResult:
 
 
 class CasinoMixin:
+    def stake_min(self) -> int:
+        """The smallest stake, in today's money."""
+        return self.scaled(casino.STAKE_MIN)
+
     def jackpot(self) -> int:
         """The chat's pot: a share of every lost stake, waiting for a lucky game."""
         return self.repo.meta_int("casino_jackpot")
@@ -46,7 +50,7 @@ class CasinoMixin:
         self.repo.set_counter(user_id, "stake_all", int(amount is None))
         self.repo.set_counter(user_id, "stake_share", 0)
         if amount is not None:
-            self.repo.set_counter(user_id, "stake", max(casino.STAKE_MIN, amount))
+            self.repo.set_counter(user_id, "stake", max(self.stake_min(), amount))
 
     def set_stake_share(self, user_id: int, share: int) -> None:
         """Stake a share of whatever the balance is at the moment of each game."""
@@ -70,17 +74,17 @@ class CasinoMixin:
         if mode == "all":
             return balance
         if mode == "share":
-            return casino.share_stake(balance, value)
+            return casino.share_stake(balance, value, self.stake_min())
         return value
 
     def place_casino_bet(self, user_id: int, stake: int) -> str:
         """'ok' | 'small' | 'broke'. Takes the stake up front."""
         balance = self.repo.player(user_id)[0]
-        if stake < casino.STAKE_MIN:
-            return "broke" if balance < casino.STAKE_MIN else "small"
+        if stake < self.stake_min():
+            return "broke" if balance < self.stake_min() else "small"
         if not self.repo.spend(user_id, stake, "casino_bet", self.now()):
             return "broke"
-        self.repo.set_counter(user_id, "casino_all_in", int(stake == balance and stake >= ALL_IN_MIN))
+        self.repo.set_counter(user_id, "casino_all_in", int(stake == balance and stake >= self.scaled(ALL_IN_MIN)))
         return "ok"
 
     def refund_casino_bet(self, user_id: int, stake: int) -> None:
@@ -104,7 +108,7 @@ class CasinoMixin:
             if game in SPORTS:
                 mask = self.repo.counter(user_id, "sports_won") | (1 << SPORTS.index(game))
                 self.repo.set_counter(user_id, "sports_won", mask)
-            if payout - stake >= HIGH_ROLLER_WIN:
+            if payout - stake >= self.scaled(HIGH_ROLLER_WIN):
                 events.append("high_roller")
         if game == "slots" and roll.kind == "jackpot":
             events.append("triple_seven")

@@ -88,37 +88,34 @@ def people_voice(right: int, wrong: int) -> tuple[int, str] | None:
     return share, verdict
 
 
-# ── prices that follow the chat's wealth ───────────────────────────────
-# Shop prices are set for a chat where a typical player holds ~2 000 coins. When the median
-# balance of active players is higher, prices grow with it, so a rich chat still has something
-# to save for. Rewards the game creates grow too, but at most REWARD_FACTOR_CAP times: uncapped,
-# a richer chat was paid more and grew richer still (October 2026: ×50 000 in two weeks).
+# ── everything follows the chat's money ────────────────────────────────
+# Every amount in the game — prices, rewards, fines, stakes, minimums, the amount buttons — is
+# set for a chat whose players hold BASE_WEALTH coins each on average, and moves with the pool:
+# the coins of everyone who played in the last two weeks, admins included, over their number.
+# One factor for all, uncapped, so in a rich chat a reward stays the same share of a wallet; a
+# poor chat (a fresh season, everyone broke) plays at base amounts, which also pulls it back up.
+# Transfers (gifts, robbery, the redistribution) don't move the pool; only what the game pays
+# out and takes in does, and the first of the month resets it.
 BASE_WEALTH = 2000
 WEALTH_ACTIVE_DAYS = 14
-REWARD_FACTOR_CAP = 3.0
-# The great redistribution hands out at most this many base wallets (× the reward factor); the
-# rest burns, so one huge wallet can't flood the chat. Not the median's wallets: a bottomless
-# wallet would then feed the median that sets its own cap.
+# The great redistribution hands out at most this many average wallets; the rest burns.
 REDISTRIBUTION_CAP_WALLETS = 10
 
 
-def wealth_factor(median_balance: int) -> float:
-    return max(1.0, median_balance / BASE_WEALTH)
+def wealth_factor(average_wallet: float) -> float:
+    """How much richer than the base chat this one is (≥ 1)."""
+    return max(1.0, average_wallet / BASE_WEALTH)
 
 
-def reward_factor(wealth: float) -> float:
-    """How much the game's own rewards grow with the chat's wealth: like prices, up to the cap."""
-    return min(wealth, REWARD_FACTOR_CAP)
+def redistribution_cap(average_wallet: float) -> int:
+    return int(REDISTRIBUTION_CAP_WALLETS * max(average_wallet, 1))
 
 
-def redistribution_cap(reward: float) -> int:
-    return int(REDISTRIBUTION_CAP_WALLETS * BASE_WEALTH * reward)
-
-
-def scaled(price: int, factor: float) -> int:
-    """Price × factor rounded to two significant digits: 300 × 7.31 → 2 200."""
-    if factor <= 1:
-        return price
-    value = price * factor
+def scaled(amount: int, factor: float) -> int:
+    """An amount in today's money: × factor, rounded to two significant digits (300 × 7.31 →
+    2 200), and never below 1 coin for anything that was above zero."""
+    if amount <= 0 or factor <= 1:
+        return amount
+    value = amount * factor
     step = 10 ** max(0, len(str(int(value))) - 2)
-    return int(round(value / step) * step)
+    return max(1, int(round(value / step) * step))
