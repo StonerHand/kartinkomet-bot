@@ -192,7 +192,7 @@ class CoreFlowsTest(BotHarness):
     async def test_rules_and_live_line_on_panel(self) -> None:
         self.game.start_duel(-100)
         await self.send("/menu")
-        self.assertIn("Сейчас идёт", self.session.of("SendMessage")[-1].text)
+        self.assertIn("🔥 <b>Сейчас</b>", self.session.of("SendMessage")[-1].text)
         await self.press("m:help")
         self.assertIn("Суд", self.screen())
 

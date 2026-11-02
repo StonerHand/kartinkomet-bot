@@ -26,7 +26,7 @@ from bot.ui.cards.party import (
 )
 from bot.ui.cards.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
-    PEOPLE_SCREEN, admin_stats, games_screen, season_line, today_screen
+    PEOPLE_SCREEN, admin_stats, games_screen, season_line, today_screen, home_personal
 )
 from bot.ui.cards.people import ask, gift, redistribution, robbery, proposal, wedding, rejected, divorce
 from bot.ui.cards.pics import pic_footer, pic_caption
@@ -59,5 +59,5 @@ __all__ = [
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
     "heist_card", "heist_result", "cup_intro", "cup_champion",
-    "today_screen", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
+    "today_screen", "home_personal", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
 ]

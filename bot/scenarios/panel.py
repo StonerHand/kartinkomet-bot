@@ -1,5 +1,7 @@
 """The live control panel: one message per chat, redrawn in place. Screens live in screens.py."""
 
+import dataclasses
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
@@ -43,6 +45,7 @@ async def open_panel(
 
 async def show_personal(bot: Bot, ctx: Ctx, name: str, callback_id: str | None = None) -> bool:
     """A personal screen only its owner sees. False if Telegram refused the ephemeral message."""
+    ctx = dataclasses.replace(ctx, personal=True)
     text, markup = screens.render(name, ctx)
     if name == "quests":
         markup = screens.quests_markup(ctx.game, ctx.user_id, ctx.chat_id)
@@ -107,14 +110,15 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
     name = parts[1] if len(parts) > 1 else "home"
     arg = ":".join(parts[2:]) or None  # "m:top:uploads:w" → "uploads:w"
     user_id = callback.from_user.id
-    ctx = Ctx(game, message.chat.id, user_id, user_id in admins, message.chat.type == "private", arg)
+    own = bool(message.ephemeral_message_id)
+    private = message.chat.type == "private"
+    ctx = Ctx(game, message.chat.id, user_id, user_id in admins, private, arg, personal=own or private or name != "home")
     if name == "adm" and not ctx.is_admin:
         await callback.answer(ui.ADMIN_ONLY, show_alert=True)
         return
     text, markup = screens.render(name, ctx)
     if name == "quests" and not ctx.is_private:  # its buttons carry the chat, for personal copies
         markup = screens.quests_markup(game, user_id, ctx.chat_id) or markup
-    own = bool(message.ephemeral_message_id)
     if own and await send.edit_ephemeral(bot, ctx.chat_id, user_id, message.ephemeral_message_id, text, markup):
         await send.answer_quietly(callback)  # the presser's own copy, redrawn in place
         return

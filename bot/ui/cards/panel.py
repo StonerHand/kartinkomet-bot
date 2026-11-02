@@ -21,28 +21,45 @@ def season_line(season: str, days_left: int) -> str:
     return f"🏆 Сезон · {month} · ещё {days_left} {plural(days_left, 'день', 'дня', 'дней')}"
 
 
-def home(
-    totals: dict[str, int], chat_id: int, live_now: list[str], today: str | None = None, season: str | None = None
-) -> str:
-    lines = [
+def now_block(live_now: list[str]) -> list[str]:
+    return ["🔥 <b>Сейчас</b>", *live_now] if live_now else ["🔥 Сейчас тихо — начни дуэль или вытащи пикчу"]
+
+
+def next_line(next_up: list[str]) -> str:
+    return f"⏭ Дальше: {' · '.join(next_up)}" if next_up else "⏭ На сегодня расписание всё"
+
+
+def home(chat_id: int, live_now: list[str], next_up: list[str], event: str | None = None,
+         season: str | None = None) -> str:
+    """The group's panel, the same for everyone: what runs, what's next, the day and the season."""
+    return card(
         "🎛 <b>Картинкомет</b>",
-        f"<i>{escape(pick(ui.MENU_HEADERS, chat_id))}</i>",
-        "",
-    ]
-    if today:
-        lines += [today, ""]
-    if season:
-        lines += [season, ""]
-    lines += [
-        f"📦 <b>{totals['alive']}</b> {plural(totals['alive'], 'пикча', 'пикчи', 'пикч')} в строю",
-        f"⚰️ <b>{totals['executed']}</b> на кладбище",
-        f"👀 <b>{num(totals['shows'])}</b> {plural(totals['shows'], 'показ', 'показа', 'показов')}",
-        f"🤙🏻 <b>{num(totals['likes'])}</b> {plural(totals['likes'], 'лайк', 'лайка', 'лайков')}"
-        f" · <b>{num(totals['dislikes'])}</b> {plural(totals['dislikes'], 'дизлайк', 'дизлайка', 'дизлайков')}",
-    ]
-    if live_now:
-        lines += ["", "🔴 <b>Сейчас идёт</b>", *live_now]
-    return "\n".join(lines)
+        pick(ui.MENU_HEADERS, chat_id),
+        now_block(live_now),
+        next_line(next_up),
+        [line for line in (event, season) if line],
+        note("«Мой пульт» — твои монеты, уровень и то, что ты ещё не забрал сегодня. Видно только тебе"),
+    )
+
+
+def home_personal(label: str, coins: int, earned: int, live_now: list[str], left: list[str], next_up: list[str],
+                  chat_id: int) -> str:
+    """One player's panel: their coins and level first, then the chat, then their day."""
+    level, upcoming = economy.level_for(earned), economy.next_level(earned)
+    if upcoming is None:
+        progress = "вершина"
+    else:
+        share = round(100 * (earned - level.threshold) / (upcoming.threshold - level.threshold))
+        progress = f"<code>{economy.progress(earned, cells=6)}</code> {share}%"
+    day = ["✅ <b>Тебе сегодня</b>", *[f"▫️ {what}" for what in left]] if left else ["✅ Всё на сегодня забрано"]
+    return card(
+        f"🎛 <b>Пульт</b> · {who(label)}",
+        pick(ui.MENU_HEADERS, chat_id),
+        [f"🪙 {money(coins)}", f"{level.name} · {progress}"],
+        now_block(live_now),
+        day,
+        next_line(next_up),
+    )
 
 
 def hall(pics: list[Pic], labels: list[str], record: int) -> str:

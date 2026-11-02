@@ -339,6 +339,12 @@ class ScreensTest(BotHarness):
         texts.append(views.theme_few(theme))
         texts.append(views.owner_change("kcifekzhue", "stoner_hand", 1_500_000))
         texts.append(views.owner_change("Михаил", None, 500))
+        live = ["⚔️ Дуэль · ещё 0:45", "💣 Бомба"]
+        texts.append(views.home(-100, live, ["16:00 босс", "21:00 ограбление"], views.day_event_line(None),
+                                views.season_line("2027-01", 17)))
+        texts.append(views.home(-100, [], [], None, None))
+        for earned, left in ((30, ["бонус дня", "колесо фортуны", "квесты 0/3"]), (5000, [])):
+            texts.append(views.home_personal("kcifekzhue", 1_234_567, earned, live, left, ["16:00 босс"], -100))
         plan = [(10, "📰", "событие дня", True), (13, "🗳", "кто из нас", False), (21, "🎬", "шоу: большой турнир", False)]
         mine = [("бонус дня", True), ("колесо фортуны", False), ("квесты 1/3", False)]
         texts.append(views.today_screen(views.day_event_line(None), plan, mine, ["💣 Бомба", "🤝 Открытых споров: 3"]))
