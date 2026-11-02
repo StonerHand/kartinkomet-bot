@@ -2,12 +2,12 @@
 
 from html import escape
 
-from bot.core import achievements as rules
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.rules import achievements as rules
 from bot.texts.achievements import ACHIEVEMENTS, LEVEL_UP, UNLOCKED
 from bot.texts.pick import pick
 from bot.texts.progress import quest_name
-from bot.tg.ui.views.layout import bare, card, num, who
+from bot.ui.layout import bare, card, num, who
 
 
 NOTE_CHESTS = {"wood": "деревянный сундук", "rare": "редкий сундук", "legend": "легендарный сундук"}

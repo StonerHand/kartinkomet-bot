@@ -1,6 +1,6 @@
 import unittest
 
-from bot.core import court
+from bot.rules import court
 from tests.helpers import make_game
 
 
@@ -391,7 +391,7 @@ class StatusesTest(unittest.TestCase):
         self.assertEqual(self.game.crowns_of(5), [])
 
     def test_people_voice(self) -> None:
-        from bot.core.economy import people_voice
+        from bot.rules.economy import people_voice
 
         self.assertIsNone(people_voice(2, 2))
         self.assertEqual(people_voice(9, 1), (90, "🐑 голос стада"))

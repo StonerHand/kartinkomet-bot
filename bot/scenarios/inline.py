@@ -11,8 +11,8 @@ from aiogram.types import (
     InlineQueryResultCachedPhoto,
 )
 
-from bot.db.repo import Pic
-from bot.game import Game
+from bot.game.engine import Game
+from bot.models.records import Pic
 
 router = Router(name="inline")
 RESULTS = 20

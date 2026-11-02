@@ -4,7 +4,7 @@ import random
 from collections.abc import Sequence
 from typing import Protocol
 
-from bot.db.repo import Pic
+from bot.models.records import Pic
 
 BUCKETS: tuple[tuple[str, float], ...] = (("deck", 0.70), ("fresh", 0.20), ("legend", 0.10))
 FRESH_SECONDS = 7 * 24 * 3600

@@ -7,7 +7,7 @@ from typing import Any
 from aiogram import BaseMiddleware
 from aiogram.types import Chat, TelegramObject, User
 
-from bot.game import Game
+from bot.game.engine import Game
 
 
 class RememberUser(BaseMiddleware):

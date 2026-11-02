@@ -3,7 +3,8 @@
 import sqlite3
 from collections.abc import Iterable
 
-from bot.db.repo.models import Pic, PIC_COLUMNS, MIN_EXPERIENCE, _pic, _placeholders
+from bot.db.schema import PIC_COLUMNS, MIN_EXPERIENCE, _pic, _placeholders
+from bot.models.records import Pic
 
 
 class ChatsRepo:

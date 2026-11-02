@@ -2,8 +2,8 @@ import random
 import unittest
 from collections import Counter
 
-from bot.core import achievements, arena, court, deck, elo
-from bot.db.repo import UserStats
+from bot.models.records import UserStats
+from bot.rules import achievements, arena, court, deck, elo
 
 
 class EloTest(unittest.TestCase):
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
 class GamesRulesTest(unittest.TestCase):
     def test_caption_winner_and_tie_break(self) -> None:
-        from bot.core.games import caption_winner
+        from bot.rules.games import caption_winner
 
         entries = [{"user_id": 1}, {"user_id": 2}, {"user_id": 3}]
         self.assertEqual(caption_winner(entries, {10: 2, 11: 2, 12: 3}), 2)
@@ -144,7 +144,7 @@ class GamesRulesTest(unittest.TestCase):
     def test_slot_machine_outcomes(self) -> None:
         import random
 
-        from bot.core.games import reels, spin_outcome
+        from bot.rules.games import reels, spin_outcome
 
         self.assertEqual(reels(64), (3, 3, 3))
         self.assertEqual(spin_outcome(64, random.Random(1)).kind, "jackpot")

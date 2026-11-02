@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 
-from bot.core import games
-from bot.db.repo import Pic
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.models.records import Pic
+from bot.rules import games
 
 
 @dataclass(frozen=True)

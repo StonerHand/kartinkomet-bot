@@ -4,11 +4,12 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.scenarios.higher import deal
+from bot.telegram import send
 from bot.texts import ui
-from bot.tg.runtime import send
-from bot.tg.ui import screens
-from bot.tg.ui.screens import Ctx
+from bot.ui import screens
+from bot.ui.screens import Ctx
 
 router = Router(name="panel")
 HELP_SECONDS = 600  # the rules are long: if the chat had to see them, give time to read
@@ -51,7 +52,6 @@ async def show_personal(bot: Bot, ctx: Ctx, name: str, callback_id: str | None =
 @router.message(CommandStart())
 async def start(message: Message, command: CommandObject, bot: Bot, game: Game, admins: frozenset[int]) -> None:
     if command.args == "hl" and message.from_user is not None:  # the "play in private" link
-        from bot.tg.handlers.higher import deal  # local: higher imports arena, which imports this package
 
         await deal(bot, game, message.chat.id, message.from_user.id)
         return

@@ -6,27 +6,35 @@ plainly. A push to `main` deploys to Railway: every push reaches real players.
 
 ## Structure
 
-Each package's `__init__.py` says what lives there; `docs/ARCHITECTURE.md` holds the flows, data and
-every mechanic's rules — read the mechanic's section there before changing it.
+Sections, top to bottom; a section imports only from the ones below it (`a | b`: neither imports the
+other). The order lives in `.importlinter`; CI enforces it with `lint-imports`.
 
 ```
-bot/core/          pure rules (no db, aiogram or clock)
-bot/services/      the game: rules + db, one mixin per mechanic, mixed into bot/game.py:Game
-bot/db/            schema.sql, repo/ (all SQL)
-bot/texts/         phrases
-bot/media/         collage, visual hash
-bot/tg/handlers/   what a command or button does, one router per mechanic
-bot/tg/ui/         views/ (message texts), keyboards.py, screens.py
-bot/tg/runtime/    send, live cards (timers), schedule (events), pictures, middleware, watchdog
-tests/             harness.py, helpers.py, layout.py + rules/ game/ scenarios/ ui/ runtime/
+bot/__main__.py    python -m bot: lean aiogram, then app.main
+bot/app/           config, menu commands, dispatcher, middleware, polling watchdog
+bot/scenarios/     what a command, button or the clock sets off: a router per mechanic, schedule.py
+bot/live/          live cards (timers.Live): redraws, countdowns, settling
+bot/ui/            layout.py (design system), cards/ (texts per mechanic, re-exported by views.py), keyboards, screens
+bot/game/          engine.Game + a mixin per mechanic; results in types.py
+bot/db | telegram  storage (schema.sql, migrations, SQL mixins, Repo) | sending, pic downloads, lean aiogram
+bot/rules | media  pure counting rules | Pillow (collage, visual hash)
+bot/models | texts records (Pic, Battle, Court, UserStats) | phrases
 ```
 
-A new mechanic goes down the layers in order:
-1. `core/` rule → 2. `db/schema.sql` + `repo/` (new columns: a migration in `repo/models.apply_schema`)
-→ 3. `services/` mixin, added to `Game` → 4. `texts/` phrases → 5. `tg/ui/views/` card + `keyboards.py`
-→ 6. `tg/handlers/` router, registered in `bot/__main__.build_dispatcher` (scheduled: `runtime/events.JOBS`;
-live card: `runtime/timers.Live`) → 7. tests in the mirroring `tests/` folders.
-Done when a `tests/scenarios` test drives it end to end and `dump_screens` shows its cards clean.
+Where new code goes, section by section, and every mechanic's rules: `docs/ARCHITECTURE.md` (read the
+mechanic's section before changing it). Each `__init__.py` holds one sentence about its section and no
+imports; imports are absolute.
+
+When a lower section needs code from a higher one, move that code down; an upward import breaks CI.
+After changing imports between sections, run `python scripts/layers.py` to redraw the diagram in docs
+(`tests/structure` fails while it is stale). A new section goes into `.importlinter` first.
+
+A new mechanic goes up the layers: `rules/` → `db/schema.sql` + a `db/` mixin (new columns: a migration
+in `db/schema.apply_schema`) → a `game/` mixin added to `engine.Game` → `texts/` → `ui/cards/` + a line in
+`ui/views.py` + `ui/keyboards.py` → a `scenarios/` router registered in `app/main.build_dispatcher`
+(by the clock: `scenarios/schedule.JOBS`; a live card: `live/timers.Live`) → tests in the mirroring
+`tests/` folder. Done when a `tests/scenarios` test drives it end to end and `dump_screens` shows its
+cards clean.
 
 ## Checks
 
@@ -34,11 +42,12 @@ Green before every push:
 
 ```bash
 .venv/bin/python -m pyflakes bot tests scripts
+.venv/bin/lint-imports
 .venv/bin/python -m unittest discover -s tests -t .
 ```
 
 After changing any message: `.venv/bin/python scripts/dump_screens.py .screens/all.html` and look at the
-changed cards at phone width. After touching handlers' hot paths, sending or live cards:
+changed cards at phone width. After touching scenarios' hot paths, sending or live cards:
 `.venv/bin/python scripts/load_test.py`.
 
 ## House rules
@@ -50,15 +59,15 @@ changed cards at phone width. After touching handlers' hot paths, sending or liv
   passes `callback.id`, which lets a non-admin bot answer personally.
 - Coins the game creates go through `Game.pay` (scaled by the chat's wealth); coins moving between
   players go through `repo.add_coins(..., earn=False)`. One-off grants: `GIFTS` / `GRANTS` in
-  `services/progress.py`.
+  `game/progress.py`.
 - Live cards redraw through `Live.request_refresh_*`; countdowns ask for a redraw and keep time.
 - Secrets stay out of sight: `BOT_TOKEN` is never printed, Railway secrets are never read, `railway ssh`
   is off-limits.
 
 ## Shipping
 
-1. Commit, push to `main`.
-2. Watch CI and the deployment: `gh run list -R StonerHand/kartinkomet-bot` and
+1. Commit on a branch, open a PR, merge it once CI is green; merging to `main` deploys.
+2. Watch the deployment: `gh run list -R StonerHand/kartinkomet-bot` and
    `gh api "repos/StonerHand/kartinkomet-bot/deployments?sha=<sha>"` → its statuses reach `success`; look
    again five minutes later (the Railway CLI is logged out, there are no logs to read).
 3. `gh release create vX.Y.Z` with notes in Russian, written for players.

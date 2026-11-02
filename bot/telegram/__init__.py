@@ -1,2 +1,1 @@
-"""How the bot lives: send.py (Telegram calls, retries, personal messages), timers.py (live cards),
-events.py (the daily schedule), pictures.py (downloads, collages), middleware.py, watchdog.py."""
+"""The wrapper around Telegram: lean aiogram loading, sending with retries and personal messages, pic downloads."""

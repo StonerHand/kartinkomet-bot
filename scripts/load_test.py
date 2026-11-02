@@ -23,10 +23,10 @@ importlib.import_module("tests")  # lean aiogram loading, as in the suite
 from aiogram import Bot  # noqa: E402
 from aiogram.types import CallbackQuery, Message, Update  # noqa: E402
 
-from bot.__main__ import build_dispatcher  # noqa: E402
-from bot.tg.handlers import challenges, games  # noqa: E402
-from bot.tg.runtime import timers  # noqa: E402
-from bot.tg.runtime.timers import Live  # noqa: E402
+from bot.app.main import build_dispatcher  # noqa: E402
+from bot.live import timers  # noqa: E402
+from bot.live.timers import Live  # noqa: E402
+from bot.scenarios import challenges, games  # noqa: E402
 from tests.helpers import make_game  # noqa: E402
 from tests.harness import BOT_USER, GROUP, FakeSession, user  # noqa: E402
 

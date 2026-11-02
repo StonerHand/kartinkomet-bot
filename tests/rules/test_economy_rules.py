@@ -3,7 +3,7 @@
 import random
 import unittest
 
-from bot.core import boss, casino, days, progress, shop
+from bot.rules import boss, casino, days, progress, shop
 
 
 class CasinoTest(unittest.TestCase):

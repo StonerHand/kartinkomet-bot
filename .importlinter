@@ -1,0 +1,37 @@
+# The order of sections, bottom to top: a section imports only from the sections below it.
+# `a | b` on one line: neither imports the other. CI runs `lint-imports`; scripts/layers.py draws this
+# order into docs/ARCHITECTURE.md.
+
+[importlinter]
+root_package = bot
+include_external_packages = True
+
+[importlinter:contract:layers]
+name = Sections import only from the sections below them
+type = layers
+containers = bot
+exhaustive = True
+layers =
+    __main__
+    app
+    scenarios
+    live
+    ui
+    game
+    db | telegram
+    rules | media
+    models | texts
+
+[importlinter:contract:no-telegram]
+name = The game and everything under it know nothing about Telegram
+type = forbidden
+source_modules =
+    bot.models
+    bot.texts
+    bot.rules
+    bot.media
+    bot.db
+    bot.game
+forbidden_modules =
+    aiogram
+    bot.telegram

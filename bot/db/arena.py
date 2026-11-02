@@ -4,7 +4,8 @@ import sqlite3
 from collections.abc import Sequence
 from uuid import uuid4
 
-from bot.db.repo.models import Battle, PIC_COLUMNS, _pic
+from bot.db.schema import PIC_COLUMNS, _pic
+from bot.models.records import Battle
 
 
 class ArenaRepo:

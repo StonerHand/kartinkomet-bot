@@ -10,12 +10,12 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, FSInputFile, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.scenarios.panel import open_panel
+from bot.telegram import send
 from bot.texts import ui
-from bot.tg.handlers.panel import open_panel
-from bot.tg.runtime import send
-from bot.tg.ui import keyboards, views
-from bot.tg.ui import screens
+from bot.ui import keyboards, views
+from bot.ui import screens
 
 router = Router(name="admin")
 

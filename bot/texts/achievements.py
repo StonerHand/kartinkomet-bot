@@ -1,4 +1,4 @@
-"""Achievement names and descriptions, keyed by code from bot.core.achievements."""
+"""Achievement names and descriptions, keyed by code from bot.rules.achievements."""
 
 ACHIEVEMENTS: dict[str, tuple[str, str]] = {
     "up_1": ("🌱 Первый вброс", "Первая пикча на складе. Назад дороги нет"),

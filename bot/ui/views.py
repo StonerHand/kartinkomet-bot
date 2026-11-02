@@ -1,39 +1,40 @@
-"""Message texts for every card and screen. Pure formatting, no I/O.
+"""One import point for every message text: the design system (bot/ui/layout.py) and the cards of
+every mechanic (bot/ui/cards/), so callers write views.card(...), views.battle_card(...).
 
 One design system for all of them (see layout.card): a sentence-case title, an italic flavour
 line, then blocks that each open with their emoji or a list mark, and rules or hints in a quote
-box at the end (layout.note). tests/test_texts.layout_problems checks it on every message.
+box at the end (layout.note). tests/layout.py checks it on every message.
 """
 
-from bot.tg.ui.views.layout import (
-    BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
-    slot_names, rating, delta, who, card, cited, plural, ago, duration, hp_bar, marked, note
-)
-from bot.tg.ui.views.pics import pic_footer, pic_caption
-from bot.tg.ui.views.arena import (
+from bot.ui.cards.announce import NOTE_CHESTS, note_line, RARITY_WORDS, announcement, has_legendary
+from bot.ui.cards.arena import (
     vote_lines, bets_line, battle_card, battle_report, battle_result, streak_announcement, bets_result,
     evolution_lines, bounty_line, challenge_card, challenge_closed, challenge_names, challenge_result,
     dice_duel_result, score_line
 )
-from bot.tg.ui.views.announce import NOTE_CHESTS, note_line, RARITY_WORDS, announcement, has_legendary
-from bot.tg.ui.views.court import court_card, court_result, appeal_hint
-from bot.tg.ui.views.panel import (
-    home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
-    PEOPLE_SCREEN, admin_stats, games_screen, season_line
-)
-from bot.tg.ui.views.profile import Wallet, profile
-from bot.tg.ui.views.games import (
+from bot.ui.cards.boss import boss_card, boss_result
+from bot.ui.cards.casino import casino_screen, casino_title, casino_result
+from bot.ui.cards.court import court_card, court_result, appeal_hint
+from bot.ui.cards.games import (
     caption_card, caption_result, caption_cancelled, gold_caption, spin_result, horoscope, whose_card, whose_result,
     hl_card, hl_over, hl_reveal
 )
-from bot.tg.ui.views.casino import casino_screen, casino_title, casino_result
-from bot.tg.ui.views.shop import shop_screen, pic_menu, bought, PURCHASE_FACTS, purchase_notice, wanted_poster
-from bot.tg.ui.views.progress import (
+from bot.ui.cards.panel import (
+    home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
+    PEOPLE_SCREEN, admin_stats, games_screen, season_line
+)
+from bot.ui.cards.people import ask, gift, redistribution, robbery, proposal, wedding, rejected, divorce
+from bot.ui.cards.pics import pic_footer, pic_caption
+from bot.ui.cards.profile import Wallet, profile
+from bot.ui.cards.progress import (
     task_line, quests_screen, daily_result, chest_opening, chest_opened, day_event_line, day_event
 )
-from bot.tg.ui.views.boss import boss_card, boss_result
-from bot.tg.ui.views.people import ask, gift, redistribution, robbery, proposal, wedding, rejected, divorce
-from bot.tg.ui.views.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
+from bot.ui.cards.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
+from bot.ui.cards.shop import shop_screen, pic_menu, bought, PURCHASE_FACTS, purchase_notice, wanted_poster
+from bot.ui.layout import (
+    BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
+    slot_names, rating, delta, who, card, cited, plural, ago, duration, hp_bar, marked, note
+)
 
 __all__ = [
     "BAR_CELLS", "DUEL_SLOTS", "PEOPLE_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",

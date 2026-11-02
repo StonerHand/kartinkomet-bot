@@ -4,10 +4,10 @@ from datetime import UTC, datetime
 
 from aiogram.types import Chat
 
-from bot.core import boss as boss_rules
-from bot.core import games as game_rules
-from bot.tg.handlers import higher as higher_tg
-from bot.tg.runtime.events import Events
+from bot.rules import boss as boss_rules
+from bot.rules import games as game_rules
+from bot.scenarios import higher as higher_tg
+from bot.scenarios.schedule import Events
 from tests.harness import ADMIN, BotHarness
 
 PRIVATE = Chat(id=5, type="private")
@@ -57,7 +57,7 @@ class GamesFlowsTest(BotHarness):
             return b"jpeg"
 
         higher_tg.build_collage = collage
-        self.addCleanup(setattr, higher_tg, "build_collage", __import__("bot.tg.runtime.pictures", fromlist=["x"]).build_collage)
+        self.addCleanup(setattr, higher_tg, "build_collage", __import__("bot.telegram.pictures", fromlist=["x"]).build_collage)
         await self.send("/higher", sender=5, chat=PRIVATE)
         card = self.session.of("SendPhoto")[-1]
         self.assertIn("Выше-ниже", card.caption)

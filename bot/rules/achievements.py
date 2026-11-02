@@ -10,8 +10,8 @@ Every code has a rarity; secret ones stay hidden in profiles until earned.
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from bot.core.shop import GOLDEN_WEDDING_DAYS
-from bot.db.repo import UserStats
+from bot.models.records import UserStats
+from bot.rules.shop import GOLDEN_WEDDING_DAYS
 
 COMMON, RARE, LEGENDARY = "common", "rare", "legendary"
 RARITY_ORDER = {LEGENDARY: 0, RARE: 1, COMMON: 2}

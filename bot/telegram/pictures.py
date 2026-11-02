@@ -7,9 +7,9 @@ from io import BytesIO
 
 from aiogram import Bot
 
-from bot.core import progress, shop
 from bot.media import collage
-from bot.tg.runtime import send
+from bot.rules import progress, shop
+from bot.telegram import send
 
 LOGGER = logging.getLogger(__name__)
 

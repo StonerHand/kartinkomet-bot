@@ -9,9 +9,9 @@ from datetime import UTC, datetime
 
 from aiogram.types import Chat, Message
 
-from bot.core import boss as boss_rules
-from bot.tg.handlers import challenges as challenges_tg
-from bot.tg.handlers import higher as higher_tg
+from bot.rules import boss as boss_rules
+from bot.scenarios import challenges as challenges_tg
+from bot.scenarios import higher as higher_tg
 from tests.harness import BOT_USER, GROUP, BotHarness
 
 PRIVATE = Chat(id=5, type="private")
@@ -76,7 +76,7 @@ class DiceDuelEdgesTest(BotHarness):
         await self.send("/pvp 200", sender=3, reply_to=self.reply_to(4))
         challenge_id = self.buttons(self.session.of("SendMessage")[-1])[0].split(":")[2]
         self.session.errors["SendDice"] = [TelegramBadRequest(method=SendDice(chat_id=-100), message="Bad Request: no")]
-        with self.assertLogs("bot.tg.handlers.challenges", "WARNING"):
+        with self.assertLogs("bot.scenarios.challenges", "WARNING"):
             await self.press(f"cl:y:{challenge_id}", sender=4)
         self.assertIn("Ставки вернулись", self.session.of("SendMessage")[-1].text)
         self.assertEqual((self.coins(3), self.coins(4)), (500, 500))

@@ -1,10 +1,10 @@
 """Gifts, robberies, weddings and divorces."""
 
-from bot.core import shop
+from bot.rules import shop
 from bot.texts import events as event_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import MEDALS, card, duration, money, note, num, who
+from bot.ui.layout import MEDALS, card, duration, money, note, num, who
 
 
 def ask(emoji: str, question: str, about: str | None, hint: str, remark: str | None = None) -> str:

@@ -1,7 +1,7 @@
 """Social deals never create or lose coins: every way a challenge or a proposal can end."""
 
-from bot.core import shop
-from bot.core.arena import DUEL_SECONDS
+from bot.rules import shop
+from bot.rules.arena import DUEL_SECONDS
 from tests.helpers import GameCase
 
 

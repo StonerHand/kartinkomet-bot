@@ -1,10 +1,10 @@
-"""Economy services against a real SQLite database: casino, bets, day events, appeals, shop, people, bosses."""
+"""Economy mechanics against a real SQLite database: casino, bets, day events, appeals, shop, people, bosses."""
 
 import unittest
 
-from bot.core import casino, court, progress
-from bot.core.arena import DUEL_SECONDS
-from bot.services.progress import STARTER_BONUS
+from bot.game.progress import STARTER_BONUS
+from bot.rules import casino, court, progress
+from bot.rules.arena import DUEL_SECONDS
 from tests.helpers import GameCase
 
 UPLOADER = 1
@@ -151,7 +151,7 @@ class DayEventsTest(GameCase):
     def test_roll_once_a_day_and_tax(self) -> None:
         self.fund(5, 10000)
         self.fund(6, 10)
-        self.game.rng.uniform = lambda a, b: sum(e.weight for e in __import__("bot.core.days", fromlist=["x"]).EVENTS[:7]) + 0.5
+        self.game.rng.uniform = lambda a, b: sum(e.weight for e in __import__("bot.rules.days", fromlist=["x"]).EVENTS[:7]) + 0.5
         code, fresh = self.game.roll_day_event()
         self.assertEqual((code, fresh), ("tax", True))
         self.assertEqual(self.game.roll_day_event(), ("tax", False))

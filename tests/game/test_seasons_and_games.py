@@ -2,9 +2,9 @@
 
 from unittest import mock
 
-from bot.core import boss as boss_rules
-from bot.core import economy, games, progress, shop
-from bot.services.economy import STARTER_COINS
+from bot.game.economy import STARTER_COINS
+from bot.rules import boss as boss_rules
+from bot.rules import economy, games, progress, shop
 from tests.helpers import GameCase
 
 

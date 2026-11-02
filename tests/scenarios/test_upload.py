@@ -6,7 +6,7 @@ from io import BytesIO
 from aiogram.types import Chat, Document, Message, PhotoSize, Update
 from PIL import Image, ImageDraw
 
-from bot.tg.handlers import upload
+from bot.scenarios import upload
 from tests.harness import BotHarness, user
 
 PRIVATE = Chat(id=5, type="private")

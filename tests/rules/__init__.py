@@ -1,1 +1,1 @@
-"""Pure rules from bot/core: no database, no Telegram."""
+"""Pure rules from bot/rules: no database, no Telegram."""

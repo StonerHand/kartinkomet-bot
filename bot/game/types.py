@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from bot.core import arena
-from bot.db.repo import Battle, Court, Pic
+from bot.models.records import Battle, Court, Pic
+from bot.rules import arena
 
 
 @dataclass(frozen=True)

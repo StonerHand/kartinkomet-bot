@@ -2,8 +2,8 @@
 
 from dataclasses import replace, dataclass
 
-from bot.core import days, progress
-from bot.services.types import Granted, Note
+from bot.game.types import Granted, Note
+from bot.rules import days, progress
 
 STARTER_BONUS = 1111
 STARTER_KEY = "starter_v4"

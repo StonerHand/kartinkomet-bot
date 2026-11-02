@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 
 from bot.db.repo import Repo
-from bot.game import Game
-from bot.services.progress import STARTER_BONUS
+from bot.game.engine import Game
+from bot.game.progress import STARTER_BONUS
 
 
 class Clock:

@@ -2,12 +2,12 @@
 
 from html import escape
 
-from bot.core import shop
-from bot.db.repo import Pic
+from bot.models.records import Pic
+from bot.rules import shop
 from bot.texts import shop as shop_texts
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import card, duration, money, note, num, rating, who
-from bot.tg.ui.views.progress import day_event_line
+from bot.ui.cards.progress import day_event_line
+from bot.ui.layout import card, duration, money, note, num, rating, who
 
 
 def shop_screen(

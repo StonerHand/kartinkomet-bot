@@ -8,17 +8,17 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
-from bot.core import economy
-from bot.core import games as game_rules
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
 from bot.media import collage
+from bot.rules import economy
+from bot.rules import games as game_rules
+from bot.telegram import send
+from bot.telegram.pictures import download
 from bot.texts import games as game_texts
 from bot.texts import toasts, ui
 from bot.texts.pick import pick
-from bot.tg.runtime import send
-from bot.tg.runtime.pictures import download
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="games")

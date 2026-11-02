@@ -8,13 +8,14 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import shop
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import shop
+from bot.scenarios.court import open_court
+from bot.scenarios.panel import open_screen
+from bot.telegram import send
 from bot.texts import shop as texts
-from bot.tg.handlers.court import open_court
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 router = Router(name="shop")
 ITEM_CODES = {"s": "shield", "b": "boost", "c": "court", "u": "uncurse"}
@@ -54,7 +55,6 @@ def confirmed(user_id: int, key: str) -> bool:
 
 @router.message(Command("shop"))
 async def shop_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.handlers.panel import open_screen  # local: panel imports this module's screens
 
     await open_screen(message, bot, game, admins, "shop")  # it shows the asker's coins
 

@@ -9,10 +9,10 @@ from dataclasses import dataclass
 
 from aiogram.types import InlineKeyboardMarkup
 
-from bot.core import casino
-from bot.game import Game
+from bot.game.engine import Game
+from bot.rules import casino
 from bot.texts import ui
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 BOARDS = {"uploads", "loved", "killers", "streaks", "rich", "season", "hl"}
 SHOP_ITEMS = ("shield", "boost", "court", "uncurse", "resurrect", "title")

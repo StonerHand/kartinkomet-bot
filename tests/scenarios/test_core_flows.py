@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 
 from aiogram.types import Chat, Message, PhotoSize, Update
 
-from bot.core.arena import DUEL_SECONDS
-from bot.core.court import COURT_SECONDS
-from bot.tg.handlers import pics, upload
-from bot.tg.runtime import timers
+from bot.live import timers
+from bot.rules.arena import DUEL_SECONDS
+from bot.rules.court import COURT_SECONDS
+from bot.scenarios import pics, upload
 from tests.harness import ADMIN, BOT_USER, GROUP, BotHarness, user
 
 
@@ -174,7 +174,7 @@ class CoreFlowsTest(BotHarness):
         self.assertIsNotNone(self.game.repo.active_battle(-100, "duel"))
 
     async def test_votes_are_batched_into_one_edit(self) -> None:
-        import bot.tg.runtime.timers as timers
+        import bot.live.timers as timers
 
         timers.REFRESH_DELAY = 0.05
         self.addCleanup(setattr, timers, "REFRESH_DELAY", 1.5)
@@ -224,7 +224,7 @@ class CoreFlowsTest(BotHarness):
 
 
     async def test_profile_and_command_menus(self) -> None:
-        from bot.__main__ import set_up_profile
+        from bot.app.main import set_up_profile
 
         await set_up_profile(self.bot)
         menus = {type(r.scope).__name__ if r.scope else "default": [c.command for c in r.commands] for r in self.session.of("SetMyCommands")}
@@ -272,7 +272,7 @@ class CoreFlowsTest(BotHarness):
         self.assertTrue(finished.extended)
         self.assertEqual(finished.status, "done")
         from bot.texts.events import EXTENDED
-        from bot.tg.ui.views import bare
+        from bot.ui.views import bare
 
         notices = [bare(phrase) for phrase in EXTENDED]
         cards = [r.text or "" for r in self.session.of("EditMessageText")]

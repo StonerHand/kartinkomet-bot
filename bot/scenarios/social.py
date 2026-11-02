@@ -5,12 +5,12 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios import targets
+from bot.telegram import send
 from bot.texts import social as texts
-from bot.tg.handlers import targets
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 router = Router(name="social")
 

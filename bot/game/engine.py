@@ -1,4 +1,4 @@
-"""Game service: one object composed of domain mixins (bot/services). Knows nothing about Telegram.
+"""Game: one object composed of the mechanics' mixins (bot/game/*). Knows nothing about Telegram.
 
 Every mixin works through self.repo, self.now(), self.pay() and check_achievements(); this module
 keeps only the clock and the coin rules they share.
@@ -8,34 +8,22 @@ import random
 import time
 from collections.abc import Callable
 
-from bot.core import economy
 from bot.db.repo import Repo
-from bot.services.arena import ArenaMixin
-from bot.services.boss import BossMixin
-from bot.services.casino import CasinoMixin
-from bot.services.challenges import ChallengesMixin
-from bot.services.court import CourtMixin
-from bot.services.economy import EconomyMixin
-from bot.services.minigames import MiniGamesMixin
-from bot.services.pics import PicsMixin
-from bot.services.progress import STARTER_BONUS, ProgressMixin
-from bot.services.quiz import QuizMixin
-from bot.services.shop import ShopMixin
-from bot.services.social import SocialMixin
-from bot.services.statuses import StatusMixin
-from bot.services.types import (
-    BattleReport,
-    CourtReport,
-    CourtStart,
-    Granted,
-    Note,
-    ReactResult,
-    StartResult,
-)
-
-__all__ = [
-    "BattleReport", "CourtReport", "CourtStart", "Game", "Granted", "Note", "ReactResult", "StartResult",
-]
+from bot.game.arena import ArenaMixin
+from bot.game.boss import BossMixin
+from bot.game.casino import CasinoMixin
+from bot.game.challenges import ChallengesMixin
+from bot.game.court import CourtMixin
+from bot.game.economy import EconomyMixin
+from bot.game.minigames import MiniGamesMixin
+from bot.game.pics import PicsMixin
+from bot.game.progress import STARTER_BONUS, ProgressMixin
+from bot.game.quiz import QuizMixin
+from bot.game.shop import ShopMixin
+from bot.game.social import SocialMixin
+from bot.game.statuses import StatusMixin
+from bot.game.types import Note
+from bot.rules import economy
 
 # Rewards for taking part: the day events "double coins" and "sniper" multiply these.
 ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}

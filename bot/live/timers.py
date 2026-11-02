@@ -16,11 +16,12 @@ from collections.abc import Awaitable, Callable
 
 from aiogram import Bot
 
-from bot.core import economy
-from bot.core import games as game_rules
-from bot.game import Game, Granted
-from bot.tg.runtime import send
-from bot.tg.ui import keyboards, views
+from bot.game.engine import Game
+from bot.game.types import Granted
+from bot.rules import economy
+from bot.rules import games as game_rules
+from bot.telegram import send
+from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 15

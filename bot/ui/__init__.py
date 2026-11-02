@@ -1,2 +1,1 @@
-"""How the bot looks: views/ (every message's text, the design system in views/layout.py),
-keyboards.py (every button) and screens.py (the panel's screens). Pure formatting, no I/O."""
+"""How the bot looks: the design system, every card's text, the buttons and the panel screens."""

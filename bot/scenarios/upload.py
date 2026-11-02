@@ -10,13 +10,13 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
 from bot.media.visual_hash import image_dhash
+from bot.telegram import send
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="upload")

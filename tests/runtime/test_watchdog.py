@@ -7,8 +7,8 @@ from unittest import mock
 from aiogram import Bot
 from aiogram.methods import GetMe, GetUpdates
 
-from bot.tg.runtime.timers import Live
-from bot.tg.runtime.watchdog import PollingWatchdog
+from bot.app.watchdog import PollingWatchdog
+from bot.live.timers import Live
 from tests.helpers import make_game
 from tests.harness import FakeSession
 
@@ -43,7 +43,7 @@ class WatchdogTest(unittest.IsolatedAsyncioTestCase):
         async def on_stall() -> None:
             stalls.append(self.clock.value)
 
-        with self.assertLogs("bot.tg.runtime.watchdog", "CRITICAL"):
+        with self.assertLogs("bot.app.watchdog", "CRITICAL"):
             guard = asyncio.create_task(self.watchdog.watch(on_stall, check_seconds=0))
             for _ in range(3):
                 with self.assertRaises(Exception):
@@ -87,7 +87,7 @@ class CountdownTest(unittest.IsolatedAsyncioTestCase):
             finished.append(True)
 
         real_sleep = asyncio.sleep
-        with self.assertLogs("bot.tg.runtime.timers", "ERROR"):  # the broken redraw is logged, nothing more
+        with self.assertLogs("bot.live.timers", "ERROR"):  # the broken redraw is logged, nothing more
             with mock.patch.object(asyncio, "sleep", lambda _: real_sleep(0)):
                 await asyncio.wait_for(live._countdown(lambda: ends_at, request_refresh, finish), 2)
             await real_sleep(0.01)  # the redraw task runs, fails and is logged

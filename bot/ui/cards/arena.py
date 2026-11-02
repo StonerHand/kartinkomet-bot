@@ -2,17 +2,17 @@
 
 from html import escape
 
-from bot.core import casino
-from bot.core import economy
-from bot.core import shop
-from bot.core.arena import DEATH_LOSS_STREAK
-from bot.db.repo import Battle
-from bot.services.types import BattleReport
+from bot.game.types import BattleReport
+from bot.models.records import Battle
+from bot.rules import casino
+from bot.rules import economy
+from bot.rules import shop
+from bot.rules.arena import DEATH_LOSS_STREAK
 from bot.texts import arena as arena_texts
 from bot.texts import events as event_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick, steady
-from bot.tg.ui.views.layout import (
+from bot.ui.layout import (
     SLOT_COLORS, bar, bare, card, delta, money, note, num, plural, rating, slot_names, timer, who,
 )
 

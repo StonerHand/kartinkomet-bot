@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from aiogram import Bot
 from aiogram.types import CallbackQuery, Message, Update
 
-from bot.__main__ import STALE_BACKLOG_SECONDS, drop_stale_backlog
+from bot.app.main import STALE_BACKLOG_SECONDS, drop_stale_backlog
 from tests.harness import GROUP, FakeSession, user
 
 

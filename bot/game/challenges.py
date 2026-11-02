@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass, field
 
-from bot.core import arena, deck, shop
-from bot.db.repo import Battle
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.models.records import Battle
+from bot.rules import arena, deck, shop
 
 
 @dataclass(frozen=True)

@@ -2,9 +2,9 @@
 
 from dataclasses import replace
 
-from bot.core import days, deck, economy, games, shop
-from bot.db.repo import Pic
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.models.records import Pic
+from bot.rules import days, deck, economy, games, shop
 
 
 class MiniGamesMixin:

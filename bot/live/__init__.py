@@ -1,2 +1,1 @@
-"""Telegram: handlers/ (what a command or a button does), ui/ (how it looks), runtime/ (how the bot
-lives: sending, live cards, the schedule, the watchdog)."""
+"""Live cards: timers that redraw battles, courts and games and settle them when time is up."""

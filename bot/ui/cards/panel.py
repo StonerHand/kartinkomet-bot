@@ -3,13 +3,13 @@
 from collections.abc import Callable
 from html import escape
 
-from bot.core import economy, seasons
-from bot.core import games as game_rules
-from bot.db.repo import Pic
+from bot.models.records import Pic
+from bot.rules import economy, seasons
+from bot.rules import games as game_rules
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import MEDALS, ago, card, money, num, plural, rating, who
+from bot.ui.layout import MEDALS, ago, card, money, num, plural, rating, who
 
 
 def season_line(season: str, days_left: int) -> str:

@@ -3,7 +3,7 @@
 import sqlite3
 from uuid import uuid4
 
-from bot.db.repo.models import Court
+from bot.models.records import Court
 
 
 class CourtRepo:

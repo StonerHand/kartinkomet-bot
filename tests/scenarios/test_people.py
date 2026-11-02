@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 
 from aiogram.types import Message, MessageEntity, User
 
-from bot.tg.handlers import targets
+from bot.scenarios import targets
 
-from bot.tg.runtime import send
+from bot.telegram import send
 from tests.harness import BOT_USER, GROUP, BotHarness
 
 

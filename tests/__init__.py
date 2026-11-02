@@ -1,5 +1,5 @@
-"""Tests run with aiogram loaded the way production loads it: lazily (bot/lean.py)."""
+"""Tests run with aiogram loaded the way production loads it: lazily (bot/telegram/lean.py)."""
 
-import importlib
+from bot.telegram.lean import load_aiogram
 
-importlib.import_module("bot")
+load_aiogram()

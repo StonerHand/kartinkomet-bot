@@ -1,7 +1,7 @@
 """Shop: shields, boosts, ordered courts, curses, resurrection, titles, bounties."""
 
-from bot.core import court, shop
-from bot.db.repo import Pic
+from bot.models.records import Pic
+from bot.rules import court, shop
 
 
 class ShopMixin:
