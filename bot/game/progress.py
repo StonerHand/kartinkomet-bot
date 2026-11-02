@@ -8,10 +8,11 @@ from bot.rules import days, progress
 STARTER_BONUS = 1111
 STARTER_KEY = "starter_v4"
 # One-time gifts to everyone already playing, (key, coins): each is handed out once, at the first
-# start after it is added. Players who come later don't get it.
+# start after it is added. Players who come later don't get it. Coins are base coins: paid × the
+# reward factor, like any reward (the entries below were paid before that rule).
 GIFTS = (("gift_2026_10_20", 1_000_000),)
 # One-time grants to one player by username, (key, username, coins): paid at the first start
-# after the player is known to the bot, never twice.
+# after the player is known to the bot, never twice. Base coins too.
 GRANTS = (
     ("grant_2026_10_23_atrain", "ATrain580", 3_000_000),
     ("grant_2026_10_26_stoner", "stoner_hand", 1_234_567_890),
@@ -78,7 +79,7 @@ class ProgressMixin:
             for user_id in self.repo.all_user_ids():
                 if not self.repo.counter(user_id, key):
                     self.repo.set_counter(user_id, key, 1)
-                    self.repo.add_coins(user_id, amount, "gift", self.now(), earn=False)
+                    self.repo.add_coins(user_id, self.reward(amount), "gift", self.now(), earn=False)
                     given += 1
             self.repo.set_meta(f"gift:{key}", self.now())
         return given
@@ -94,8 +95,9 @@ class ProgressMixin:
             if user_id is None:
                 continue
             self.repo.set_meta(f"grant:{key}", self.now())  # marked first: a crash can't pay twice
-            self.repo.add_coins(user_id, amount, "gift", self.now(), earn=False)
-            paid.append((username, amount))
+            paid_now = self.reward(amount)
+            self.repo.add_coins(user_id, paid_now, "gift", self.now(), earn=False)
+            paid.append((username, paid_now))
         return paid
 
     # ── event of the day ───────────────────────────────────────────────

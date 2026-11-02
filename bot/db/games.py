@@ -162,6 +162,13 @@ class GamesRepo:
     def active_boss_ids(self) -> list[str]:
         return [row[0] for row in self.db.execute("SELECT id FROM bosses WHERE status = 'active'")]
 
+    def won_bosses(self) -> list[tuple[int, int, int, int]]:
+        """(settled at, max hp, loot, raid) of every boss beaten, the earliest first."""
+        return [tuple(row) for row in self.db.execute(
+            "SELECT last_hit_at, max_hp, loot, raid FROM bosses "
+            "WHERE status = 'won' AND last_hit_at IS NOT NULL ORDER BY last_hit_at"
+        )]
+
     def last_boss_at(self, chat_id: int) -> int:
         row = self.db.execute("SELECT MAX(started_at) FROM bosses WHERE chat_id = ?", (chat_id,)).fetchone()
         return row[0] or 0
