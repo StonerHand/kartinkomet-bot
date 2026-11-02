@@ -28,6 +28,7 @@ class Ctx:
     is_admin: bool = False
     is_private: bool = False
     arg: str | None = None
+    personal: bool = False  # only this user sees the screen (a private chat or their own copy)
 
     @property
     def repo(self):
@@ -38,12 +39,27 @@ class Ctx:
 
 
 def home(ctx: Ctx) -> Screen:
+    """The group's panel shows the chat (everyone sees it); a personal one shows its owner too."""
+    if ctx.personal or ctx.is_private:
+        return mine(ctx)
     game = ctx.game
-    today = views.day_event_line(game.day_event())
     days_left = max(1, -(-(game.season_bounds()[1] - game.now()) // 86400))
-    season = views.season_line(game.season(), days_left)
-    text = views.home(ctx.repo.totals(), ctx.chat_id, live_now(game, ctx.chat_id), today, season)
+    text = views.home(
+        ctx.chat_id, live_now(game, ctx.chat_id), next_up(game), views.day_event_line(game.day_event()),
+        views.season_line(game.season(), days_left),
+    )
     return text, keyboards.home(ctx.is_admin)
+
+
+def mine(ctx: Ctx) -> Screen:
+    """The personal panel: the owner's coins and level, what runs, what they haven't taken today."""
+    game, user_id = ctx.game, ctx.user_id
+    coins, earned, _ = ctx.repo.player(user_id)
+    left = [what for what, done in day_list(game, user_id) if not done]
+    text = views.home_personal(
+        ctx.repo.user_label(user_id), coins, earned, live_now(game, ctx.chat_id), left, next_up(game), ctx.chat_id
+    )
+    return text, keyboards.home(ctx.is_admin, personal=True, bonus="бонус дня" in left)
 
 
 def hall(ctx: Ctx) -> Screen:
@@ -239,20 +255,36 @@ DAY_PLAN = (
 )
 
 
-def today(ctx: Ctx) -> Screen:
-    """The chat's day at a glance, and what the viewer hasn't done yet today."""
-    game, user_id = ctx.game, ctx.user_id
+def day_plan(game: Game) -> list[tuple[int, str, str, bool]]:
+    """(hour, emoji, what, already passed) of the day's schedule, local time."""
     hour = (game.now() // 3600 + game.tz_offset_hours) % 24
     tonight = "ограбление" if show_rules.show_of(game.local_day()) == "heist" else "большой турнир"
-    plan = [(at, emoji, what or f"шоу: {tonight}", at <= hour) for at, emoji, what in DAY_PLAN]
-    daily_left = game.repo.counter(user_id, "daily_day") != game.local_day()
+    return [(at, emoji, what or tonight, at <= hour) for at, emoji, what in DAY_PLAN]
+
+
+def next_up(game: Game, count: int = 2) -> list[str]:
+    """«16:00 босс»: what the schedule does next today."""
+    return [f"{at}:00 {what}" for at, _, what, passed in day_plan(game) if not passed][:count]
+
+
+def day_list(game: Game, user_id: int) -> list[tuple[str, bool]]:
+    """(what, done today) of the things a player takes once a day."""
+    if not game.quests_enabled:
+        return []
     tasks, _ = game.quests_of(user_id)
-    mine = [
-        ("бонус дня", not daily_left),
+    return [
+        ("бонус дня", game.repo.counter(user_id, "daily_day") == game.local_day()),
         ("колесо фортуны", not game.free_spin_available(user_id)),
         ("гороскоп", not game.horoscope_available(user_id)),
         (f"квесты {sum(task.finished for task in tasks)}/{len(tasks)}", bool(tasks) and all(t.finished for t in tasks)),
-    ] if game.quests_enabled else []
+    ]
+
+
+def today(ctx: Ctx) -> Screen:
+    """The chat's day at a glance, and what the viewer hasn't done yet today."""
+    game, user_id = ctx.game, ctx.user_id
+    mine = day_list(game, user_id)
+    plan = [(at, emoji, what if at != 21 else f"шоу: {what}", passed) for at, emoji, what, passed in day_plan(game)]
     text = views.today_screen(views.day_event_line(game.day_event()), plan, mine, live_now(game, ctx.chat_id))
     return text, keyboards.today([label for label, done in mine if not done])
 
@@ -274,6 +306,7 @@ SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "up": upload,
     "adm": admin,
     "today": today,
+    "mine": mine,
 }
 
 

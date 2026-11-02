@@ -16,6 +16,8 @@ def visible_length(text: str) -> int:
 def all_keyboards():
     yield "home", keyboards.home(is_admin=True)
     yield "home_user", keyboards.home(is_admin=False)
+    yield "home_mine", keyboards.home(is_admin=False, personal=True, bonus=True)
+    yield "home_mine_done", keyboards.home(is_admin=True, personal=True, bonus=False)
     yield "pic", keyboards.pic_actions(PIC, 999, 99)
     yield "trial", keyboards.on_trial()
     yield "duel", keyboards.battle_vote(BATTLE, "duel", [99, 99])
@@ -69,8 +71,8 @@ class KeyboardTest(unittest.TestCase):
                     with self.subTest(keyboard=name, data=button.callback_data):
                         self.assertLessEqual(len(button.callback_data.encode()), 64)
 
-    def test_rows_hold_at_most_three_wide_buttons(self) -> None:
-        for name in ("home", "after_duel", "court", "admin", "reset"):
+    def test_rows_hold_at_most_two_wide_buttons(self) -> None:
+        for name in ("after_duel", "court", "admin", "reset"):
             markup = dict(all_keyboards())[name]
             for row in markup.inline_keyboard:
                 self.assertLessEqual(len(row), 2, name)

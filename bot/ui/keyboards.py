@@ -89,16 +89,22 @@ def numbered(pic_ids: list[str], label: str, data: str, style: str | None = None
     return [buttons[start : start + 5] for start in range(0, len(buttons), 5)]
 
 
-def home(is_admin: bool) -> InlineKeyboardMarkup:
+def home(is_admin: bool, personal: bool = False, bonus: bool = False) -> InlineKeyboardMarkup:
+    """The group's panel leads with «Мой пульт»; a personal one with what's left to take today
+    (the bonus while it's there, then the quests). Below, the same grid of three for everyone."""
+    if personal:
+        first = button("🎁 Забрать", "daily", SUCCESS) if bonus else button("📜 Квесты", "m:quests", SUCCESS)
+        lead = [first, button("👤 Профиль", "m:me", PRIMARY)]
+    else:
+        lead = [button("👤 Мой пульт", "m:mine", PRIMARY), button("🎁 Бонус", "daily", SUCCESS)]
+    quests = [button("📜 Квесты", "m:quests")] if not personal or bonus else []
     return markup(
-        [button("🎲 Пикчу", "pic", PRIMARY), button("⚔️ Дуэль", "d:new", PRIMARY)],
-        [button("🏟 Турнир", "t:new", PRIMARY), button("🎮 Игры", "m:games", PRIMARY)],
-        [button("👥 Люди", "m:people", PRIMARY), button("🎰 Казино", "m:casino", SUCCESS)],
-        [button("🛒 Лавка", "m:shop", SUCCESS), button("🎁 Бонус", "daily", SUCCESS)],
-        [button("📜 Квесты", "m:quests"), button("🏆 Рейтинги", "m:top:uploads")],
-        [button("👤 Я", "m:me"), button("📥 Загрузить", "m:up")],
-        [button("📅 Сегодня", "m:today", PRIMARY), button("❓ Правила", "m:help")],
-        [button("🔄 Обновить", "m:home:refresh")],
+        lead,
+        [button("🎲 Пикчу", "pic"), button("⚔️ Дуэль", "d:new"), button("🎮 Игры", "m:games")],
+        [button("👥 Люди", "m:people"), button("🎰 Казино", "m:casino"), button("🛒 Лавка", "m:shop")],
+        [*quests, button("🏆 Топ", "m:top:uploads"), button("🏟 Турнир", "t:new")],
+        [button("📅 Сегодня", "m:today"), button("📥 Загрузить", "m:up")],
+        [button("❓ Правила", "m:help"), button("🔄 Обновить", "m:home:refresh")],
         [button("⚙️ Админка", "m:adm")] if is_admin else [],
     )
 

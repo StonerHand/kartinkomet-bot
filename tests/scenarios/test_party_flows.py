@@ -182,3 +182,23 @@ class PartyFlowsTest(BotHarness):
         self.assertIn("💣 Бомба", screen)
         self.assertIn("бонус дня", screen)
         self.assertIn("daily", self.buttons(self.shown()))
+
+    # ── the personal panel ─────────────────────────────────────────────
+
+    async def test_my_panel_shows_my_coins_and_what_is_left_today(self) -> None:
+        self.game.quests_enabled = True
+        self.fund(3, 4321)
+        await self.send("/menu", sender=2)
+        shared = self.session.of("SendMessage")[-1]
+        self.assertNotIn("4 321", shared.text)  # the group's panel is the same for everyone
+        self.assertIn("m:mine", self.buttons(shared))
+        await self.press("m:mine", message_id=self.game.repo.panel_message(-100), sender=3)
+        mine = self.screen()
+        self.assertIn("4 321", mine)
+        self.assertIn("бонус дня", mine)
+        self.assertIn("daily", self.buttons(self.shown()))
+
+    async def test_menu_in_private_is_personal(self) -> None:
+        self.fund(5, 777)
+        await self.send("/menu", sender=5, chat=Chat(id=5, type="private"))
+        self.assertIn("Пульт</b> · user5", self.texts()[-1])
