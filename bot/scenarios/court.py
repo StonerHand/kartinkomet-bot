@@ -83,9 +83,9 @@ async def summon_from_bottom(callback: CallbackQuery, bot: Bot, game: Game, live
     if status in answers:
         await callback.answer(pick(answers[status]), show_alert=status != "started")
     elif status == "gone":
-        await callback.answer("Её уже нет в живых", show_alert=True)
+        await callback.answer("⚰️ Её уже нет в живых", show_alert=True)
     else:
-        await callback.answer("Telegram не дал открыть суд, попробуй ещё раз", show_alert=True)
+        await callback.answer("📡 Telegram не дал открыть суд, попробуй ещё раз", show_alert=True)
 
 
 @router.callback_query(F.data.regexp(r"^c:[ks]:"))
@@ -94,11 +94,11 @@ async def court_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
     vote = "kill" if kind == "k" else "spare"
     status, trial = game.vote_court(court_id, callback.from_user.id, vote)
     if status == "expired":
-        await callback.answer("Время вышло, приговор оглашается")
+        await callback.answer("⚖️ Время вышло, приговор оглашается")
         await live.finish_court(court_id)
         return
     if status in ("gone", "closed"):
-        await callback.answer("Суд уже окончен", show_alert=True)
+        await callback.answer("⚖️ Суд уже окончен", show_alert=True)
         return
     if status == "same":
         await callback.answer(pick(toasts.ALREADY))
@@ -136,7 +136,7 @@ async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
 
 @router.callback_query(F.data == "trial")
 async def trial_placeholder(callback: CallbackQuery) -> None:
-    await callback.answer("Пикча под судом. Голосуй в карточке суда", show_alert=True)
+    await callback.answer("⚖️ Пикча под судом. Голосуй в карточке суда", show_alert=True)
 
 
 async def last_word_reply(message: Message, bot: Bot, game: Game, live: Live) -> bool:

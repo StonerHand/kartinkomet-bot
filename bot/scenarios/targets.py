@@ -284,14 +284,14 @@ async def picked(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
     _, raw_chat, raw_author, choice = callback.data.split(":", 3)
     chat_id, author = int(raw_chat), int(raw_author)
     if callback.from_user.id != author:
-        await send.answer_quietly_alert(callback, "Это вопрос не тебе. Набери команду сам")
+        await send.answer_quietly_alert(callback, "👥 Это вопрос не тебе. Набери команду сам")
         return
     state = pending(game, chat_id, author)
     shown = callback.message if isinstance(callback.message, Message) else None
     await send.remove(bot, chat_id, shown)
     if state is None or choice == "x" or not choice.isdigit() or int(choice) >= len(state["options"]):
         forget(game, chat_id, author)
-        await send.answer_quietly(callback, "Отменено" if choice == "x" else "Вопрос устарел. Набери команду ещё раз")
+        await send.answer_quietly(callback, "✖️ Отменено" if choice == "x" else "⌛ Вопрос устарел. Набери команду ещё раз")
         return
     forget(game, chat_id, author)
     state[FIELDS[state["need"]]] = state["options"][int(choice)]

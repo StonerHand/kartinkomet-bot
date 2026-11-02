@@ -148,7 +148,7 @@ def battle_result(
 def streak_announcement(milestone: int, streak: int, chat_id: int) -> str:
     pool = {3: arena_texts.STREAK_3, 5: arena_texts.STREAK_5}.get(milestone, arena_texts.STREAK_10)
     wins = plural(streak, "победа", "победы", "побед")
-    return card(f"🔥 <b>Серия: {streak} {wins} подряд</b>", pick(pool, chat_id))
+    return card(f"🔥 <b>Серия</b> · {streak} {wins} подряд", pick(pool, chat_id))
 
 
 def bets_result(report, labels: dict[int, str]) -> list[str]:

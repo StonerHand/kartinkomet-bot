@@ -52,9 +52,9 @@ def boss_card(
             "🎁 Лучшему — легендарный сундук",
             f"🟫 Всем с {boss_rules.RAID_CHEST_DAMAGE}+ урона — деревянный",
         ]
-    name = f"Рейд: {escape(boss['title'])}" if raid else escape(boss["title"])
+    head = f"👹 <b>Рейд</b> · {escape(boss['title'])}" if raid else f"👹 <b>{escape(boss['title'])}</b>"
     return card(
-        f"👹 <b>{name}</b>",
+        head,
         steady(boss_texts.STATUS if boss["hits"] else boss_texts.ARRIVE, boss.get("id"), boss["hits"] // 10),  # every 10 hits
         health,
         PHASES.get(current, ""),

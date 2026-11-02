@@ -74,13 +74,13 @@ async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
     kind, boss_id = callback.data.split(":", 1)
     result = game.hit_boss(boss_id, callback.from_user.id, super_hit=kind == "bs")
     if result.status == "cooldown":
-        await callback.answer("Замах ещё не готов. Секунду")
+        await callback.answer("⏳ Замах ещё не готов. Секунду")
         return
     if result.status == "broke":
-        await callback.answer(f"Супер-удар стоит {views.num(game.super_price())} 🪙", show_alert=True)
+        await callback.answer(f"💥 Супер-удар стоит {views.num(game.super_price())} 🪙", show_alert=True)
         return
     if result.status in ("over", "gone"):
-        await callback.answer("Бой с боссом окончен")
+        await callback.answer("👹 Бой с боссом окончен")
         if result.status == "over":
             await live.finish_boss(boss_id)
         return

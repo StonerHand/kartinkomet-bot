@@ -50,7 +50,7 @@ def caption_result(game: dict, labels: dict[int, str], chat_id: int, prize: int 
             f"<i>{who(labels.get(entry['user_id'], '?'))} · {votes} {plural(votes, 'голос', 'голоса', 'голосов')}</i>"
         )
     won = f"🏆 <b>{who(labels.get(winner, '?'))}</b> +{money(prize)}" if winner is not None else None
-    return card("🖋 <b>Итоги: подпиши пикчу</b>", pick(pool, chat_id), *listing, won)
+    return card("🖋 <b>Подпиши пикчу</b> · итог", pick(pool, chat_id), *listing, won)
 
 
 def caption_cancelled(chat_id: int) -> str:
@@ -88,7 +88,7 @@ def spin_result(label: str, spin: game_rules.Spin, pic: Pic | None, balance: int
     if spin.kind == "title":
         facts.append(f"🏷 Титул «{escape(spin.prize)}»")
         hint = note("Он теперь в твоём профиле")
-    return card(f"🎡 <b>Колесо: {title}</b> · {who(label)}", flavour, facts, hint)
+    return card(f"🎡 <b>Колесо</b> · {title} · {who(label)}", flavour, facts, hint)
 
 
 def horoscope(label: str, chat_id: int) -> str:

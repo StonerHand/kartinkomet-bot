@@ -139,7 +139,7 @@ class ShowMixin:
             return "active", active[0]
         if self._show_done_today("cup", chat_id):
             return "done_today", None
-        drawn = deck.draw_many(self.repo, f"arena:{chat_id}", self.now(), show.CUP_SIZE)
+        drawn = deck.draw_many(self.repo, deck.scope_of(chat_id), self.now(), show.CUP_SIZE)
         if len(drawn) < show.CUP_SIZE:
             return "shortage", None
         self.repo.set_meta(f"show:cup:{chat_id}", self.local_day())

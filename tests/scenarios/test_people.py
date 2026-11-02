@@ -92,7 +92,7 @@ class TargetsTest(Players):
     async def test_cancel_leaves_no_trace(self) -> None:
         await self.send("/marry", sender=3)
         await self.press(self.buttons(self.session.of("SendEphemeralMessage")[-1])[-1], sender=3)
-        self.assertEqual(self.session.of("AnswerCallbackQuery")[-1].text, "Отменено")
+        self.assertEqual(self.session.of("AnswerCallbackQuery")[-1].text, "✖️ Отменено")
         self.assertIsNone(targets.pending(self.game, -100, 3))
         self.assertFalse(self.session.of("SendMessage"))
 

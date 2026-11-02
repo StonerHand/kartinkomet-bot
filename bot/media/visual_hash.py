@@ -2,6 +2,8 @@ from io import BytesIO
 
 from PIL import Image
 
+UNHASHABLE = "-"  # stored for an image that couldn't be read: tried once, not tried again
+
 
 def image_dhash(image_bytes: bytes) -> str | None:
     """64-bit difference hash as 16 hex chars, or None if the bytes aren't a readable image."""

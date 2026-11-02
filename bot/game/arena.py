@@ -26,7 +26,7 @@ class ArenaMixin:
             return StartResult("active", active)
 
         now = self.now()
-        scope = f"arena:{chat_id}"
+        scope = deck.scope_of(chat_id)
         streak = 0
         exclude: list[str] = []
         champion: Pic | None = None
@@ -62,7 +62,7 @@ class ArenaMixin:
         if active:
             return StartResult("active", active)
         now = self.now()
-        drawn = deck.draw_many(self.repo, f"arena:{chat_id}", now, arena.TOURNAMENT_SIZE)
+        drawn = deck.draw_many(self.repo, deck.scope_of(chat_id), now, arena.TOURNAMENT_SIZE)
         if not drawn:
             return StartResult("shortage")
         battle_id = self.repo.create_battle(

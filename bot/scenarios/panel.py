@@ -101,7 +101,7 @@ async def navigate(callback: CallbackQuery, bot: Bot, game: Game, admins: frozen
     copy. So one person browsing the shop never loses it to someone else pressing «Slots»."""
     message = callback.message
     if not isinstance(message, Message):
-        await send.answer_quietly(callback, "Открой /menu ещё раз")
+        await send.answer_quietly(callback, "🎛 Открой /menu ещё раз")
         return
     parts = callback.data.split(":")
     name = parts[1] if len(parts) > 1 else "home"

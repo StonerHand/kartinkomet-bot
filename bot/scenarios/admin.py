@@ -93,7 +93,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             bot, message, callback.from_user.id, views.admin_stats(game.usage()), keyboards.markup(keyboards.back("m:adm"))
         )
     elif action == "backup":
-        await callback.answer("Собираю бэкап")
+        await callback.answer("💾 Собираю бэкап")
         with tempfile.TemporaryDirectory(prefix="kartinkomet-") as temp_dir:
             path = Path(temp_dir) / "kartinkomet_v2.sqlite"
             game.repo.export_backup(path)
@@ -113,7 +113,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
         )
     elif action == "reset!":
         game.repo.reset_stats()
-        await callback.answer("Стата обнулена", show_alert=True)
+        await callback.answer("🧹 Стата обнулена", show_alert=True)
         text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.redraw(bot, message, callback.from_user.id, text, markup)
     elif action.startswith("spare:"):
