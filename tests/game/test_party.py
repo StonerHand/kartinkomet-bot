@@ -1,6 +1,6 @@
 """Games about people on a real database: "who of us" polls, the bomb, bets on life."""
 
-from bot.rules import economy, party
+from bot.rules import economy, party, shop
 from tests.helpers import GameCase
 
 CHAT = -100
@@ -131,3 +131,79 @@ class BetTest(PartyCase):
         self.clock.advance(party.BET_DAYS * 86400)
         [result] = self.game.expire_bets()
         self.assertEqual((result.outcome, self.coins(3)), (-1, 500))
+
+
+class CrocTest(PartyCase):
+    def test_the_right_word_from_someone_else_pays_both(self) -> None:
+        status, found = self.game.start_croc(CHAT, 2, "новый год")
+        self.assertEqual(status, "started")
+        self.assertEqual(self.game.start_croc(CHAT, 3, "кот")[0], "active")
+        self.assertIsNone(self.game.guess_croc(found["id"], 2, "новый год"))  # the explainer can't
+        self.assertIsNone(self.game.guess_croc(found["id"], 3, "ёлка"))
+        result = self.game.guess_croc(found["id"], 3, "Новый Год!")
+        self.assertEqual((result.guesser, result.reward), (3, party.CROC_REWARD))
+        self.assertEqual((self.coins(2), self.coins(3)), (party.CROC_REWARD, party.CROC_REWARD))
+        self.assertIsNone(self.game.guess_croc(found["id"], 4, "новый год"))
+        self.assertEqual(self.game.start_croc(CHAT, 3, "кот")[0], "cooldown")
+
+    def test_time_runs_out_and_the_word_is_told(self) -> None:
+        _, found = self.game.start_croc(CHAT, 2, "кот")
+        result = self.game.finish_croc(found["id"])
+        self.assertEqual((result.word, result.guesser), ("кот", None))
+        self.assertIsNone(self.game.finish_croc(found["id"]))
+
+
+class ThemeTest(PartyCase):
+    def test_answers_then_a_vote_then_the_best_answer_wins(self) -> None:
+        status, found = self.game.open_theme(CHAT, "Понедельник", self.game.now() + 3600)
+        self.assertEqual(status, "opened")
+        self.assertEqual(self.game.answer_theme(found, 2, "photo-a"), "ok")
+        self.assertEqual(self.game.answer_theme(found, 2, "photo-a2"), "ok")  # replaces the first
+        self.assertEqual(self.game.answer_theme(found, 3, "photo-b"), "ok")
+        self.assertEqual(self.game.repo.entries_of(found["id"]), [(2, "photo-a2"), (3, "photo-b")])
+        self.assertEqual(self.game.vote_theme(found["id"], 4, 0), "closed")  # still collecting
+        self.clock.advance(3600)
+        self.assertEqual(self.game.answer_theme(self.game.repo.get_round(found["id"]), 5, "late"), "closed")
+        self.assertEqual(self.game.open_theme_vote(found["id"])[0], "vote")
+        self.assertEqual(self.game.vote_theme(found["id"], 2, 0), "own")
+        self.assertEqual(self.game.vote_theme(found["id"], 2, 1), "ok")
+        self.assertEqual(self.game.vote_theme(found["id"], 4, 1), "ok")
+        self.assertEqual(self.game.vote_theme(found["id"], 5, 0), "ok")
+        result = self.game.finish_theme(found["id"])
+        self.assertEqual((result.winners, result.counts), ([3], [1, 2]))
+        self.assertEqual(self.game.badges_of(3), [("theme", "Лучший ответ на тему дня")])
+        self.assertEqual(self.coins(3), party.THEME_PRIZE)
+
+    def test_fewer_than_two_answers_close_it_without_a_vote(self) -> None:
+        _, found = self.game.open_theme(CHAT, "Пятница", self.game.now() + 60)
+        self.game.answer_theme(found, 2, "photo")
+        self.clock.advance(60)
+        status, closed = self.game.open_theme_vote(found["id"])
+        self.assertEqual((status, closed["status"]), ("few", "done"))
+
+
+class OwnershipTest(PartyCase):
+    def test_buy_buy_out_and_earn_on_wins(self) -> None:
+        pic = self.game.repo.random_alive(1)[0]
+        price = self.game.own_price(pic.id)
+        self.assertEqual(self.game.buy_ownership(2, pic.id), ("poor", price, None))
+        self.fund(2, price)
+        self.assertEqual(self.game.buy_ownership(2, pic.id), ("ok", price, None))
+        self.assertEqual(self.game.buy_ownership(2, pic.id)[0], "own")
+        resale = self.game.own_price(pic.id)
+        self.assertEqual(resale, int(price * shop.OWN_RESALE))
+        self.fund(3, resale)
+        self.assertEqual(self.game.buy_ownership(3, pic.id), ("ok", resale, 2))
+        self.assertEqual((self.coins(2), self.coins(3)), (resale, 0))
+        self.assertEqual(self.game.pay_pic_owner(pic.id), (3, shop.OWN_WIN_INCOME))
+
+    def test_a_counted_duel_win_pays_the_winner_s_owner(self) -> None:
+        battle = self.game.start_duel(CHAT).battle
+        winner = battle.pics[0]
+        self.fund(5, self.game.own_price(winner.id))
+        self.game.buy_ownership(5, winner.id)
+        for voter in (2, 3, 4):
+            self.game.vote_battle(battle.id, voter, 0)
+        self.clock.advance(3600)
+        report = self.game.finish_battle(battle.id)
+        self.assertEqual(report.owner_income, (5, shop.OWN_WIN_INCOME))

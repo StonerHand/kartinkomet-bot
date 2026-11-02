@@ -20,7 +20,10 @@ from bot.ui.cards.games import (
     hl_card, hl_over, hl_reveal
 )
 from bot.ui.cards.show import cup_champion, cup_intro, heist_card, heist_result
-from bot.ui.cards.party import bet_card, bet_hint, bet_result, bomb_card, bomb_result, who_card, who_result
+from bot.ui.cards.party import (
+    bet_card, bet_hint, bet_result, bomb_card, bomb_result, croc_card, croc_result, owner_change, theme_card, theme_few,
+    theme_result, theme_vote_card, who_card, who_result,
+)
 from bot.ui.cards.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
     PEOPLE_SCREEN, admin_stats, games_screen, season_line
@@ -56,4 +59,5 @@ __all__ = [
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
     "heist_card", "heist_result", "cup_intro", "cup_champion",
+    "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
 ]

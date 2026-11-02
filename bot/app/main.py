@@ -40,6 +40,7 @@ GROUP_COMMANDS = [
     BotCommand(command="who", description="🗳 кто из нас: вопрос про чат"),
     BotCommand(command="bomb", description="💣 бомба: передай, пока не рванула"),
     BotCommand(command="bet", description="🤝 спор на монеты: /bet и сам спор"),
+    BotCommand(command="croc", description="🐊 крокодил: объясни слово пикчами"),
     BotCommand(command="heist", description="🏦 ограбление банка всем чатом"),
     BotCommand(command="cup", description="🏆 большой турнир восьми пикч"),
     BotCommand(command="whose", description="🕵️ угадай, чья пикча"),

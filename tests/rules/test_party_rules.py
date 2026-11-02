@@ -35,3 +35,10 @@ class FuseTest(unittest.TestCase):
         rng = random.Random(1)
         low, high = party.BOMB_FUSE_SECONDS
         self.assertTrue(all(low <= party.fuse(rng) <= high for _ in range(200)))
+
+
+class GuessTest(unittest.TestCase):
+    def test_case_yo_punctuation_and_spaces_dont_matter(self) -> None:
+        self.assertEqual(party.normalize("  Новый   ГОД!! "), "новый год")
+        self.assertEqual(party.normalize("Самолёт"), party.normalize("самолет"))
+        self.assertNotEqual(party.normalize("кот"), party.normalize("кофе"))

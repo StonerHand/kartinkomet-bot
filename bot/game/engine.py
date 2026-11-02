@@ -33,7 +33,7 @@ ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 # chat's wealth. The wheel's spin_* reasons too.
 REWARD_REASONS = ACTIVITY_REASONS | {
     "quest", "challenge", "daily", "daily_family", "caption_win", "gold", "whose", "hl", "chest", "bomb_pass", "heist",
-    "cup",
+    "cup", "croc", "theme", "own_income",
 }
 
 

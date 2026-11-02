@@ -108,7 +108,7 @@ def games_menu() -> InlineKeyboardMarkup:
         [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
         [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
         [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
-        [button("🤝 Спор", "gm:bet")],
+        [button("🐊 Крокодил", "gm:croc", SUCCESS), button("🤝 Спор", "gm:bet")],
         back(),
     )
 
@@ -170,6 +170,8 @@ def pic_menu(token: str, cursed: bool, prices: dict[str, int], bounties: tuple[i
     ]
     if cursed:
         rows[2].append(buy("🧿 Порча", "uncurse", "u", SUCCESS))
+    if "own" in prices:
+        rows.append([buy("🏷 Купить пикчу", "own", "o", SUCCESS)])
     return markup(*rows)
 
 
@@ -294,8 +296,20 @@ def heist_vote(round_id: str, labels: tuple[str, str]) -> InlineKeyboardMarkup:
     return markup([button(labels[0], f"hv:{round_id}:0", PRIMARY), button(labels[1], f"hv:{round_id}:1", SUCCESS)])
 
 
+def croc(round_id: str) -> InlineKeyboardMarkup:
+    """The word for the explainer's eyes; the warehouse search opens inline mode in this chat."""
+    search = InlineKeyboardButton(text="🖼 Искать пикчу", switch_inline_query_current_chat="")
+    return markup([button("🤫 Слово", f"cw:{round_id}", DANGER), search])
+
+
+def theme_vote(round_id: str, answers: int) -> InlineKeyboardMarkup:
+    buttons = [button(str(index + 1), f"tv:{round_id}:{index}", PRIMARY) for index in range(answers)]
+    return markup(buttons[:5], buttons[5:10])
+
+
 def after_party(kind: str) -> InlineKeyboardMarkup:
-    again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER)}
+    again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER),
+             "croc": button("🐊 Ещё слово", "gm:croc", SUCCESS)}
     return markup([again[kind], more()])
 
 

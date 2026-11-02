@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from aiogram.types import Message
+from aiogram.types import Chat, Message, PhotoSize, Update
 
 from bot.rules import party
 from tests.harness import GROUP, BotHarness, user
@@ -106,7 +106,6 @@ class PartyFlowsTest(BotHarness):
         self.assertEqual(self.coins(3), 500)
 
     async def test_the_games_need_a_group(self) -> None:
-        from aiogram.types import Chat
         private = Chat(id=5, type="private")
         await self.send("/bomb", sender=5, chat=private)
         self.assertIn("группового", self.texts()[-1])
@@ -117,3 +116,57 @@ class PartyFlowsTest(BotHarness):
         await self.live.stop()
         self.assertEqual(self.live.restore(), 2)
         self.assertEqual({key[:2] for key in self.live._tasks}, {"r:"})
+
+    # ── crocodile ──────────────────────────────────────────────────────
+
+    async def test_crocodile_word_for_the_explainer_and_a_guess_in_the_chat(self) -> None:
+        await self.send("/croc", sender=2)
+        card = self.session.of("SendMessage")[-1]
+        self.assertIn("Крокодил", card.text)
+        found = self.game.repo.open_rounds(-100, "croc")[0]
+        await self.press(f"cw:{found['id']}", sender=3)
+        self.assertIn("только тот", self.session.of("AnswerCallbackQuery")[-1].text)
+        await self.press(f"cw:{found['id']}", sender=2)
+        self.assertIn(found["text"], self.session.of("AnswerCallbackQuery")[-1].text)
+        await self.send(found["text"], sender=2)  # the explainer saying it doesn't count
+        self.assertEqual(self.game.repo.get_round(found["id"])["status"], "open")
+        await self.send("что-то не то", sender=3)
+        await self.send(found["text"].upper(), sender=3)
+        self.assertEqual(self.game.repo.get_round(found["id"])["status"], "done")
+        self.assertIn("угадано", self.session.of("EditMessageText")[-1].text)
+
+    # ── the theme of the day ───────────────────────────────────────────
+
+    async def test_the_theme_from_eleven_to_the_vote(self) -> None:
+        self.at_hour(party.THEME_OPEN_HOUR)
+        self.game.repo.touch_chat(-100, "чат", self.game.now())
+        await self.events().tick()
+        found = self.game.repo.open_rounds(-100, "theme")[0]
+        theme_card = Message(message_id=found["message_id"], date=datetime.now(UTC), chat=GROUP,
+                             from_user=user(999), text="тема")
+        for person, file_id in ((3, "ph-3"), (4, "ph-4")):
+            photo = Message(message_id=800 + person, date=datetime.now(UTC), chat=GROUP, from_user=user(person),
+                            photo=[PhotoSize(file_id=file_id, file_unique_id=file_id, width=1, height=1)],
+                            reply_to_message=theme_card)
+            await self.dispatcher.feed_update(self.bot, Update(update_id=9000 + person, message=photo))
+        self.assertEqual(len(self.game.repo.entries_of(found["id"])), 2)
+        self.clock.value = found["ends_at"]
+        await self.live.open_theme_vote(found["id"])
+        self.assertTrue(self.session.of("SendMediaGroup"))
+        await self.press(f"tv:{found['id']}:1", sender=5)
+        self.clock.advance(party.THEME_VOTE_SECONDS)
+        await self.live.settle_theme(found["id"])
+        self.assertIn("итог", self.session.of("EditMessageText")[-1].text)
+        self.assertEqual(self.game.badges_of(4), [("theme", "Лучший ответ на тему дня")])
+
+    # ── owning pics ────────────────────────────────────────────────────
+
+    async def test_buying_a_pic_from_its_menu(self) -> None:
+        pic = self.game.repo.random_alive(1)[0]
+        self.fund(3, self.game.own_price(pic.id))
+        await self.press(f"pm:{pic.id}", sender=3)
+        menu = self.session.of("SendEphemeralMessage")[-1]
+        own = next(data for data in self.buttons(menu) if data.startswith("sh:o:"))
+        await self.press(own, sender=3, personal=True)
+        self.assertEqual(self.game.repo.owner_of(pic.id)[0], 3)
+        self.assertIn("Новый владелец", self.session.of("SendMessage")[-1].text)

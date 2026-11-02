@@ -122,3 +122,24 @@ class PartyRepo:
         return [tuple(row) for row in self.db.execute(
             "SELECT kind, text, until FROM badges WHERE user_id = ? AND until > ? ORDER BY kind", (user_id, now)
         )]
+
+    def put_entry(self, round_id: str, user_id: int, file_id: str, now: int) -> None:
+        """A player's answer: the latest photo replaces an earlier one."""
+        with self.db:
+            self.db.execute(
+                "INSERT INTO round_entries (round_id, user_id, file_id, at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(round_id, user_id) DO UPDATE SET file_id = excluded.file_id, at = excluded.at",
+                (round_id, user_id, file_id, now),
+            )
+
+    def entries_of(self, round_id: str) -> list[tuple[int, str]]:
+        """(player, photo) in the order they answered."""
+        return [tuple(row) for row in self.db.execute(
+            "SELECT user_id, file_id FROM round_entries WHERE round_id = ? ORDER BY at, user_id", (round_id,)
+        )]
+
+    def round_by_message(self, chat_id: int, message_id: int) -> dict | None:
+        row = self.db.execute(
+            "SELECT id FROM rounds WHERE chat_id = ? AND message_id = ? LIMIT 1", (chat_id, message_id)
+        ).fetchone()
+        return self.get_round(row[0]) if row else None

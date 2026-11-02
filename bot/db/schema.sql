@@ -344,3 +344,22 @@ CREATE TABLE IF NOT EXISTS badges (
     until INTEGER NOT NULL,
     PRIMARY KEY (user_id, kind)
 ) WITHOUT ROWID;
+
+-- ── v6.6: pics as property, pics as answers ────────────────────────────
+
+-- Who owns a pic: bought in the pic's shop, earns on its wins, can be bought out.
+CREATE TABLE IF NOT EXISTS owners (
+    pic_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    price INTEGER NOT NULL,  -- what the owner paid, in coins of the day
+    since INTEGER NOT NULL
+);
+
+-- The theme of the day's answers: a photo per player, sent in reply to the theme.
+CREATE TABLE IF NOT EXISTS round_entries (
+    round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    file_id TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (round_id, user_id)
+) WITHOUT ROWID;

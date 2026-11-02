@@ -21,6 +21,7 @@ from bot.game.engine import Game
 from bot.game.types import Granted
 from bot.rules import economy
 from bot.rules import games as game_rules
+from bot.rules import party as party_rules
 from bot.rules import shop
 from bot.telegram import send
 from bot.texts import show as show_texts
@@ -134,8 +135,9 @@ class Live:
             (repo.active_game_ids(), self.watch_game),
             (repo.active_boss_ids(), self.watch_boss),
             (repo.pending_challenge_ids(), self.watch_challenge),
-            (repo.open_round_ids(("who", "bomb")), self.watch_round),
+            (repo.open_round_ids(("who", "bomb", "croc")), self.watch_round),
             (repo.open_round_ids(("heist",)), self.watch_heist),
+            (repo.open_round_ids(("theme",)), self.watch_theme),
         )
         for ids, watch in watchers:
             for item_id in ids:
@@ -302,6 +304,8 @@ class Live:
         else:
             markup = keyboards.after_tournament()
         people = [*report.bets, *report.bounty, *report.guessers, *(pic.added_by for pic in battle.pics)]
+        if report.owner_income:
+            people.append(report.owner_income[0])
         if report.challenge:
             people += [report.challenge["from_user"], report.challenge["to_user"]]
         text = views.battle_report(report, self.labels(people), score)
@@ -440,6 +444,19 @@ class Live:
         remaining = found["ends_at"] - self.game.now()
         if found["kind"] == "heist":
             return self.heist_card(found, remaining)
+        if found["kind"] == "croc":
+            text = views.croc_card(self.game.repo.user_label(found["author"]), remaining,
+                                   len(found["text"].replace(" ", "")), found["id"])
+            return text, keyboards.croc(found["id"])
+        if found["kind"] == "theme":
+            state = self.game.theme_state(found)
+            answers = len(self.game.repo.entries_of(found["id"]))
+            if state["phase"] == "collect":
+                return views.theme_card(state["theme"], answers, party_rules.THEME_VOTE_HOUR, found["id"]), None
+            votes = [choice for choice, _ in found["votes"].values()]
+            counts = [votes.count(index) for index in range(answers)]
+            return views.theme_vote_card(state["theme"], counts, remaining, found["id"]), \
+                keyboards.theme_vote(found["id"], answers)
         if found["kind"] == "bomb":
             passes = sum(count for count, _ in found["votes"].values())
             text = views.bomb_card(self.game.repo.user_label(found["holder"]), remaining, passes, found["id"])
@@ -467,6 +484,11 @@ class Live:
         if found is None:
             return
         chat_id = found["chat_id"]
+        if found["kind"] == "croc":
+            result = self.game.finish_croc(round_id)
+            if result is not None:
+                await self.settle_croc(result)
+            return
         if found["kind"] == "bomb":
             result = self.game.finish_bomb(round_id)
             if result is None:
@@ -491,6 +513,61 @@ class Live:
             if result.winners:
                 await send.react(self.bot, chat_id, message_id, "🏆")
         await self.announce(chat_id, result.granted)
+
+    async def settle_croc(self, result) -> None:
+        found = result.round
+        labels = self.labels([found["author"], result.guesser])
+        text = views.croc_result(result.word, labels[found["author"]], labels.get(result.guesser), result.reward,
+                                 found["chat_id"])
+        await self._settle_card(found["chat_id"], found["message_id"], text, keyboards.after_party("croc"), False)
+
+    def watch_theme(self, round_id: str) -> None:
+        found = self.game.repo.get_round(round_id)
+        if found is not None and found["status"] == "open" and found["message_id"] is None:
+            self.game.repo.drop_round(round_id)
+            return
+        self._spawn(f"t:{round_id}", self._theme_loop(round_id))
+
+    async def _theme_loop(self, round_id: str) -> None:
+        """Answers until the evening (the card stays still), then a live vote, then the result."""
+        while (found := self.game.repo.get_round(round_id)) is not None and found["status"] == "open":
+            remaining = found["ends_at"] - self.game.now()
+            voting = self.game.theme_state(found)["phase"] == "vote"
+            if remaining <= 0:
+                if voting:
+                    await self.settle_theme(round_id)
+                else:
+                    await self.open_theme_vote(round_id)
+                continue
+            if voting:
+                self.request_refresh_round(round_id)
+            await asyncio.sleep(min(TICK_SECONDS, remaining))
+
+    async def open_theme_vote(self, round_id: str) -> None:
+        status, found = self.game.open_theme_vote(round_id)
+        if found is None:
+            return
+        chat_id = found["chat_id"]
+        theme = self.game.theme_state(found)["theme"]
+        if status == "few":
+            await self._settle_card(chat_id, found["message_id"], views.theme_few(theme), None, False)
+            return
+        await send.send_album(self.bot, chat_id, [file_id for _, file_id in self.game.repo.entries_of(round_id)])
+        text, markup = self.round_card(found)
+        message = await send.send_text(self.bot, chat_id, text, markup)
+        if message is not None:
+            self.game.repo.set_round_message(round_id, message.message_id)
+
+    async def settle_theme(self, round_id: str) -> None:
+        result = self.game.finish_theme(round_id)
+        if result is None:
+            return
+        found = result.round
+        labels = self.labels([author for author, _ in result.entries])
+        text = views.theme_result(self.game.theme_state(found)["theme"], [labels[a] for a, _ in result.entries],
+                                  result.counts, [labels[a] for a in result.winners], result.prize, found["chat_id"])
+        await self._settle_card(found["chat_id"], found["message_id"], text, keyboards.more_only(), False)
+        await self.announce(found["chat_id"], result.granted)
 
     def heist_crew(self, found: dict) -> list[tuple[str, str]]:
         return [(self.game.repo.user_label(user), role) for user, role in self.game.heist_crew(found)]

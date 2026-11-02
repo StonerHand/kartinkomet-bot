@@ -59,6 +59,7 @@ class BattleReport:
     challenge: dict | None = None
     champion: int | None = None  # the player who won a challenge
     death_rating: float = arena.DEATH_RATING  # 1000 on a blood-moon day
+    owner_income: tuple[int, int] | None = None  # the winner pic's owner and what they earned
 
 
 @dataclass(frozen=True)

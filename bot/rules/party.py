@@ -54,3 +54,23 @@ def bet_payouts(stakes: dict[int, tuple[int, int]], outcome: int) -> dict[int, i
     biggest = max(winners, key=lambda user: (winners[user], -user))
     payouts[biggest] += pool - sum(payouts[user] - winners[user] for user in winners)
     return payouts
+
+
+# ── crocodile with pics ───────────────────────────────────────────────
+CROC_SECONDS = 180
+CROC_COOLDOWN_SECONDS = 10 * 60
+CROC_REWARD = 30  # base coins each: whoever guesses and whoever explained
+
+
+def normalize(word: str) -> str:
+    """How a guess is compared: case, ё, punctuation and extra spaces don't matter."""
+    kept = "".join(char if char.isalnum() or char.isspace() else " " for char in word.casefold().replace("ё", "е"))
+    return " ".join(kept.split())
+
+
+# ── the theme of the day ──────────────────────────────────────────────
+THEME_OPEN_HOUR = 11
+THEME_VOTE_HOUR = 20  # entries close, the vote opens
+THEME_VOTE_SECONDS = 30 * 60
+THEME_MAX_ENTRIES = 10
+THEME_PRIZE = 200  # base coins to the best answer's author

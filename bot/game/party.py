@@ -1,5 +1,6 @@
 """Games about the people in the chat: "who of us" polls, the bomb passed by reply, bets on life."""
 
+import json
 from dataclasses import dataclass
 
 from bot.game.types import Granted
@@ -23,6 +24,24 @@ class BombResult:
     fine: int  # burned
     passers: list[int]  # everyone who passed it on, paid once each
     reward: int  # what each passer got
+    granted: list[Granted]
+
+
+@dataclass(frozen=True)
+class CrocResult:
+    round: dict
+    word: str
+    guesser: int | None  # None: time ran out
+    reward: int  # what the guesser and the explainer got each
+
+
+@dataclass(frozen=True)
+class ThemeResult:
+    round: dict
+    entries: list[tuple[int, str]]  # (author, photo) in the vote's order
+    counts: list[int]
+    winners: list[int]  # authors with the most votes
+    prize: int
     granted: list[Granted]
 
 
@@ -237,3 +256,113 @@ class PartyMixin:
     def badges_of(self, user_id: int) -> list[tuple[str, str]]:
         """(kind, text) of the day-long titles the user wears."""
         return [(kind, text) for kind, text, _ in self.repo.badges_of(user_id, self.now())]
+
+    # ── crocodile with pics ────────────────────────────────────────────
+
+    def start_croc(self, chat_id: int, explainer: int, word: str) -> tuple[str, dict | None]:
+        """'started' | 'active' | 'cooldown'. Whoever starts it explains; the word is theirs to see."""
+        active = self.repo.open_rounds(chat_id, "croc")
+        if active:
+            return "active", active[0]
+        if self.croc_cooldown_left(chat_id):
+            return "cooldown", None
+        round_id = self.repo.create_round(chat_id, "croc", self.now(), self.now() + party.CROC_SECONDS, explainer, word)
+        return "started", self.repo.get_round(round_id)
+
+    def croc_cooldown_left(self, chat_id: int) -> int:
+        return max(0, party.CROC_COOLDOWN_SECONDS - (self.now() - self.repo.last_round_at(chat_id, "croc")))
+
+    def croc_in(self, chat_id: int) -> dict | None:
+        active = self.repo.open_rounds(chat_id, "croc")
+        return active[0] if active and self.now() < active[0]["ends_at"] else None
+
+    def guess_croc(self, round_id: str, user_id: int, text: str) -> CrocResult | None:
+        """The right word from anyone but the explainer settles it: both are paid."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["status"] != "open" or user_id == found["author"]:
+            return None
+        if party.normalize(text) != party.normalize(found["text"]):
+            return None
+        if not self.repo.close_round(round_id, user_id):
+            return None
+        reward = self.pay(user_id, party.CROC_REWARD, "croc")
+        self.pay(found["author"], party.CROC_REWARD, "croc")
+        self.repo.incr_counter(user_id, "croc_guessed")
+        return CrocResult(self.repo.get_round(round_id), found["text"], user_id, reward)
+
+    def finish_croc(self, round_id: str) -> CrocResult | None:
+        """Time ran out: nobody guessed, the word is revealed."""
+        found = self.repo.get_round(round_id)
+        if found is None or not self.repo.close_round(round_id, None):
+            return None
+        return CrocResult(self.repo.get_round(round_id), found["text"], None, 0)
+
+    # ── the theme of the day ───────────────────────────────────────────
+
+    def open_theme(self, chat_id: int, theme: str, closes_at: int) -> tuple[str, dict | None]:
+        """'opened' | 'active'. Answers come as photos in reply to the theme's card until closes_at."""
+        active = self.repo.open_rounds(chat_id, "theme")
+        if active:
+            return "active", active[0]
+        state = {"theme": theme, "phase": "collect"}
+        round_id = self.repo.create_round(chat_id, "theme", self.now(), closes_at, text=json.dumps(state))
+        return "opened", self.repo.get_round(round_id)
+
+    def theme_state(self, found: dict) -> dict:
+        return json.loads(found["text"])
+
+    def answer_theme(self, found: dict, user_id: int, file_id: str) -> str:
+        """'ok' | 'closed' | 'full'. A later photo replaces the player's earlier one."""
+        if found["status"] != "open" or self.theme_state(found)["phase"] != "collect" or self.now() >= found["ends_at"]:
+            return "closed"
+        entries = self.repo.entries_of(found["id"])
+        if len(entries) >= party.THEME_MAX_ENTRIES and user_id not in dict(entries):
+            return "full"
+        self.repo.put_entry(found["id"], user_id, file_id, self.now())
+        return "ok"
+
+    def open_theme_vote(self, round_id: str) -> tuple[str, dict | None]:
+        """When answers close: 'vote' (VOTE_SECONDS to pick the best) or 'few' (fewer than two
+        answers: the theme closes without a winner)."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["status"] != "open":
+            return "gone", None
+        state = self.theme_state(found)
+        if len(self.repo.entries_of(round_id)) < 2:
+            self.repo.close_round(round_id, None)
+            return "few", self.repo.get_round(round_id)
+        state["phase"] = "vote"
+        self.repo.update_round(round_id, self.now() + party.THEME_VOTE_SECONDS, json.dumps(state))
+        return "vote", self.repo.get_round(round_id)
+
+    def vote_theme(self, round_id: str, user_id: int, index: int) -> str:
+        """'ok' | 'own' | 'same' | 'closed' | 'gone'. Nobody votes for their own answer."""
+        found = self.repo.get_round(round_id)
+        entries = self.repo.entries_of(round_id) if found else []
+        if found is None or found["kind"] != "theme" or not 0 <= index < len(entries):
+            return "gone"
+        if found["status"] != "open" or self.theme_state(found)["phase"] != "vote" or self.now() >= found["ends_at"]:
+            return "closed"
+        if entries[index][0] == user_id:
+            return "own"
+        if found["votes"].get(user_id, (None, 0))[0] == index:
+            return "same"
+        self.repo.put_round_vote(round_id, user_id, index)
+        return "ok"
+
+    def finish_theme(self, round_id: str) -> ThemeResult | None:
+        found = self.repo.get_round(round_id)
+        if found is None or self.theme_state(found)["phase"] != "vote" or not self.repo.close_round(round_id, None):
+            return None
+        entries = self.repo.entries_of(round_id)
+        votes = {user: choice for user, (choice, _) in found["votes"].items()}
+        counts = [list(votes.values()).count(index) for index in range(len(entries))]
+        best = party.poll_winners(votes)
+        winners = [entries[index][0] for index in best]
+        prize = 0
+        for author in winners:
+            prize = self.pay(author, party.THEME_PRIZE, "theme")
+            self.repo.set_badge(author, "theme", "Лучший ответ на тему дня", self.now() + party.BADGE_SECONDS)
+        for user_id in votes:
+            self.pay(user_id, economy.VOTE, "vote")
+        return ThemeResult(found, entries, counts, winners, prize, self.check_achievements([*votes, *winners]))
