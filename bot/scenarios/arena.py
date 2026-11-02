@@ -114,11 +114,11 @@ async def tournament_command(message: Message, bot: Bot, game: Game, live: Live)
 
 
 BUTTON_ANSWERS = {
-    "started": "Погнали",
-    "active": "Уже идёт, табло обновил",
-    "shortage": "Мало пикч для арены",
-    "stale": "Этот чемпион уже не актуален. Жми «Новая дуэль»",
-    "failed": "Telegram подвёл, попробуй ещё раз",
+    "started": "⚔️ Погнали",
+    "active": "⚔️ Уже идёт, табло обновил",
+    "shortage": "📦 Мало пикч для арены",
+    "stale": "🏆 Этот чемпион уже не актуален. Жми «Новая дуэль»",
+    "failed": "📡 Telegram подвёл, попробуй ещё раз",
 }
 
 
@@ -167,14 +167,14 @@ async def vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         return
     status, _ = game.vote_battle(battle_id, callback.from_user.id, slot)
     if status == "expired":
-        await callback.answer("Финальный свисток уже прозвучал")
+        await callback.answer("⏱ Финальный свисток уже прозвучал")
         await live.finish_battle(battle_id)
         return
     if status in ("gone", "closed"):
-        await callback.answer("Бой уже окончен", show_alert=True)
+        await callback.answer("⏱ Бой уже окончен", show_alert=True)
         return
     if status == "fighter":
-        await callback.answer("Ты дерёшься в этом вызове. Голосуют только зрители", show_alert=True)
+        await callback.answer("🤺 Ты дерёшься в этом вызове. Голосуют только зрители", show_alert=True)
         return
     if status == "same":
         await callback.answer(pick(toasts.ALREADY))
@@ -184,12 +184,12 @@ async def vote(callback: CallbackQuery, game: Game, live: Live) -> None:
 
 
 BET_ANSWERS = {
-    "gone": "Этого боя уже нет",
-    "closed": "Ставки закрыты, бой окончен",
-    "fighter": "Участникам вызова ставить нельзя. Совесть, всё такое",
-    "other_slot": "Твоя ставка уже стоит на другой пикче. Не жадничай",
-    "max": "Потолок — {max} 🪙 на бой",
-    "broke": "Не хватает монет. Ставка — {step} 🪙",
+    "gone": "💰 Этого боя уже нет",
+    "closed": "💰 Ставки закрыты, бой окончен",
+    "fighter": "💰 Участникам вызова ставить нельзя. Совесть, всё такое",
+    "other_slot": "💰 Твоя ставка уже стоит на другой пикче. Не жадничай",
+    "max": "💰 Потолок — {max} 🪙 на бой",
+    "broke": "💰 Не хватает монет. Ставка — {step} 🪙",
 }
 
 

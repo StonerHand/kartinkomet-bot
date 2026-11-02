@@ -11,7 +11,7 @@ UPLOAD_LIMIT_PER_HOUR = 1000
 
 class PicsMixin:
     def draw_pic(self, chat_id: int) -> tuple[Pic, str] | None:
-        return deck.draw_one(self.repo, f"pic:{chat_id}", self.now(), self.rng)
+        return deck.draw_one(self.repo, deck.scope_of(chat_id), self.now(), self.rng)
 
     def draw_for(self, chat_id: int, user_id: int | None) -> tuple[Pic, str, list[Granted]] | None:
         """A random pic requested by a person: also checks 'lucky' and 'déjà vu'."""
@@ -85,3 +85,16 @@ class PicsMixin:
     def note_duplicate(self, user_id: int) -> None:
         streak = self.repo.incr_counter(user_id, "dup_streak")
         self.repo.raise_counter(user_id, "best_dup_streak", streak)
+
+    def retire_duplicate(self, pic_id: str, twin_id: str) -> str | None:
+        """Two living pics with the same image: the one with more history (battles and
+        reactions; a tie: the older) stays, the other leaves as a duplicate. Returns the one
+        that left."""
+        pics = [self.repo.get_pic(pic_id), self.repo.get_pic(twin_id)]
+        if any(pic is None or pic.status != "alive" for pic in pics):
+            return None
+        def history(pic) -> tuple:
+            return pic.games + pic.likes + pic.dislikes, -(pic.added_at or 0), pic.id
+
+        drop = min(pics, key=history)
+        return drop.id if self.repo.remove_pic(drop.id, "deleted", "duplicate", self.now()) else None

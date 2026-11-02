@@ -34,7 +34,7 @@ def court_result(report: CourtReport, uploader: str, extras: list[str] | None = 
     trial = report.court
     kill, spare = trial.vote_counts()
     executed = report.verdict == "executed"
-    head = "⚰️ <b>Приговор: казнена</b>" if executed else "🕊 <b>Приговор: помилована</b>"
+    head = "⚰️ <b>Приговор</b> · казнена" if executed else "🕊 <b>Приговор</b> · помилована"
     if trial.appeal:
         head += " · окончательно" if executed else " · по апелляции"
     pool = court_texts.EXECUTED if executed else court_texts.PARDONED

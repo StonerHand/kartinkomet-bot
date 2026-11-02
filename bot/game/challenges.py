@@ -106,7 +106,7 @@ class ChallengesMixin:
             if own is not None and own.id not in chosen:
                 chosen.append(own.id)
                 continue
-            drawn = deck.draw_many(self.repo, f"arena:{chat_id}", self.now(), 1, exclude=chosen)
+            drawn = deck.draw_many(self.repo, deck.scope_of(chat_id), self.now(), 1, exclude=chosen)
             if not drawn:
                 return None
             chosen.append(drawn[0][0].id)

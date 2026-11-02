@@ -70,7 +70,7 @@ async def answer(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         return
     result = game.hl_answer(user_id, parts[2] if len(parts) > 2 else "", int(parts[1]) if parts[1].isdigit() else -1)
     if result.status == "stale":
-        await callback.answer("Этот раунд уже сыгран", show_alert=True)
+        await callback.answer("🎯 Этот раунд уже сыгран", show_alert=True)
         return
     if result.status == "right":
         await send.answer_quietly(callback, f"✅ Верно! Серия {result.streak}")

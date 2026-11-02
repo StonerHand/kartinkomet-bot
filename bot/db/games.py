@@ -117,12 +117,18 @@ class GamesRepo:
         row = self.db.execute("SELECT MAX(created_at) FROM gold WHERE chat_id = ?", (chat_id,)).fetchone()
         return row[0] or 0
 
-    def random_alive_of(self, owner_id: int) -> Pic | None:
-        row = self.db.execute(
-            f"SELECT {PIC_COLUMNS} FROM pics WHERE status = 'alive' AND added_by = ? ORDER BY random() LIMIT 1",
-            (owner_id,),
-        ).fetchone()
-        return _pic(row)
+    def random_alive_of(self, owner_id: int, unseen_in: str | None = None) -> Pic | None:
+        """A random living pic of this uploader; with `unseen_in`, one not yet shown in that deck
+        scope if there is any (a small uploader's few pics then take turns instead of repeating)."""
+        for fresh_only in ((True, False) if unseen_in else (False,)):
+            seen = "AND NOT EXISTS (SELECT 1 FROM deck_seen d WHERE d.scope = ? AND d.pic_id = pics.id) " if fresh_only else ""
+            row = self.db.execute(
+                f"SELECT {PIC_COLUMNS} FROM pics WHERE status = 'alive' AND added_by = ? {seen}ORDER BY random() LIMIT 1",
+                (owner_id, unseen_in) if fresh_only else (owner_id,),
+            ).fetchone()
+            if row is not None:
+                return _pic(row)
+        return None
 
     def shift_rating(self, pic_id: str, delta: float) -> None:
         with self.db:

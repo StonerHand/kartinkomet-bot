@@ -63,7 +63,7 @@ async def shop_command(message: Message, bot: Bot, game: Game, admins: frozenset
 async def pic_menu(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     pic = game.repo.get_pic(callback.data.split(":", 1)[1])
     if pic is None or pic.status != "alive":
-        await callback.answer("Её уже нет в живых. Воскрешение — на кладбище", show_alert=True)
+        await callback.answer("⚰️ Её уже нет в живых. Воскрешение — на кладбище", show_alert=True)
         return
     user_id = callback.from_user.id
     cursed = game.cursed_until(pic.id)
@@ -97,11 +97,11 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
     user_id = callback.from_user.id
     context = menu_context(game, token)
     if context is None:
-        await callback.answer("Меню устарело. Нажми 🛒 под пикчей ещё раз", show_alert=True)
+        await callback.answer("🛒 Меню устарело. Нажми под пикчей ещё раз", show_alert=True)
         return
     pic_id, owner, chat_id, pic_message = context
     if owner != user_id:
-        await callback.answer("Это меню открыл кто-то другой. Жми 🛒 под пикчей сам", show_alert=True)
+        await callback.answer("🛒 Это меню открыл кто-то другой. Жми под пикчей сам", show_alert=True)
         return
     label = game.repo.user_label(user_id)
     if code in BOUNTY_CODES:

@@ -56,6 +56,19 @@ def apply_schema(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE bosses ADD COLUMN raid INTEGER NOT NULL DEFAULT 0")
     if "last_hit_at" not in boss_columns:
         connection.execute("ALTER TABLE bosses ADD COLUMN last_hit_at INTEGER")
+    seen_columns = {row[1] for row in connection.execute("PRAGMA table_info(deck_seen)")}
+    if "at" not in seen_columns:  # v6.8: when a pic was shown, so a new cycle can keep the latest ones out
+        connection.execute("ALTER TABLE deck_seen ADD COLUMN at INTEGER NOT NULL DEFAULT 0")
+    if connection.execute("SELECT 1 FROM meta WHERE key = 'deck_merged'").fetchone() is None:
+        # v6.8: one deck per chat. /pic ('pic:<chat>') and the arena ('arena:<chat>') used to keep
+        # separate decks, so a pic seen in one came back in the other.
+        connection.execute(
+            "INSERT OR IGNORE INTO deck_seen (scope, pic_id, at) "
+            "SELECT 'deck:' || substr(scope, instr(scope, ':') + 1), pic_id, at FROM deck_seen "
+            "WHERE scope LIKE 'pic:%' OR scope LIKE 'arena:%'"
+        )
+        connection.execute("DELETE FROM deck_seen WHERE scope LIKE 'pic:%' OR scope LIKE 'arena:%'")
+        connection.execute("INSERT INTO meta (key, value) VALUES ('deck_merged', '1')")
     pic_columns = {row[1] for row in connection.execute("PRAGMA table_info(pics)")}
     if "frame" not in pic_columns:
         connection.execute("ALTER TABLE pics ADD COLUMN frame TEXT")

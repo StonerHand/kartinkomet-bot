@@ -13,7 +13,7 @@ class MiniGamesMixin:
         active = self.repo.active_game(chat_id, "caption")
         if active:
             return "active", active
-        drawn = deck.draw_many(self.repo, f"pic:{chat_id}", self.now(), 1)
+        drawn = deck.draw_many(self.repo, deck.scope_of(chat_id), self.now(), 1)
         if not drawn:
             return "shortage", None
         game_id = self.repo.create_game(

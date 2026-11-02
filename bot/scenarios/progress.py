@@ -110,7 +110,7 @@ async def open_chest(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
         return
     if not game.chests_of(callback.from_user.id).get(tier):
         name = texts.CHESTS.get(tier, ("", "сундука"))[1].lower()
-        await callback.answer(f"У тебя нет: {name}. Сундуки дают за квесты, бонусы и боссов", show_alert=True)
+        await callback.answer(f"🎁 У тебя нет: {name}. Сундуки дают за квесты, бонусы и боссов", show_alert=True)
         return
     if tier == "legend":  # the suspense is public: stop the button's spinner first
         await send.answer_quietly(callback, "🗝 Открываю…")

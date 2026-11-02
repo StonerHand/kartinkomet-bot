@@ -41,9 +41,11 @@ class QuizMixin:
         if len(uploaders) < 2:
             return "shortage", None
         author = uploaders[self.rng.randrange(len(uploaders))]
-        pic = self.repo.random_alive_of(author)
+        scope = f"whose:{chat_id}"
+        pic = self.repo.random_alive_of(author, unseen_in=scope)
         if pic is None:
             return "shortage", None
+        self.repo.mark_shown(scope, [pic.id], self.now())
         others = [user for user in uploaders if user != author]
         options = [author, *self.rng.sample(others, min(games.WHOSE_OPTIONS - 1, len(others)))]
         self.rng.shuffle(options)

@@ -1,6 +1,7 @@
 """Uploads: visual duplicates, image documents, junk and bursts."""
 
 from datetime import UTC, datetime
+from unittest import mock
 from io import BytesIO
 
 from aiogram.types import Chat, Document, Message, PhotoSize, Update
@@ -71,3 +72,25 @@ class UploadTest(BotHarness):
         await self.drop("late", picture(2))
         self.assertIn("/upload", self.session.of("SendMessage")[-1].text)
         self.assertFalse(self.game.repo.pic_known("late"))
+
+
+class BackfillTest(BotHarness):
+    async def test_old_pics_get_hashed_and_twins_leave(self) -> None:
+        pics = self.game.repo.random_alive(10)
+        spread = 0x9E3779B97F4A7C15  # neighbours differ in many bits: no accidental near-twins
+        hashes = {pic.file_id: f"{(index * spread) % 2 ** 64:016x}" for index, pic in enumerate(pics, 1)}
+        twin, original = pics[0], pics[1]
+        hashes[twin.file_id] = hashes[original.file_id]  # the same image twice
+        hashes[pics[2].file_id] = None  # unreadable
+
+        async def fake_hash(bot, file_id, size):
+            return hashes[file_id]
+
+        with mock.patch.object(upload, "visual_hash_of", fake_hash):
+            first = await upload.backfill_visual_hashes(self.bot, self.game, 4)
+            rest = await upload.backfill_visual_hashes(self.bot, self.game, 100)
+            self.assertEqual(await upload.backfill_visual_hashes(self.bot, self.game, 100), (0, 0))  # all done
+        self.assertEqual((first[0], rest[0], first[1] + rest[1]), (4, 6, 1))
+        statuses = {pic.id: self.game.repo.get_pic(pic.id).status for pic in pics}
+        self.assertEqual(sorted(statuses.values()).count("deleted"), 1)
+        self.assertEqual(self.game.repo.get_pic(pics[2].id).visual_hash, "-")

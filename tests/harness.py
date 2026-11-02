@@ -33,7 +33,7 @@ from bot.scenarios import casino, challenges, games, pics, progress, shop, uploa
 from bot.scenarios.schedule import Events
 from bot.telegram import pictures, send
 from tests.helpers import make_game
-from tests.layout import assert_html, layout_problems
+from tests.layout import EMOJI, assert_html, layout_problems
 
 # Messages people read; callback toasts and alerts are pop-ups with their own rules.
 CHECKED_METHODS = {"SendMessage", "SendPhoto", "EditMessageText", "EditMessageCaption", "SendEphemeralMessage"}
@@ -156,6 +156,8 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         self.update_ids = count(1)
         upload.sessions.clear()
         upload._visual_hashes = None
+        upload._alive_index = None
+        upload.BACKFILL_BATCH = 0  # the schedule's hashing of old pics; its own test turns it on
         pics._last_drop.clear()
         games.DICE_ANIMATION_SECONDS = 0
         self.session.dice_values = []
@@ -187,6 +189,10 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(text, text.strip("\n"))
                 if self.session.kind(request) in CHECKED_METHODS:
                     self.assertEqual(layout_problems(text), [], text)
+            if self.session.kind(request) == "AnswerCallbackQuery" and request.text:
+                # A button's answer reads like a message: its mechanic's emoji first, plain text.
+                self.assertTrue(EMOJI.match(request.text), request.text)
+                self.assertNotIn("<", request.text, request.text)
             markup = getattr(request, "reply_markup", None)
             if isinstance(markup, InlineKeyboardMarkup):
                 for row in markup.inline_keyboard:

@@ -4,7 +4,8 @@ import sqlite3
 from collections.abc import Iterable, Sequence
 from uuid import uuid4
 
-from bot.db.schema import PIC_COLUMNS, MIN_EXPERIENCE, LEGEND_POOL_SIZE, _pic, _placeholders
+from bot.db.schema import LEGEND_POOL_SIZE, MIN_EXPERIENCE, PIC_COLUMNS, _pic, _placeholders
+from bot.media.visual_hash import UNHASHABLE
 from bot.models.records import Pic
 
 
@@ -29,6 +30,33 @@ class PicsRepo:
                 "SELECT visual_hash FROM pics WHERE visual_hash IS NOT NULL"
             )
         ]
+
+    def hashed_alive(self) -> list[tuple[str, str]]:
+        """(pic, visual hash) of every living pic that has one: the index duplicates are checked against."""
+        return [tuple(row) for row in self.db.execute(
+            "SELECT id, visual_hash FROM pics WHERE status = 'alive' AND visual_hash IS NOT NULL "
+            "AND visual_hash != ?", (UNHASHABLE,)
+        )]
+
+    def unhashed(self, limit: int) -> list[Pic]:
+        """Living pics never hashed (imported before the duplicate check), the oldest first."""
+        rows = self.db.execute(
+            f"SELECT {PIC_COLUMNS} FROM pics WHERE status = 'alive' AND visual_hash IS NULL "
+            "ORDER BY added_at, id LIMIT ?", (limit,),
+        ).fetchall()
+        return [_pic(row) for row in rows]
+
+    def duplicate_stats(self) -> tuple[int, int]:
+        """(living pics not checked for duplicates yet, duplicates retired)."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(status = 'alive' AND visual_hash IS NULL), 0), "
+            "COALESCE(SUM(status = 'deleted' AND removed_reason = 'duplicate'), 0) FROM pics"
+        ).fetchone()
+        return row[0], row[1]
+
+    def set_visual_hash(self, pic_id: str, visual_hash: str) -> None:
+        with self.db:
+            self.db.execute("UPDATE pics SET visual_hash = ? WHERE id = ?", (visual_hash, pic_id))
 
     def add_pic(
         self,
@@ -109,15 +137,22 @@ class PicsRepo:
         ).fetchall()
         return [_pic(row) for row in rows]
 
-    def clear_seen(self, scope: str) -> None:
+    def clear_seen(self, scope: str, keep: int = 0) -> None:
+        """A new deck cycle. The `keep` most recently shown stay seen, so the end of one cycle
+        doesn't come straight back at the start of the next."""
         with self.db:
-            self.db.execute("DELETE FROM deck_seen WHERE scope = ?", (scope,))
+            self.db.execute(
+                "DELETE FROM deck_seen WHERE scope = ? AND pic_id NOT IN "
+                "(SELECT pic_id FROM deck_seen WHERE scope = ? ORDER BY at DESC LIMIT ?)",
+                (scope, scope, keep),
+            )
 
     def mark_shown(self, scope: str, pic_ids: Sequence[str], now: int) -> None:
         with self.db:
             self.db.executemany(
-                "INSERT OR IGNORE INTO deck_seen (scope, pic_id) VALUES (?, ?)",
-                [(scope, pic_id) for pic_id in pic_ids],
+                "INSERT INTO deck_seen (scope, pic_id, at) VALUES (?, ?, ?) "
+                "ON CONFLICT(scope, pic_id) DO UPDATE SET at = excluded.at",
+                [(scope, pic_id, now) for pic_id in pic_ids],
             )
             self.db.executemany(
                 "UPDATE pics SET shown_count = shown_count + 1, last_shown_at = ? WHERE id = ?",

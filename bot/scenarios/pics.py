@@ -82,7 +82,7 @@ async def pic_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) 
 async def show_pic(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     pic = game.repo.get_pic(callback.data.split(":", 1)[1])
     if pic is None or pic.status != "alive":
-        await callback.answer("Её уже нет в живых", show_alert=True)
+        await callback.answer("⚰️ Её уже нет в живых", show_alert=True)
         return
     await callback.answer()
     chat_id = callback.message.chat.id
@@ -101,11 +101,11 @@ async def react(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> No
     _, sign, pic_id = callback.data.split(":", 2)
     result = game.react(pic_id, callback.from_user.id, 1 if sign == "+" else -1)
     if result is None:
-        await callback.answer("Не нашёл эту пикчу", show_alert=True)
+        await callback.answer("🔍 Не нашёл эту пикчу", show_alert=True)
         return
     message = callback.message
     if result.pic.status != "alive":
-        await callback.answer("Её уже нет в живых. Помянем", show_alert=True)
+        await callback.answer("⚰️ Её уже нет в живых. Помянем", show_alert=True)
         if message is not None:
             await send.edit_markup(bot, message.chat.id, message.message_id, keyboards.more_only())
         return

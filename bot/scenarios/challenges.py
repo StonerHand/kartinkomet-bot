@@ -134,7 +134,7 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
     )
     refusals = {
         "gone": "Вызов уже не актуален",
-        "not_for_you": "Вызов не тебе. Брось свой: /challenge",
+        "not_for_you": "🤺 Вызов не тебе. Брось свой: /challenge",
         "own": "Принять собственный вызов? Не, так не работает",
         "broke": "Не хватает монет, чтобы ответить на ставку",
         "busy": "На арене уже идёт вызов. Подождите минуту",
@@ -156,7 +156,7 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
         await throw_dice_duel(bot, game, live, chat_id, result.challenge, callback.message.message_id)
         return
     if result.status != "accepted" or result.battle is None:
-        await callback.answer("Вызов закрыт, ставка вернулась")
+        await callback.answer("🤺 Вызов закрыт, ставка вернулась")
         return
     await callback.answer("🤺 Вызов принят! Собираю арену")
 

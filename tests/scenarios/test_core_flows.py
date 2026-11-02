@@ -290,7 +290,7 @@ class CoreFlowsTest(BotHarness):
         from bot.db.repo import Repo
 
         pic = self.game.draw_pic(-100)[0]
-        self.game.repo.db.execute("INSERT INTO deck_seen VALUES ('pic:duel:-100:left', ?)", (pic.id,))
+        self.game.repo.db.execute("INSERT INTO deck_seen (scope, pic_id) VALUES ('pic:duel:-100:left', ?)", (pic.id,))
         self.game.repo.db.commit()
         reopened = Repo(self.game.repo.database_path)
         self.addCleanup(reopened.close)
@@ -431,7 +431,7 @@ class CoreFlowsTest(BotHarness):
         self.clock.advance(46)
         await self.live.advance_game(contest["id"])
         result = self.session.of("EditMessageCaption")[-1].caption
-        self.assertIn("Итоги", result)
+        self.assertIn("· итог", result)
         self.assertIn("👑 «рейтинг 1090 не трогай»\n<i>user4 · 1 голос</i>", result)
 
     async def test_wheel_shows_slot_machine_then_prize(self) -> None:

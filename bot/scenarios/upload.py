@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.game.engine import Game
 from bot.live.timers import Live
-from bot.media.visual_hash import image_dhash
+from bot.media.visual_hash import UNHASHABLE, image_dhash
 from bot.telegram import send
 from bot.texts import ui
 from bot.texts.pick import pick
@@ -43,6 +43,7 @@ class Session:
 
 
 sessions: dict[int, Session] = {}
+BACKFILL_BATCH = 20  # pics hashed per schedule tick: about 3 hours for the 3 800 imported unhashed
 _visual_hashes: list[int] | None = None
 
 
@@ -56,6 +57,41 @@ def known_hashes(game: Game) -> list[int]:
             except ValueError:
                 continue
     return _visual_hashes
+
+
+_alive_index: list[tuple[int, str]] | None = None  # (hash, pic) of the living pics, for the backfill
+
+
+def alive_index(game: Game) -> list[tuple[int, str]]:
+    global _alive_index
+    if _alive_index is None:
+        _alive_index = [(int(value, 16), pic_id) for pic_id, value in game.repo.hashed_alive()]
+    return _alive_index
+
+
+async def backfill_visual_hashes(bot: Bot, game: Game, batch: int | None = None) -> tuple[int, int]:
+    """Hash a few pics imported before the duplicate check; a pic that turns out to be another
+    living pic's twin leaves the warehouse (game.retire_duplicate). Called by the schedule's tick,
+    so the warehouse gets cleaned a little every minute. Returns (hashed, retired)."""
+    hashed = retired = 0
+    index = alive_index(game)
+    for pic in game.repo.unhashed(BACKFILL_BATCH if batch is None else batch):
+        value = await visual_hash_of(bot, pic.file_id, None)
+        game.repo.set_visual_hash(pic.id, value or UNHASHABLE)
+        hashed += 1
+        if value is None:
+            continue
+        number = int(value, 16)
+        known_hashes(game).append(number)
+        twin = next((other for known, other in index
+                     if other != pic.id and (number ^ known).bit_count() <= VISUAL_DUPLICATE_DISTANCE), None)
+        gone = game.retire_duplicate(pic.id, twin) if twin else None
+        if gone is not None:
+            retired += 1
+            index[:] = [(known, other) for known, other in index if other != gone]
+        if gone != pic.id:
+            index.append((number, pic.id))
+    return hashed, retired
 
 
 def is_visual_duplicate(game: Game, visual_hash: str | None) -> bool:

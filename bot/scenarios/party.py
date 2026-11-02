@@ -78,9 +78,9 @@ async def who_command(message: Message, command: CommandObject, bot: Bot, game: 
 
 VOTE_TOASTS = {
     "ok": "🗳 Голос принят",
-    "same": "Твой голос уже за этого человека",
-    "closed": "Опрос закончился",
-    "gone": "Этого опроса больше нет",
+    "same": "🗳 Твой голос уже за этого человека",
+    "closed": "🗳 Опрос закончился",
+    "gone": "🗳 Этого опроса больше нет",
 }
 
 
@@ -225,10 +225,10 @@ async def bet_command(message: Message, command: CommandObject, bot: Bot, game: 
 
 
 STAKE_TOASTS = {
-    "author": "Автор спора решает, чем кончилось, и сам не ставит",
-    "already": "Твоя ставка уже стоит. Одна на спор",
-    "closed": "Спор уже решён",
-    "gone": "Этого спора больше нет",
+    "author": "🤝 Автор спора решает, чем кончилось, и сам не ставит",
+    "already": "🤝 Твоя ставка уже стоит. Одна на спор",
+    "closed": "🤝 Спор уже решён",
+    "gone": "🤝 Этого спора больше нет",
 }
 
 
@@ -258,7 +258,7 @@ async def bet_settle(callback: CallbackQuery, bot: Bot, game: Game) -> None:
         await send.answer_quietly_alert(callback, "🤝 Чем кончилось, решает автор спора")
         return
     if result is None:
-        await send.answer_quietly(callback, "Спор уже решён")
+        await send.answer_quietly(callback, "🤝 Спор уже решён")
         return
     await send.answer_quietly(callback, "🏁 Спор закрыт")
     found = result.round
@@ -392,10 +392,10 @@ async def theme_answer(message: Message, bot: Bot, game: Game) -> None:
 
 THEME_TOASTS = {
     "ok": "🗳 Голос принят",
-    "own": "За свой ответ голосовать нельзя",
-    "same": "Твой голос уже здесь",
-    "closed": "Голосование закончилось",
-    "gone": "Этой темы больше нет",
+    "own": "🎯 За свой ответ голосовать нельзя",
+    "same": "🎯 Твой голос уже здесь",
+    "closed": "🎯 Голосование закончилось",
+    "gone": "🎯 Этой темы больше нет",
 }
 
 

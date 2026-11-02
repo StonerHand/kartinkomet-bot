@@ -27,7 +27,7 @@ from bot.rules import boss as boss_rules
 from bot.rules import days, economy
 from bot.rules import party as party_rules
 from bot.rules import show as show_rules
-from bot.scenarios import party, show
+from bot.scenarios import party, show, upload
 from bot.scenarios.boss import summon
 from bot.scenarios.court import open_court
 from bot.telegram import send
@@ -126,6 +126,9 @@ class Events:
                 handler = self.handlers[job.name]
                 done = await (handler(chat_id) if job.per_chat else handler())
                 LOGGER.info("Event %s for %s: %s", job.name, chat_id, "sent" if done else "skipped")
+        hashed, retired = await upload.backfill_visual_hashes(self.bot, self.game)
+        if retired:
+            LOGGER.info("Hashed %s old pics, retired %s duplicates", hashed, retired)
 
     def chats(self) -> list[int]:
         return self.game.repo.event_chats(self.game.now() - ACTIVE_CHAT_DAYS * 86400)

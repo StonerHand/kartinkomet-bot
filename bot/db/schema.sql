@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS reactions (
 ) WITHOUT ROWID;
 
 -- Pics already shown in a scope during the current deck cycle.
--- Scope is "pic:<chat_id>" for random drops and "arena:<chat_id>" for battles.
+-- Scope is "deck:<chat_id>": /pic, the arena and the cup share one deck per chat; `at` is when shown.
 CREATE TABLE IF NOT EXISTS deck_seen (
     scope TEXT NOT NULL,
     pic_id TEXT NOT NULL REFERENCES pics(id) ON DELETE CASCADE,

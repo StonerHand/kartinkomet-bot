@@ -55,6 +55,8 @@ changed cards at phone width. After touching scenarios' hot paths, sending or li
 - Every message is built with `views.card` / `views.marked` / `views.note`; `tests/layout.py` holds the
   design system (emoji first, rules in a quote box, 32-character phone lines). When it fails, fix the text.
 - Texts are gender-neutral. Names appear without `@` (an `@` pings) and keep their own case.
+- A button's answer (toast or alert) opens with its mechanic's emoji, like every message: the test harness
+  fails on one that doesn't. Card titles read `emoji <b>Title</b> · detail`, results `· итог`.
 - Answers that concern one person go through `send.personal` / `send.reply_personal`; a button's answer
   passes `callback.id`, which lets a non-admin bot answer personally.
 - Coins the game creates go through `Game.pay` (scaled by the chat's wealth); coins moving between

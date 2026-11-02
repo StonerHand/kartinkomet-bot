@@ -8,6 +8,13 @@ from bot.models.records import Pic
 
 BUCKETS: tuple[tuple[str, float], ...] = (("deck", 0.70), ("fresh", 0.20), ("legend", 0.10))
 FRESH_SECONDS = 7 * 24 * 3600
+CYCLE_MEMORY = 0.25  # a new cycle keeps this share of the warehouse, the latest shown, out of the first draws
+
+
+def scope_of(chat_id: int) -> str:
+    """One deck per chat: /pic, duels, tournaments and the cup draw from it, so whatever the chat
+    has seen anywhere waits until the whole warehouse has gone round."""
+    return f"deck:{chat_id}"
 
 
 class DeckSource(Protocol):
@@ -21,7 +28,7 @@ class DeckSource(Protocol):
         fresh_seconds: int = FRESH_SECONDS,
     ) -> list[Pic]: ...
 
-    def clear_seen(self, scope: str) -> None: ...
+    def clear_seen(self, scope: str, keep: int = 0) -> None: ...
 
     def mark_shown(self, scope: str, pic_ids: Sequence[str], now: int) -> None: ...
 
@@ -70,8 +77,9 @@ def draw_many(
             result.append((pic, "deck"))
             taken.append(pic.id)
         if len(result) < count and attempt == 0:
-            # Deck exhausted in this scope: new cycle.
-            source.clear_seen(scope)
+            # Deck exhausted in this scope: a new cycle, the latest shown still held back.
+            alive = source.count_pics()
+            source.clear_seen(scope, keep=max(0, min(int(alive * CYCLE_MEMORY), alive - count - len(taken))))
 
     if len(result) < count:
         return []
