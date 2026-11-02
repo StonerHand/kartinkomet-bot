@@ -45,24 +45,34 @@ def profile(
     wallet: Wallet,
     owners: dict[str, int],
     players: int,
+    tab: str = "main",
 ) -> str:
-    """The player card: who you are, then one block per side of the game; blocks that would be
-    empty are left out."""
-    blocks = [
-        identity(label, wallet),
-        level_progress(wallet),
-        pocket(wallet),
-        statuses(wallet),
-        season_block(wallet),
-        storage(stats, place, wallet),
-        uploader_title(stats),
-        arena_and_courts(stats, wallet),
-        casino_block(wallet),
-        records(wallet),
-        *achievements(owned, owners, players),
-        [note(escape(pick(top_texts.PROFILE_ROASTS)))],
-    ]
+    """The player card in tabs, so no screen is a wall: «main» (who you are, coins, statuses, the
+    season), «pics» (the warehouse, the arena, courts), «casino» (bets and records), «ach» (the
+    collection). Blocks that would be empty are left out."""
+    if tab == "pics":
+        blocks = [tab_head(label, "склад и арена"), storage(stats, place, wallet), uploader_title(stats),
+                  arena_and_courts(stats, wallet)]
+    elif tab == "casino":
+        blocks = [tab_head(label, "казино и рекорды"),
+                  casino_block(wallet) or ["🎰 Ещё ни одной ставки · /casino"], records(wallet)]
+    elif tab == "ach":
+        blocks = [tab_head(label, "ачивки"), *achievements(owned, owners, players)]
+    else:
+        blocks = [
+            identity(label, wallet),
+            level_progress(wallet),
+            pocket(wallet),
+            statuses(wallet),
+            season_block(wallet),
+            [f"🏅 Ачивки · <b>{len(owned)}</b> из {len(rules.ALL_CODES)}"],
+            [note(escape(pick(top_texts.PROFILE_ROASTS)))],
+        ]
     return "\n\n".join("\n".join(block) for block in blocks if block)
+
+
+def tab_head(label: str, tab: str) -> list[str]:
+    return [f"👤 <b>{who(label)}</b> · {tab}"]
 
 
 def identity(label: str, wallet: Wallet) -> list[str]:

@@ -184,6 +184,10 @@ class GamesFlowsTest(BotHarness):
         self.game.repo.set_counter(3, "hl_best", 7)
         self.session.refuse = {"SendEphemeralMessage"}
         await self.press("m:me", sender=3)
-        profile = self.session.of("EditMessageText")[-1].text
-        for part in ("Сезон", "Казино", "Рекорды", "Выше-ниже"):
-            self.assertIn(part, profile)
+        self.assertIn("Сезон", self.session.of("EditMessageText")[-1].text)
+        await self.press("m:me:casino", sender=3)
+        casino_tab = self.session.of("EditMessageText")[-1].text
+        for part in ("Казино", "Рекорды", "Выше-ниже"):
+            self.assertIn(part, casino_tab)
+        await self.press("m:me:pics", sender=3)
+        self.assertIn("Склад", self.session.of("EditMessageText")[-1].text)

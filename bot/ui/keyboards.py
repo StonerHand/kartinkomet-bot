@@ -456,9 +456,15 @@ def tops(active: str, week: bool = False) -> InlineKeyboardMarkup:
     )
 
 
-def profile(best_pic: str | None) -> InlineKeyboardMarkup:
-    show = [button("⭐ Лучшая пикча", f"show:{best_pic}", PRIMARY)] if best_pic else []
-    return markup(show, back())
+PROFILE_TABS = (("main", "👤 Основное"), ("pics", "📦 Склад"), ("casino", "🎰 Казино"), ("ach", "🏅 Ачивки"))
+
+
+def profile(best_pic: str | None, tab: str = "main") -> InlineKeyboardMarkup:
+    """Tabs two to a row, the open one highlighted; the best pic from the main and warehouse tabs."""
+    tabs = [button(label, "m:me" if code == "main" else f"m:me:{code}", PRIMARY if code == tab else None)
+            for code, label in PROFILE_TABS]
+    show = [button("⭐ Лучшая пикча", f"show:{best_pic}", SUCCESS)] if best_pic and tab in ("main", "pics") else []
+    return markup(tabs[:2], tabs[2:], show, back())
 
 
 def upload_hub(is_private: bool) -> InlineKeyboardMarkup:

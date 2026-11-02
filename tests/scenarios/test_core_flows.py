@@ -402,7 +402,10 @@ class CoreFlowsTest(BotHarness):
         text = self.session.of("EditMessageText")[-1].text
         self.assertIn("🪙 <b>70</b> монет", text)
         self.assertIn("🙂 Свой", text)
-        self.assertIn("\n🎯 Оракул\n", text)
+        self.assertIn("🏅 Ачивки · <b>1</b>", text)
+        self.assertIn("m:me:ach", self.buttons(self.session.of("EditMessageText")[-1]))
+        await self.press("m:me:ach", sender=3)
+        self.assertIn("\n🎯 Оракул\n", self.session.of("EditMessageText")[-1].text)
 
     async def test_rich_top(self) -> None:
         self.game.repo.remember_user(3, "user3", "user3", None, self.game.now())
