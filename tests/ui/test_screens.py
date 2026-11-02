@@ -295,7 +295,7 @@ class ScreensTest(BotHarness):
             spin = game_rules.Spin(kind, 0, "Пиксельное величие" if kind == "title" else "")
             texts.append(views.spin_result("stoner_hand", spin, None, 5_000_000, -100))
         texts.append(views.admin_stats({key: 12345 for key in ("players_today", "duels", "spin", "higher")}))
-        texts.append(views.admin({"alive": 1234, "executed": 56}, 12, "/data/kartinkomet_v2.sqlite", 1_234_567, 617.3, 3.0))
+        texts.append(views.admin({"alive": 1234, "executed": 56}, 12, "/data/kartinkomet_v2.sqlite", 1_234_567, 617.3, (812, 37)))
         people = list(NAMES.values())
         question = "Кто ответит на сообщение через три дня и сделает вид, что так и надо?"
         for counts in ([0] * 6, [5, 0, 2, 11, 1, 0]):

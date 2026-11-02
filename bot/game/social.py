@@ -51,7 +51,7 @@ class SocialMixin:
         ready = self.repo.counter(robber, "rob_ready_at")
         if ready > now:
             return RobResult("cooldown", wait=ready - now)
-        if self.repo.player(robber)[0] < shop.ROB_MIN_BALANCE:
+        if self.repo.player(robber)[0] < self.scaled(shop.ROB_MIN_BALANCE):
             return RobResult("poor_robber")
         return None
 
@@ -62,7 +62,7 @@ class SocialMixin:
             victim != robber
             and not (spouse and spouse[0] == victim)
             and self.repo.counter(victim, "robbed_until") <= self.now()
-            and self.repo.player(victim)[0] >= shop.ROB_MIN_BALANCE
+            and self.repo.player(victim)[0] >= self.scaled(shop.ROB_MIN_BALANCE)
         )
 
     def rob(self, robber: int, victim: int) -> RobResult:
@@ -81,7 +81,7 @@ class SocialMixin:
             return blocked
         robber_coins = self.repo.player(robber)[0]
         victim_coins = self.repo.player(victim)[0]
-        if victim_coins < shop.ROB_MIN_BALANCE:
+        if victim_coins < self.scaled(shop.ROB_MIN_BALANCE):
             return RobResult("poor_victim")
 
         self.repo.set_counter(robber, "rob_ready_at", now + shop.ROB_COOLDOWN)
@@ -100,7 +100,7 @@ class SocialMixin:
             self.repo.incr_counter(victim, "times_robbed")
             self.progress(robber, "rob_success")
             return RobResult("success", amount, granted=self.check_achievements([robber, victim]))
-        return self._caught(robber, victim, shop.rob_fine(robber_coins))
+        return self._caught(robber, victim, shop.rob_fine(robber_coins, self.scaled(shop.ROB_FINE_MIN)))
 
     def _caught(self, robber: int, victim: int, fine: int, guarded: bool = False) -> RobResult:
         """A failed robbery: the robber pays the victim and goes to jail."""

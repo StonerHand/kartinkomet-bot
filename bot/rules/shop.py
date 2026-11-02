@@ -88,8 +88,8 @@ JAIL_SECONDS = 6 * 3600
 VICTIM_PROTECTION = 3600
 
 
-def rob_fine(balance: int) -> int:
-    return min(balance, max(ROB_FINE_MIN, int(balance * ROB_FINE_SHARE)))
+def rob_fine(balance: int, minimum: int = ROB_FINE_MIN) -> int:
+    return min(balance, max(minimum, int(balance * ROB_FINE_SHARE)))
 
 
 # ── marriage ───────────────────────────────────────────────────────────

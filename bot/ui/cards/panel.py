@@ -120,10 +120,10 @@ def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str
     )
 
 
-def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, prices: float = 1.0,
-          rewards: float = 1.0, duplicates: tuple[int, int] = (0, 0)) -> str:
-    """wallet: the typical (median) balance of active players; prices, rewards: how much each has
-    grown with it. Rewards stop at ×3, so a growing gap between the two is inflation building up."""
+def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, factor: float = 1.0,
+          duplicates: tuple[int, int] = (0, 0)) -> str:
+    """wallet: the average wallet of the money pool (active players, admins included); factor:
+    what every price, reward and fine is multiplied by because of it."""
     return card(
         "⚙️ <b>Админка</b>",
         "Только для админов",
@@ -137,8 +137,8 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, pr
         ],
         [
             "💰 <b>Экономика</b>",
-            f"обычный кошелёк <b>{num(wallet)}</b>",
-            f"цены ×<b>{_factor(prices)}</b> · награды ×<b>{_factor(rewards)}</b>",
+            f"средний кошелёк <b>{num(wallet)}</b>",
+            f"все суммы ×<b>{_factor(factor)}</b>",
         ],
         [
             "🕒 <b>Расписание</b>",

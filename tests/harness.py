@@ -6,6 +6,7 @@ to it, turns animations and pauses off, and checks every message against the des
 (tests/layout.py) when a test ends."""
 
 import json
+import logging
 import unittest
 from datetime import UTC, datetime
 from itertools import count
@@ -139,6 +140,18 @@ def wire(value):
     return value
 
 
+class ErrorLog(logging.Handler):
+    """Collects ERROR and worse; assertLogs() blocks keep the errors a test expects to themselves."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.ERROR)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        error = record.exc_info[1] if record.exc_info else None
+        self.messages.append(f"{record.getMessage()} {error!r}" if error else record.getMessage())
+
+
 def user(user_id: int) -> User:
     return User(id=user_id, is_bot=False, first_name=f"user{user_id}", username=f"user{user_id}")
 
@@ -147,6 +160,11 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
     """Fake Telegram plus helpers; test classes inherit it."""
 
     async def asyncSetUp(self) -> None:
+        # An exception in a handler or a live task is only logged in production (the chat sees
+        # nothing), so a test would pass over it: every unexpected error fails the test instead.
+        self.errors = ErrorLog()
+        logging.getLogger().addHandler(self.errors)
+        self.addCleanup(logging.getLogger().removeHandler, self.errors)
         self.game, self.clock, temp = make_game(pics=10, uploader=ADMIN)
         self.addCleanup(temp.cleanup)
         self.session = FakeSession()
@@ -178,6 +196,7 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         for router in self.dispatcher.sub_routers:
             router._parent_router = None
         self.check_outgoing()
+        self.assertEqual(self.errors.messages, [], "errors were logged")
 
     def check_outgoing(self) -> None:
         for request in self.session.requests:

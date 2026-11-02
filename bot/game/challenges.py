@@ -35,7 +35,7 @@ class ChallengesMixin:
         else one of DICE_DUEL_GAMES."""
         if game and game not in DICE_DUEL_GAMES:
             return "gone", None
-        if stake < shop.CHALLENGE_MIN:
+        if stake < self.scaled(shop.CHALLENGE_MIN):
             return "small", None
         if opponent == challenger:
             return "self", None

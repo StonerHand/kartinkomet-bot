@@ -76,7 +76,7 @@ async def play(
         bot,
         chat_id,
         views.casino_result(label, result, values, chat_id),
-        keyboards.casino_again(code, max(casino.STAKE_MIN, min(stake, max(result.balance, casino.STAKE_MIN)))),
+        keyboards.casino_again(code, max(game.stake_min(), min(stake, max(result.balance, game.stake_min())))),
         reply_to=first.message_id,
     )
     if result.profit >= result.stake * 5 and sent is not None:  # a big win deserves fireworks
@@ -160,11 +160,11 @@ async def set_stake(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     if raw.startswith("p") and raw[1:].isdigit():
         share = int(raw[1:])
         game.set_stake_share(user_id, share)
-        stake = casino.share_stake(balance, share)
+        stake = casino.share_stake(balance, share, game.stake_min())
         await callback.answer(f"🎟 Ставка {share}% баланса, сейчас это {views.num(stake)} 🪙. {pick(texts.STAKE_SET)}")
         await show_stake(bot, game, callback)
         return
-    amount = int(raw) if raw.isdigit() else casino.DEFAULT_STAKE  # buttons of older messages
+    amount = int(raw) if raw.isdigit() else game.scaled(casino.DEFAULT_STAKE)  # buttons of older messages
     game.set_stake(user_id, amount)
     await callback.answer(f"🎟 Ставка {views.num(amount)} 🪙. {pick(texts.STAKE_SET)}")
     await show_stake(bot, game, callback)
@@ -193,5 +193,5 @@ async def game_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live)
 @router.callback_query(F.data.startswith("cp:"))
 async def again_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     _, code, raw = callback.data.split(":", 2)
-    stake = int(raw) if raw.isdigit() else casino.DEFAULT_STAKE
+    stake = int(raw) if raw.isdigit() else game.scaled(casino.DEFAULT_STAKE)
     await play_button(callback, bot, game, live, code, stake)

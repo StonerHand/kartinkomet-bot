@@ -103,10 +103,10 @@ class Game(
 
     def pay(self, user_id: int | None, amount: int, reason: str, earn: bool = True) -> int:
         """Credit coins; returns what was paid. Rewards the game creates out of thin air (votes,
-        quests, the daily bonus, chests, the wheel…) grow with the chat's wealth, like prices do,
-        up to ×REWARD_FACTOR_CAP. The level counts their base amount, so it doesn't grow with
-        them. Shares of a pool (boss loot, bounties) are already in today's money: they are paid
-        as they are and count for the level divided back by the reward factor."""
+        quests, the daily bonus, chests, the wheel…) follow the chat's money pool, like every
+        other amount. The level counts their base amount, so it doesn't grow with them. Shares
+        of a pool (boss loot, bounties) are already in today's money: they are paid as they are
+        and count for the level divided back by the factor."""
         if not isinstance(user_id, int) or not amount:
             return 0
         if reason in ACTIVITY_REASONS and amount > 0:
@@ -120,7 +120,7 @@ class Game(
         return amount
 
     def reward(self, amount: int) -> int:
-        """A reward in today's money: the base amount × the capped reward factor (losses too)."""
+        """A reward in today's money: the base amount × the pool's factor (losses too)."""
         return self.reward_scaled(amount) if amount >= 0 else -self.reward_scaled(-amount)
 
     def activity_multiplier(self, reason: str) -> int:

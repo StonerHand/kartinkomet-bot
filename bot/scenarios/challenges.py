@@ -34,18 +34,22 @@ async def run_challenge(bot: Bot, game: Game, live: Live, chat_id: int, author: 
     opponent = state.get("to") or None  # 0: anyone
     status, created = game.create_challenge(chat_id, author, opponent, state["amount"], state.get("kind", ""))
     if status != "ok" or created is None:
-        return CHALLENGE_REFUSALS.get(status, "Не вышло")
+        return challenge_refusal(game, status)
     await post_challenge(bot, game, live, chat_id, created)
     return None
 
 
+def challenge_refusal(game: Game, status: str) -> str:
+    return CHALLENGE_REFUSALS.get(status, "🤺 Не вышло").format(minimum=game.scaled(shop.CHALLENGE_MIN))
+
+
 CHALLENGE_REFUSALS = {
-    "small": f"Минимальная ставка — {shop.CHALLENGE_MIN} монет",
-    "self": "Вызвать самого себя? Шизофрения не входит в правила",
-    "pending": "У тебя уже висит вызов. Дождись ответа",
-    "broke": "Столько у тебя нет",
-    "gone": "Этот вызов уже не повторить",
-    "not_for_you": "Реванш — дело тех двоих",
+    "small": "🤺 Минимальная ставка — {minimum} монет",
+    "self": "🤺 Вызвать самого себя? Шизофрения не входит в правила",
+    "pending": "🤺 У тебя уже висит вызов. Дождись ответа",
+    "broke": "🤺 Столько у тебя нет",
+    "gone": "🤺 Этот вызов уже не повторить",
+    "not_for_you": "🤺 Реванш — дело тех двоих",
 }
 
 
@@ -120,7 +124,7 @@ async def throw_dice_duel(bot: Bot, game: Game, live: Live, chat_id: int, challe
 async def rematch(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None:
     status, created = game.rematch(callback.data.split(":", 1)[1], callback.from_user.id)
     if status != "ok" or created is None:
-        await callback.answer(CHALLENGE_REFUSALS.get(status, "Не вышло"), show_alert=True)
+        await callback.answer(challenge_refusal(game, status), show_alert=True)
         return
     await callback.answer("🔁 Реванш брошен")
     await post_challenge(bot, game, live, callback.message.chat.id, created)

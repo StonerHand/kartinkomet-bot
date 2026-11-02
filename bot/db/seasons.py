@@ -1,9 +1,6 @@
 """Seasons, chat wealth and the monthly coin reset."""
 
 import sqlite3
-from statistics import median
-
-from bot.db.schema import _placeholders
 
 
 class SeasonsRepo:
@@ -67,17 +64,14 @@ class SeasonsRepo:
             )
         ]
 
-    def median_balance(self, since: int, exclude: frozenset[int] | set[int] = frozenset()) -> int:
-        """Median coins of players who earned anything since `since` (admins left out)."""
-        excluded = sorted(exclude)
-        query = (
-            "SELECT p.coins FROM players p WHERE p.user_id IN "
-            "(SELECT DISTINCT user_id FROM ledger WHERE at >= ? AND earn = 1)"
-        )
-        if excluded:
-            query += f" AND p.user_id NOT IN ({_placeholders(excluded)})"
-        balances = [row[0] for row in self.db.execute(query, (since, *excluded))]
-        return int(median(balances)) if balances else 0
+    def money_pool(self, since: int) -> tuple[int, int]:
+        """(coins, players) of everyone who earned anything since `since`, admins included."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(p.coins), 0), COUNT(*) FROM players p WHERE p.user_id IN "
+            "(SELECT DISTINCT user_id FROM ledger WHERE at >= ? AND earn = 1)",
+            (since,),
+        ).fetchone()
+        return row[0], row[1]
 
     def reset_coins(self, to: int, keep: frozenset[int] | set[int], reason: str, now: int) -> int:
         """Set every balance to `to`, except the players in `keep`. Each change goes to the ledger
