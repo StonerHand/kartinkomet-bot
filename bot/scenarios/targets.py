@@ -14,11 +14,11 @@ from dataclasses import dataclass, field
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import shop
-from bot.game import Game
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import shop
+from bot.telegram import send
+from bot.ui import keyboards, views
 
 router = Router(name="targets")
 ASK_SECONDS = 300

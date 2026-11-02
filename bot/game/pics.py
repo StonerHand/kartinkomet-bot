@@ -2,9 +2,9 @@
 
 import sqlite3
 
-from bot.core import court, deck, economy
-from bot.db.repo import Pic
-from bot.services.types import Granted, ReactResult
+from bot.game.types import Granted, ReactResult
+from bot.models.records import Pic
+from bot.rules import court, deck, economy
 
 UPLOAD_LIMIT_PER_HOUR = 1000
 

@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from bot.core import elo
+from bot.rules import elo
 
 DUEL_SECONDS = 60
 TOURNAMENT_SECONDS = 90

@@ -6,11 +6,11 @@ from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, ErrorEvent
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios.pics import react
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg.handlers.pics import react
-from bot.tg.runtime.timers import Live
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="fallback")

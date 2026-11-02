@@ -1,4 +1,4 @@
-"""bot/lean.py: aiogram models are built on first use, and every kind of update still parses."""
+"""bot/telegram/lean.py: aiogram models are built on first use, and every kind of update still parses."""
 
 import subprocess
 import sys
@@ -13,7 +13,8 @@ from aiogram.types import Update
 # getUpdates, before any model has been built by anything else.
 FIRST_REPLIES = """
 import json
-import bot
+from bot.telegram.lean import load_aiogram
+load_aiogram()
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.methods import (

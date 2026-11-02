@@ -2,11 +2,11 @@
 
 from html import escape
 
-from bot.core import progress, shop
-from bot.db.repo import Pic
+from bot.models.records import Pic
+from bot.rules import progress, shop
 from bot.texts import captions
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import num, rating, who
+from bot.ui.layout import num, rating, who
 
 
 def pic_footer(pic: Pic, uploader: str | None, bounty: int = 0) -> str:

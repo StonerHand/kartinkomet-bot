@@ -1,10 +1,10 @@
 """The design system as checks: every message the bot sends goes through layout_problems() and
-assert_html() (see bot/tg/ui/views/layout.card for the rules in words)."""
+assert_html() (see bot/ui/layout.card for the rules in words)."""
 
 import re
 from html.parser import HTMLParser
 
-from bot.tg.ui.views.layout import PHONE_LINE, fits
+from bot.ui.layout import PHONE_LINE, fits
 
 
 class HtmlBalance(HTMLParser):
@@ -33,7 +33,7 @@ def marked(raw: str) -> bool:
 
 
 def layout_problems(text: str) -> list[str]:
-    """The message layout rules (see bot/tg/views/layout.py), as checks:
+    """The message layout rules (see bot/ui/layout.py), as checks:
 
     - one emoji per line, and at its start;
     - a message opens with its mechanic's emoji (a pic's caption: with its italic line);

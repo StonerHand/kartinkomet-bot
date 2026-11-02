@@ -1,9 +1,9 @@
-"""People: gifts, robbery, marriage. Challenges live in services/challenges.py."""
+"""People: gifts, robbery, marriage. Challenges live in game/challenges.py."""
 
 from dataclasses import dataclass, field
 
-from bot.core import days, shop
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.rules import days, shop
 
 
 @dataclass(frozen=True)

@@ -20,17 +20,17 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile
 
-from bot.core import boss as boss_rules
-from bot.core import days, economy
-from bot.game import Game
-from bot.services.economy import STARTER_COINS
+from bot.game.economy import STARTER_COINS
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import boss as boss_rules
+from bot.rules import days, economy
+from bot.scenarios.boss import summon
+from bot.scenarios.court import open_court
+from bot.telegram import send
 from bot.texts import events as texts
 from bot.texts.pick import pick
-from bot.tg.handlers.boss import summon
-from bot.tg.handlers.court import open_court
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 60

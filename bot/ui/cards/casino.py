@@ -2,11 +2,11 @@
 
 from html import escape
 
-from bot.core import casino
-from bot.services.casino import CasinoResult
+from bot.game.casino import CasinoResult
+from bot.rules import casino
 from bot.texts import casino as casino_texts
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import card, money, note, num, who
+from bot.ui.layout import card, money, note, num, who
 
 
 def stake_words(mode: str, value: int, stake: int) -> str:

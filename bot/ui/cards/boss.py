@@ -2,10 +2,10 @@
 
 from html import escape
 
-from bot.core import boss as boss_rules
+from bot.rules import boss as boss_rules
 from bot.texts import boss as boss_texts
 from bot.texts.pick import pick, steady
-from bot.tg.ui.views.layout import MEDALS, card, hp_bar, money, note, num, plural, timer, who
+from bot.ui.layout import MEDALS, card, hp_bar, money, note, num, plural, timer, who
 
 
 PHASES = {

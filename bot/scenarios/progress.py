@@ -6,14 +6,14 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import progress
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import progress
+from bot.telegram import send
 from bot.texts import progress as texts
 from bot.texts.pick import pick
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
-from bot.tg.ui.views import plural
+from bot.ui import keyboards, views
+from bot.ui.views import plural
 
 router = Router(name="progress")
 CHEST_PAUSE = 1.2  # seconds of suspense before the loot; tests set 0

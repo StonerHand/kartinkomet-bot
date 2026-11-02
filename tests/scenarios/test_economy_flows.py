@@ -4,10 +4,10 @@ import asyncio
 
 from aiogram.types import Message
 
-from bot.core import court
-from bot.core.arena import DUEL_SECONDS
-from bot.tg.handlers import shop as shop_tg
-from bot.tg.runtime.events import Events
+from bot.rules import court
+from bot.rules.arena import DUEL_SECONDS
+from bot.scenarios import shop as shop_tg
+from bot.scenarios.schedule import Events
 from tests.harness import ADMIN, BOT_USER, GROUP, BotHarness
 
 

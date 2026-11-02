@@ -2,12 +2,12 @@
 
 from html import escape
 
-from bot.core import court
-from bot.db.repo import Court
-from bot.services.types import CourtReport
+from bot.game.types import CourtReport
+from bot.models.records import Court
+from bot.rules import court
 from bot.texts import court as court_texts
 from bot.texts.pick import pick, steady
-from bot.tg.ui.views.layout import bar, bare, card, cited, money, note, num, timer, who
+from bot.ui.layout import bar, bare, card, cited, money, note, num, timer, who
 
 
 def court_card(trial: Court, remaining: int, uploader: str) -> str:

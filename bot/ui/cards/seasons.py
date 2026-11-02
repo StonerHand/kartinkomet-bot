@@ -2,10 +2,10 @@
 
 from html import escape
 
-from bot.core import seasons
+from bot.rules import seasons
 from bot.texts import seasons as texts
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import MEDALS, card, note, num, plural, who
+from bot.ui.layout import MEDALS, card, note, num, plural, who
 
 PLACE_WORDS = ("победа", "второе место", "третье место")
 

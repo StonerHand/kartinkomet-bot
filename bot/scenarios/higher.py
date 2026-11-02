@@ -5,13 +5,13 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
-from bot.core import games as games_rules
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import games as games_rules
+from bot.telegram import send
+from bot.telegram.pictures import build_collage
 from bot.texts import games as game_texts
-from bot.tg.runtime import send
-from bot.tg.runtime.pictures import build_collage
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 router = Router(name="higher")
 DEFAULT_USERNAME = "kartinkomet_bot"

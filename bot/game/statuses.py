@@ -1,7 +1,7 @@
 """Achievements, level-ups and weekly crowns."""
 
-from bot.core import achievements, economy
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.rules import achievements, economy
 
 
 class StatusMixin:

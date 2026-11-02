@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from bot.core import casino
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.rules import casino
 
 SPORTS = ("dice", "darts", "basket", "football", "bowling")
 ALL_IN_MIN = 300

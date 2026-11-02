@@ -1,8 +1,8 @@
 """People's court and appeals."""
 
-from bot.core import court, economy
-from bot.db.repo import Court
-from bot.services.types import CourtReport, CourtStart
+from bot.game.types import CourtReport, CourtStart
+from bot.models.records import Court
+from bot.rules import court, economy
 
 
 class CourtMixin:

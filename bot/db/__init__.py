@@ -1,1 +1,1 @@
-"""Storage: schema.sql and the repo (all SQL)."""
+"""Storage: schema.sql, migrations and all SQL, one mixin per domain composed into Repo."""

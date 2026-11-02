@@ -2,12 +2,12 @@
 
 from html import escape
 
-from bot.core import progress
-from bot.services.progress import Daily, TaskState
+from bot.game.progress import Daily, TaskState
+from bot.rules import progress
 from bot.texts import days as day_texts
 from bot.texts import progress as progress_texts
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import bare, card, money, num, plural, who
+from bot.ui.layout import bare, card, money, num, plural, who
 
 
 def task_line(task: TaskState) -> str:

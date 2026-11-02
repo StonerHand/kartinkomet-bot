@@ -3,14 +3,14 @@
 from html import escape
 from dataclasses import dataclass
 
-from bot.core import achievements as rules
-from bot.core import economy, seasons
-from bot.db.repo import UserStats
+from bot.models.records import UserStats
+from bot.rules import achievements as rules
+from bot.rules import economy, seasons
 from bot.texts import tops as top_texts
 from bot.texts.achievements import ACHIEVEMENTS
 from bot.texts.pick import pick
-from bot.tg.ui.views.layout import bare, money, note, num, plural, rating, who
-from bot.tg.ui.views.seasons import points, season_badges
+from bot.ui.cards.seasons import points, season_badges
+from bot.ui.layout import bare, money, note, num, plural, rating, who
 
 
 @dataclass(frozen=True)

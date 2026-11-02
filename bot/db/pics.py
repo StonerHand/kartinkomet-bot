@@ -4,7 +4,8 @@ import sqlite3
 from collections.abc import Iterable, Sequence
 from uuid import uuid4
 
-from bot.db.repo.models import Pic, PIC_COLUMNS, MIN_EXPERIENCE, LEGEND_POOL_SIZE, _pic, _placeholders
+from bot.db.schema import PIC_COLUMNS, MIN_EXPERIENCE, LEGEND_POOL_SIZE, _pic, _placeholders
+from bot.models.records import Pic
 
 
 class PicsRepo:

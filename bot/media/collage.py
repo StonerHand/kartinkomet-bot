@@ -45,7 +45,7 @@ def _rounded(size: tuple[int, int], radius: int) -> Image.Image:
     return big.resize(size, Image.Resampling.LANCZOS)
 
 
-# Evolution frames by stage index (see bot.core.shop.STAGES): beast silver, dragon gold, deity violet.
+# Evolution frames by stage index (see bot.rules.shop.STAGES): beast silver, dragon gold, deity violet.
 STAGE_FRAMES = {2: (192, 199, 207), 3: (255, 196, 0), 4: (170, 90, 255)}
 STAGE_FRAME_WIDTH = 6
 COSMETIC_FRAME_WIDTH = 10

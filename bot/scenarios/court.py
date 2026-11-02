@@ -5,13 +5,13 @@ from html import escape
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.telegram import send
 from bot.texts import court as court_texts
 from bot.texts import toasts
 from bot.texts.pick import pick
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 router = Router(name="court")
 

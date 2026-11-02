@@ -6,14 +6,15 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios.court import open_court
+from bot.scenarios.games import drop_gold
+from bot.telegram import send
 from bot.texts import events as event_texts
 from bot.texts import toasts, ui
 from bot.texts.pick import pick
-from bot.tg.handlers.court import open_court
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 router = Router(name="pics")
 
@@ -44,7 +45,6 @@ async def drop_pic(bot: Bot, game: Game, live: Live, chat_id: int, user_id: int 
         return
     pic, bucket, granted = drawn
     if game.roll_gold(chat_id):
-        from bot.tg.handlers.games import drop_gold  # local: games imports arena → avoid an import cycle
 
         if await drop_gold(bot, game, chat_id, pic):
             await live.announce(chat_id, granted)

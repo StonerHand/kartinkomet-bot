@@ -3,8 +3,8 @@
 import json
 from dataclasses import dataclass
 
-from bot.core import boss, casino, court, days, economy, seasons, shop
-from bot.services.progress import STARTER_BONUS
+from bot.game.progress import STARTER_BONUS
+from bot.rules import boss, casino, court, days, economy, seasons, shop
 
 STARTER_COINS = STARTER_BONUS  # a fresh season starts everyone where the v4 starter bonus did
 WEALTH_CACHE_SECONDS = 60

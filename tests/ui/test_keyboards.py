@@ -1,6 +1,6 @@
 import unittest
 
-from bot.tg.ui import keyboards
+from bot.ui import keyboards
 
 PIC = "f" * 32
 BATTLE = "b" * 16

@@ -2,13 +2,13 @@
 
 from html import escape
 
-from bot.core import games as game_rules
-from bot.core import economy
-from bot.core import shop
-from bot.db.repo import Pic
+from bot.models.records import Pic
+from bot.rules import games as game_rules
+from bot.rules import economy
+from bot.rules import shop
 from bot.texts import games as game_texts
 from bot.texts.pick import pick, steady
-from bot.tg.ui.views.layout import card, money, note, num, plural, rating, timer, who
+from bot.ui.layout import card, money, note, num, plural, rating, timer, who
 
 
 def caption_card(game: dict, remaining: int) -> str:

@@ -10,14 +10,16 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import casino
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import casino
+from bot.scenarios.panel import open_screen
+from bot.telegram import send
 from bot.texts import casino as texts
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
+from bot.ui.screens import Ctx, render
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="casino")
@@ -101,7 +103,6 @@ async def play_command(message: Message, command: CommandObject, bot: Bot, game:
 
 @router.message(Command("casino"))
 async def casino_command(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    from bot.tg.handlers.panel import open_screen  # local: panel imports this package, keep imports one-way
 
     await open_screen(message, bot, game, admins, "casino")  # it shows the asker's coins and stake
 
@@ -141,7 +142,6 @@ async def show_stake(bot: Bot, game: Game, callback: CallbackQuery) -> None:
     The chat's shared panel isn't redrawn: it would show one person's stake to everyone."""
     message = callback.message
     if isinstance(message, Message) and (message.ephemeral_message_id or message.chat.type == "private"):
-        from bot.tg.ui.screens import Ctx, render  # local: screens imports the views this module shares
 
         text, markup = render("casino", Ctx(game, message.chat.id, callback.from_user.id))
         await send.redraw(bot, message, callback.from_user.id, text, markup)

@@ -3,7 +3,8 @@
 import sqlite3
 from collections.abc import Sequence
 
-from bot.db.repo.models import UserStats, MIN_EXPERIENCE, LEGEND_POOL_SIZE, _placeholders
+from bot.db.schema import MIN_EXPERIENCE, LEGEND_POOL_SIZE, _placeholders
+from bot.models.records import UserStats
 
 
 class StatsRepo:

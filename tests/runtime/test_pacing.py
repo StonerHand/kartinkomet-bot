@@ -7,8 +7,8 @@ import time
 from aiogram.exceptions import TelegramRetryAfter
 from aiogram.methods import EditMessageCaption
 
-from bot.core import boss as boss_rules
-from bot.tg.runtime import timers
+from bot.live import timers
+from bot.rules import boss as boss_rules
 from tests.harness import BotHarness
 
 

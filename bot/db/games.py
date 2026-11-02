@@ -3,7 +3,8 @@
 import sqlite3
 from uuid import uuid4
 
-from bot.db.repo.models import Pic, PIC_COLUMNS, _pic
+from bot.db.schema import PIC_COLUMNS, _pic
+from bot.models.records import Pic
 
 
 class GamesRepo:

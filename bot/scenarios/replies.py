@@ -5,12 +5,12 @@ the bot asked for, a caption-contest entry."""
 from aiogram import Bot, F, Router
 from aiogram.types import Message
 
-from bot.game import Game
-from bot.tg.handlers.court import last_word_reply
-from bot.tg.handlers.games import caption_reply
-from bot.tg.handlers.shop import title_reply
-from bot.tg.handlers.targets import answer
-from bot.tg.runtime.timers import Live
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios.court import last_word_reply
+from bot.scenarios.games import caption_reply
+from bot.scenarios.shop import title_reply
+from bot.scenarios.targets import answer
 
 router = Router(name="replies")
 

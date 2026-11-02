@@ -3,7 +3,7 @@
 import sqlite3
 from statistics import median
 
-from bot.db.repo.models import _placeholders
+from bot.db.schema import _placeholders
 
 
 class SeasonsRepo:

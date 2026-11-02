@@ -3,8 +3,8 @@
 from dataclasses import dataclass, field
 from time import monotonic
 
-from bot.core import boss as rules
-from bot.services.types import Granted
+from bot.game.types import Granted
+from bot.rules import boss as rules
 
 
 @dataclass(frozen=True)

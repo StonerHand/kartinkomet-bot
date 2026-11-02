@@ -1,3 +1,5 @@
+"""The bot as a process: menu commands, the dispatcher with every router, polling, the schedule, shutdown."""
+
 import asyncio
 import logging
 from datetime import UTC, datetime
@@ -6,17 +8,17 @@ from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats, CallbackQuery
 
-from bot.config import load_config
+from bot.app.config import load_config
+from bot.app.middleware import RememberUser
+from bot.app.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
 from bot.db.repo import Repo
-from bot.game import Game
-from bot.tg.handlers import (
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, pics, progress, replies,
     shop, social, targets, upload,
 )
-from bot.tg.runtime.events import Events
-from bot.tg.runtime.middleware import RememberUser
-from bot.tg.runtime.timers import Live
-from bot.tg.runtime.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
+from bot.scenarios.schedule import Events
 
 LOGGER = logging.getLogger("kartinkomet")
 STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
@@ -195,6 +197,3 @@ async def main() -> None:
     if watchdog.stalled:
         raise SystemExit(1)  # a failure exit: Railway restarts the process and records the crash
 
-
-if __name__ == "__main__":
-    asyncio.run(main())

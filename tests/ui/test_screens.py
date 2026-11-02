@@ -9,16 +9,16 @@ from datetime import UTC, datetime
 
 from aiogram.types import Message
 
-from bot.core import days as day_rules
-from bot.core import games as game_rules
-from bot.core import progress as progress_rules
-from bot.core.arena import DUEL_SECONDS
-from bot.services.progress import Opened
-from bot.tg.handlers import casino as casino_tg
-from bot.tg.handlers import pics as pics_tg
-from bot.tg.handlers import progress as progress_tg
-from bot.tg.runtime.events import Events
-from bot.tg.ui import views
+from bot.game.progress import Opened
+from bot.rules import days as day_rules
+from bot.rules import games as game_rules
+from bot.rules import progress as progress_rules
+from bot.rules.arena import DUEL_SECONDS
+from bot.scenarios import casino as casino_tg
+from bot.scenarios import pics as pics_tg
+from bot.scenarios import progress as progress_tg
+from bot.scenarios.schedule import Events
+from bot.ui import views
 from tests.harness import ADMIN, GROUP, BotHarness, user
 from tests.layout import assert_html, layout_problems
 
@@ -126,8 +126,8 @@ class ScreensTest(BotHarness):
 
     def test_every_achievement_and_level_announcement(self) -> None:
         """Checked one by one: in a live test only a random few of them would come up."""
-        from bot.core import achievements, economy
-        from bot.services.types import Granted
+        from bot.rules import achievements, economy
+        from bot.game.types import Granted
 
         many = [(name, Granted(index, [])) for index, name in enumerate(NAMES.values())]
         for code in achievements.ALL_CODES:
@@ -144,8 +144,8 @@ class ScreensTest(BotHarness):
 
         from bot.texts import arena as arena_texts
         from bot.texts import court as court_texts
-        from bot.tg.ui.views import arena as arena_views
-        from bot.tg.ui.views import court as court_views
+        from bot.ui.cards import arena as arena_views
+        from bot.ui.cards import court as court_views
 
         game = self.game
         duel = game.start_duel(-100).battle
@@ -179,9 +179,9 @@ class ScreensTest(BotHarness):
         """Result cards with every optional block: battles, courts, bosses, challenges, purchases."""
         from dataclasses import replace
 
-        from bot.core.arena import TOURNAMENT_SECONDS
-        from bot.core.court import COURT_SECONDS
-        from bot.tg.ui.views.shop import PURCHASE_FACTS
+        from bot.rules.arena import TOURNAMENT_SECONDS
+        from bot.rules.court import COURT_SECONDS
+        from bot.ui.cards.shop import PURCHASE_FACTS
 
         game, repo, labels = self.game, self.game.repo, dict(NAMES)
         texts = []
@@ -238,11 +238,11 @@ class ScreensTest(BotHarness):
     def test_v5_cards_in_every_state(self) -> None:
         """Seasons, the new games, dice duels, raids, prizes and the admin stats; prices as a very
         rich chat sees them, so long numbers still fit."""
-        from bot.core import boss as boss_rules
-        from bot.core import games as game_rules
-        from bot.core import progress as progress_rules
-        from bot.services.quiz import HLAnswer
-        from bot.services.challenges import DiceDuel
+        from bot.rules import boss as boss_rules
+        from bot.rules import games as game_rules
+        from bot.rules import progress as progress_rules
+        from bot.game.quiz import HLAnswer
+        from bot.game.challenges import DiceDuel
 
         game, repo = self.game, self.game.repo
         for user_id in NAMES:

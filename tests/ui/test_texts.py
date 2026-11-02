@@ -1,6 +1,6 @@
 import unittest
 
-from bot.core.achievements import ALL_CODES
+from bot.rules.achievements import ALL_CODES
 from bot.texts import arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui
 from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick, reset
@@ -91,7 +91,7 @@ class TextsTest(unittest.TestCase):
 
     def test_emoji_only_at_the_start_of_a_phrase(self) -> None:
         """Phrases become lines of a message: an emoji may open one, never sit inside it."""
-        from bot.tg.ui.views import bare
+        from bot.ui.views import bare
 
         for pool_name, pool in all_pools():
             for phrase in pool:

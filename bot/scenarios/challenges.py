@@ -9,14 +9,15 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from bot.core import casino, shop
-from bot.game import Game
+from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.rules import casino, shop
+from bot.scenarios import targets
+from bot.scenarios.arena import launch_battle
+from bot.telegram import send
 from bot.texts import social as texts
 from bot.texts.pick import pick
-from bot.tg.handlers import targets
-from bot.tg.runtime import send
-from bot.tg.runtime.timers import Live
-from bot.tg.ui import keyboards, views
+from bot.ui import keyboards, views
 
 LOGGER = logging.getLogger(__name__)
 router = Router(name="challenges")
@@ -158,7 +159,6 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
         await callback.answer("Вызов закрыт, ставка вернулась")
         return
     await callback.answer("🤺 Вызов принят! Собираю арену")
-    from bot.tg.handlers.arena import launch_battle  # local: arena imports timers, avoid a cycle at import
 
     if await launch_battle(bot, game, live, result.battle) != "started":
         await send.send_text(bot, chat_id, "Арена не открылась — ставки вернулись")

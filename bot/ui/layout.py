@@ -113,7 +113,7 @@ def card(head: str, flavour: str | None = None, *blocks) -> str:
 
     A block is a string or a list of lines; empty lines inside a block and empty blocks are
     dropped, so callers never glue or double the spacing by hand. Outside the box a line that
-    wraps on a phone stands alone or ends its block. tests/test_texts.layout_problems checks all
+    wraps on a phone stands alone or ends its block. tests/layout.layout_problems checks all
     of this on every message the bot sends."""
     top = header(head) + (f"\n<i>{escape(bare(flavour))}</i>" if flavour else "")  # the header owns the emoji
     parts = [top]

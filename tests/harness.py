@@ -26,11 +26,12 @@ from aiogram.types import (
     WebhookInfo,
 )
 
-from bot.__main__ import build_dispatcher
-from bot.tg.handlers import casino, challenges, games, pics, progress, shop, upload
-from bot.tg.runtime import pictures, send, timers
-from bot.tg.runtime.events import Events
-from bot.tg.runtime.timers import Live
+from bot.app.main import build_dispatcher
+from bot.live import timers
+from bot.live.timers import Live
+from bot.scenarios import casino, challenges, games, pics, progress, shop, upload
+from bot.scenarios.schedule import Events
+from bot.telegram import pictures, send
 from tests.helpers import make_game
 from tests.layout import assert_html, layout_problems
 

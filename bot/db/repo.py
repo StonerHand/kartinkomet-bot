@@ -1,35 +1,18 @@
-"""All SQL lives here, one mixin per domain. Everything else talks to the database through Repo."""
+"""Repo: every domain's SQL mixin in one object. Everything else talks to the database through it."""
 
 from pathlib import Path
 
-from bot.db.repo.arena import ArenaRepo
-from bot.db.repo.chats import ChatsRepo
-from bot.db.repo.core import MetaRepo
-from bot.db.repo.court import CourtRepo
-from bot.db.repo.economy import EconomyRepo
-from bot.db.repo.games import GamesRepo
-from bot.db.repo.people import PeopleRepo
-from bot.db.repo.pics import PicsRepo
-from bot.db.repo.seasons import SeasonsRepo
-from bot.db.repo.stats import StatsRepo
-from bot.db.repo.models import (
-    LEGEND_POOL_SIZE,
-    MIN_EXPERIENCE,
-    PIC_COLUMNS,
-    SCHEMA_PATH,
-    SCHEMA_VERSION,
-    Battle,
-    Court,
-    Pic,
-    UserStats,
-    apply_schema,
-    connect,
-)
-
-__all__ = [
-    "LEGEND_POOL_SIZE", "MIN_EXPERIENCE", "PIC_COLUMNS", "SCHEMA_PATH", "SCHEMA_VERSION",
-    "Battle", "Court", "Pic", "Repo", "UserStats", "apply_schema", "connect",
-]
+from bot.db.arena import ArenaRepo
+from bot.db.chats import ChatsRepo
+from bot.db.court import CourtRepo
+from bot.db.economy import EconomyRepo
+from bot.db.games import GamesRepo
+from bot.db.meta import MetaRepo
+from bot.db.people import PeopleRepo
+from bot.db.pics import PicsRepo
+from bot.db.schema import apply_schema, connect
+from bot.db.seasons import SeasonsRepo
+from bot.db.stats import StatsRepo
 
 
 class Repo(
