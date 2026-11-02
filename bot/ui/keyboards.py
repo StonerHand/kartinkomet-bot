@@ -286,6 +286,14 @@ def bet(round_id: str, stakes: list[int]) -> InlineKeyboardMarkup:
     )
 
 
+def heist_recruit(round_id: str) -> InlineKeyboardMarkup:
+    return markup([button("🦹 В деле", f"hj:{round_id}", DANGER)])
+
+
+def heist_vote(round_id: str, labels: tuple[str, str]) -> InlineKeyboardMarkup:
+    return markup([button(labels[0], f"hv:{round_id}:0", PRIMARY), button(labels[1], f"hv:{round_id}:1", SUCCESS)])
+
+
 def after_party(kind: str) -> InlineKeyboardMarkup:
     again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER)}
     return markup([again[kind], more()])

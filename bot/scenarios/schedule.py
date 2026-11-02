@@ -25,7 +25,8 @@ from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.rules import boss as boss_rules
 from bot.rules import days, economy
-from bot.scenarios import party
+from bot.rules import show as show_rules
+from bot.scenarios import party, show
 from bot.scenarios.boss import summon
 from bot.scenarios.court import open_court
 from bot.telegram import send
@@ -55,6 +56,7 @@ JOBS = (
     Job("who_of_us", 13, None, per_chat=True),
     Job("redistribution", 18, None, per_chat=True),
     Job("auto_court", 19, None, per_chat=True),
+    Job("evening_show", show_rules.SHOW_HOUR, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
     Job("season_warning", 12, None, per_chat=True),  # posts only on the last day of a month
 )
@@ -78,6 +80,7 @@ class Events:
             "season_warning": self.season_warning,
             "redistribution": self.redistribution,
             "who_of_us": self.who_of_us,
+            "evening_show": self.evening_show,
         }
 
     def start(self) -> None:
@@ -102,6 +105,7 @@ class Events:
     async def tick(self) -> None:
         await self.close_season()
         await party.announce_expired_bets(self.bot, self.game)
+        await show.advance_cups(self.bot, self.game, self.live)
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:
@@ -165,6 +169,10 @@ class Events:
     async def who_of_us(self, chat_id: int) -> bool:
         """13:00: the day's "who of us" poll, unless one is running."""
         return await party.start_who(self.bot, self.game, self.live, chat_id, scheduled=True) == "started"
+
+    async def evening_show(self, chat_id: int) -> bool:
+        """21:00: a heist one night, the big cup the next."""
+        return await show.evening_show(self.bot, self.game, self.live, chat_id)
 
     async def redistribution(self, chat_id: int) -> bool:
         """18:00: one wallet goes to everyone. Moved once a day, announced in every chat."""

@@ -74,6 +74,16 @@ class PartyRepo:
             )
         return cursor.rowcount == 1
 
+    def update_round(self, round_id: str, ends_at: int, text: str) -> None:
+        with self.db:
+            self.db.execute("UPDATE rounds SET ends_at = ?, text = ? WHERE id = ? AND status = 'open'",
+                            (ends_at, text, round_id))
+
+    def clear_round_choices(self, round_id: str) -> None:
+        """Every vote back to 'none yet' (-1), stakes kept: a heist's next stage."""
+        with self.db:
+            self.db.execute("UPDATE round_votes SET choice = -1 WHERE round_id = ?", (round_id,))
+
     def close_round(self, round_id: str, result: int | None) -> bool:
         """Only the first call closes it."""
         with self.db:
