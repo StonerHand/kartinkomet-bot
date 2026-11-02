@@ -134,6 +134,7 @@ def me(ctx: Ctx) -> Screen:
         records=records(repo, user_id),
         badges=tuple(game.badges_of(user_id)),
     )
+    tab = ctx.arg if ctx.arg in ("pics", "casino", "ach") else "main"
     text = views.profile(
         repo.user_label(user_id),
         stats,
@@ -142,9 +143,10 @@ def me(ctx: Ctx) -> Screen:
         wallet,
         repo.achievement_owners(),
         max(1, repo.count_users()),
+        tab,
     )
-    best = best_pic(repo, user_id)
-    return text, keyboards.profile(best[0] if best else None)
+    best = wallet.best_pic
+    return text, keyboards.profile(best[0] if best else None, tab)
 
 
 RECORDS = (
