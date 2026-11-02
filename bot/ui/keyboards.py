@@ -104,9 +104,11 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
 
 def games_menu() -> InlineKeyboardMarkup:
     return markup(
+        [button("🗳 Кто из нас", "gm:who", PRIMARY), button("💣 Бомба", "gm:bomb", DANGER)],
         [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
         [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
         [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
+        [button("🤝 Спор", "gm:bet")],
         back(),
     )
 
@@ -261,6 +263,32 @@ def clip(label: str, limit: int = 11) -> str:
 def whose(game_id: str, labels: list[str]) -> InlineKeyboardMarkup:
     buttons = [button(clip(label), f"wh:{game_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
     return markup(buttons[:2], buttons[2:])
+
+
+# ── games about people ─────────────────────────────────────────────────
+
+
+def who(round_id: str, labels: list[str]) -> InlineKeyboardMarkup:
+    buttons = [button(clip(label), f"wq:{round_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
+    return markup(buttons[0:2], buttons[2:4], buttons[4:6])
+
+
+def bomb(round_id: str) -> InlineKeyboardMarkup:
+    return markup([button("💨 Передать наугад", f"bm:{round_id}", DANGER)])
+
+
+def bet(round_id: str, stakes: list[int]) -> InlineKeyboardMarkup:
+    """Stakes on either side, then the author's verdict."""
+    return markup(
+        [button(f"✅ {short(amount)}", f"sp:{round_id}:1:{index}", SUCCESS) for index, amount in enumerate(stakes)],
+        [button(f"❌ {short(amount)}", f"sp:{round_id}:0:{index}", DANGER) for index, amount in enumerate(stakes)],
+        [button("🏁 Сбылось", f"sv:{round_id}:1"), button("🙅 Не сбылось", f"sv:{round_id}:0")],
+    )
+
+
+def after_party(kind: str) -> InlineKeyboardMarkup:
+    again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER)}
+    return markup([again[kind], more()])
 
 
 def after_whose() -> InlineKeyboardMarkup:

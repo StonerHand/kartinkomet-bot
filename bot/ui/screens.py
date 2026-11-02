@@ -115,6 +115,7 @@ def me(ctx: Ctx) -> Screen:
         casino=repo.casino_stats(user_id),
         best_pic=best_pic(repo, user_id),
         records=records(repo, user_id),
+        badges=tuple(game.badges_of(user_id)),
     )
     text = views.profile(
         repo.user_label(user_id),
