@@ -11,6 +11,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from bot.game.engine import Game
 from bot.rules import casino
+from bot.rules import show as show_rules
 from bot.texts import ui
 from bot.ui import keyboards, views
 
@@ -170,6 +171,7 @@ def casino_screen(ctx: Ctx) -> Screen:
         game.day_is("lucky_day"),
         mode,
         value,
+        game.jackpot(),
     )
     current = {"all": "all", "share": f"p{value}"}.get(mode, "")
     return text, keyboards.casino_menu(casino.STAKE_SHARES, current)
@@ -230,6 +232,31 @@ def admin(ctx: Ctx) -> Screen:
     return text, keyboards.admin(events_on)
 
 
+# Local hour → what the schedule does then, for «Сегодня в чате».
+DAY_PLAN = (
+    (10, "📰", "событие дня"), (11, "🎯", "тема дня"), (12, "🌅", "пикча дня"), (13, "🗳", "кто из нас"),
+    (16, "👹", "босс"), (18, "💸", "великий передел"), (19, "⚖️", "суд над худшей"), (21, "🎬", None),
+)
+
+
+def today(ctx: Ctx) -> Screen:
+    """The chat's day at a glance, and what the viewer hasn't done yet today."""
+    game, user_id = ctx.game, ctx.user_id
+    hour = (game.now() // 3600 + game.tz_offset_hours) % 24
+    tonight = "ограбление" if show_rules.show_of(game.local_day()) == "heist" else "большой турнир"
+    plan = [(at, emoji, what or f"шоу: {tonight}", at <= hour) for at, emoji, what in DAY_PLAN]
+    daily_left = game.repo.counter(user_id, "daily_day") != game.local_day()
+    tasks, _ = game.quests_of(user_id)
+    mine = [
+        ("бонус дня", not daily_left),
+        ("колесо фортуны", not game.free_spin_available(user_id)),
+        ("гороскоп", not game.horoscope_available(user_id)),
+        (f"квесты {sum(task.finished for task in tasks)}/{len(tasks)}", bool(tasks) and all(t.finished for t in tasks)),
+    ] if game.quests_enabled else []
+    text = views.today_screen(views.day_event_line(game.day_event()), plan, mine, live_now(game, ctx.chat_id))
+    return text, keyboards.today([label for label, done in mine if not done])
+
+
 SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "home": home,
     "hall": hall,
@@ -246,6 +273,7 @@ SCREENS: dict[str, Callable[[Ctx], Screen]] = {
     "help": help_screen,
     "up": upload,
     "adm": admin,
+    "today": today,
 }
 
 
@@ -270,4 +298,12 @@ def live_now(game: Game, chat_id: int) -> list[str]:
         lines.append(f"👹 {kind} · {boss['hp']}/{boss['max_hp']} · ещё {views.timer(boss['ends_at'] - now)}")
     if game.repo.active_challenge_battle(chat_id):
         lines.append("🤺 Идёт вызов")
+    rounds = {"who": "🗳 Кто из нас", "bomb": "💣 Бомба", "croc": "🐊 Крокодил", "heist": "🏦 Ограбление",
+              "cup": "🏆 Большой турнир", "theme": "🎯 Тема дня"}
+    for kind, label in rounds.items():
+        if game.repo.open_rounds(chat_id, kind):
+            lines.append(label)
+    bets = len(game.repo.open_rounds(chat_id, "bet"))
+    if bets:
+        lines.append(f"🤝 Открытых споров: {bets}")
     return lines

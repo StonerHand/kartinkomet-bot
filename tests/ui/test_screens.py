@@ -339,6 +339,11 @@ class ScreensTest(BotHarness):
         texts.append(views.theme_few(theme))
         texts.append(views.owner_change("kcifekzhue", "stoner_hand", 1_500_000))
         texts.append(views.owner_change("Михаил", None, 500))
+        plan = [(10, "📰", "событие дня", True), (13, "🗳", "кто из нас", False), (21, "🎬", "шоу: большой турнир", False)]
+        mine = [("бонус дня", True), ("колесо фортуны", False), ("квесты 1/3", False)]
+        texts.append(views.today_screen(views.day_event_line(None), plan, mine, ["💣 Бомба", "🤝 Открытых споров: 3"]))
+        texts.append(views.today_screen("", plan, [], []))
+        texts.append(views.casino_screen("stoner_hand", 5_000_000, 50_000, -100, False, "share", 10, 1_234_567))
         shares = [(name, 6_000 - index * 900) for index, name in enumerate(NAMES.values())]
         texts.append(views.redistribution("stoner_hand", 1_834_220, shares, -100, burned=1_814_220))
         texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (

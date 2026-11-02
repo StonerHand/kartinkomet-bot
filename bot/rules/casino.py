@@ -144,3 +144,10 @@ def settle_bets(bets: dict[int, tuple[int, int]], winner: int | None) -> dict[in
     if not backing:
         return {}
     return {user: pool * amount // backing for user, (slot, amount) in bets.items() if slot == winner}
+
+
+# ── the chat's jackpot ────────────────────────────────────────────────
+# A share of every lost stake goes into a pot instead of burning; any game can hit it. The pot
+# only holds coins the casino already took, so it creates nothing.
+JACKPOT_SHARE = 0.1
+JACKPOT_ODDS = 150  # one game in this many takes the whole pot

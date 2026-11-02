@@ -97,9 +97,22 @@ def home(is_admin: bool) -> InlineKeyboardMarkup:
         [button("🛒 Лавка", "m:shop", SUCCESS), button("🎁 Бонус", "daily", SUCCESS)],
         [button("📜 Квесты", "m:quests"), button("🏆 Рейтинги", "m:top:uploads")],
         [button("👤 Я", "m:me"), button("📥 Загрузить", "m:up")],
-        [button("❓ Правила", "m:help"), button("🔄 Обновить", "m:home:refresh")],
+        [button("📅 Сегодня", "m:today", PRIMARY), button("❓ Правила", "m:help")],
+        [button("🔄 Обновить", "m:home:refresh")],
         [button("⚙️ Админка", "m:adm")] if is_admin else [],
     )
+
+
+TODAY_BUTTONS = {"бонус дня": ("🎁 Бонус", "daily"), "колесо фортуны": ("🎡 Колесо", "gm:spin"),
+                 "гороскоп": ("🔮 Гороскоп", "gm:horo")}
+
+
+def today(left: list[str]) -> InlineKeyboardMarkup:
+    """Buttons for what the viewer hasn't done yet today."""
+    buttons = [button(*TODAY_BUTTONS[what], SUCCESS) for what in left if what in TODAY_BUTTONS]
+    if any(what.startswith("квесты") for what in left):
+        buttons.append(button("📜 Квесты", "m:quests"))
+    return markup(buttons[:2], buttons[2:4], back())
 
 
 def games_menu() -> InlineKeyboardMarkup:
