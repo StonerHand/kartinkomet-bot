@@ -170,3 +170,15 @@ class PartyFlowsTest(BotHarness):
         await self.press(own, sender=3, personal=True)
         self.assertEqual(self.game.repo.owner_of(pic.id)[0], 3)
         self.assertIn("Новый владелец", self.session.of("SendMessage")[-1].text)
+
+    # ── today in the chat ──────────────────────────────────────────────
+
+    async def test_today_shows_the_day_and_what_is_left_for_me(self) -> None:
+        self.game.quests_enabled = True
+        await self.send("/bomb", sender=2)
+        await self.press("m:today", sender=3)
+        screen = self.screen()
+        self.assertIn("Сегодня в чате", screen)
+        self.assertIn("💣 Бомба", screen)
+        self.assertIn("бонус дня", screen)
+        self.assertIn("daily", self.buttons(self.shown()))

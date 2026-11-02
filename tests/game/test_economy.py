@@ -1,6 +1,7 @@
 """Economy mechanics against a real SQLite database: casino, bets, day events, appeals, shop, people, bosses."""
 
 import unittest
+from unittest import mock
 
 from bot.game.progress import STARTER_BONUS
 from bot.rules import casino, court, progress
@@ -398,3 +399,22 @@ class ProgressTest(GameCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JackpotTest(GameCase):
+    def test_losses_feed_the_pot_and_a_lucky_game_takes_it(self) -> None:
+        self.fund(3, 10_000)
+        with mock.patch.object(self.game.rng, "randrange", return_value=1):  # no hit
+            self.game.place_casino_bet(3, 1000)
+            result = self.game.settle_casino(3, "slots", 1000, (2,))
+        self.assertEqual(result.jackpot, 0)
+        lost = 1000 - result.payout
+        self.assertEqual(self.game.jackpot(), int(lost * casino.JACKPOT_SHARE))
+        pot = self.game.jackpot()
+        self.fund(4, 1000)
+        with mock.patch.object(self.game.rng, "randrange", return_value=0):  # a hit
+            self.game.place_casino_bet(4, 1000)
+            hit = self.game.settle_casino(4, "slots", 1000, (2,))
+        self.assertEqual(hit.jackpot, pot + int((1000 - hit.payout) * casino.JACKPOT_SHARE))
+        self.assertEqual(self.game.jackpot(), 0)
+        self.assertEqual(hit.balance, self.coins(4))

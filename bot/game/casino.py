@@ -18,6 +18,7 @@ class CasinoResult:
     payout: int
     balance: int
     granted: list[Granted]
+    jackpot: int = 0  # the chat's pot, when this game hit it
 
     @property
     def profit(self) -> int:
@@ -25,6 +26,20 @@ class CasinoResult:
 
 
 class CasinoMixin:
+    def jackpot(self) -> int:
+        """The chat's pot: a share of every lost stake, waiting for a lucky game."""
+        return self.repo.meta_int("casino_jackpot")
+
+    def _feed_and_draw_jackpot(self, user_id: int, lost: int) -> int:
+        """A lost stake feeds the pot; then this game may take all of it. Returns what it took."""
+        pot = self.jackpot() + (int(lost * casino.JACKPOT_SHARE) if lost > 0 else 0)
+        won = pot if pot and self.rng.randrange(casino.JACKPOT_ODDS) == 0 else 0
+        self.repo.set_meta("casino_jackpot", pot - won)
+        if won:
+            self.repo.add_coins(user_id, won, "jackpot", self.now(), earn=False)
+            self.repo.incr_counter(user_id, "jackpots")
+        return won
+
     def set_stake(self, user_id: int, amount: int | None) -> None:
         """A fixed stake (a number typed after a command); None means all-in: every game takes
         the whole balance until something else is chosen."""
@@ -79,6 +94,7 @@ class CasinoMixin:
         payout = casino.payout(stake, roll, lucky=self.day_is("lucky_day"))
         if payout:
             self.repo.add_coins(user_id, payout, "casino_win", self.now(), earn=False)
+        jackpot = self._feed_and_draw_jackpot(user_id, stake - payout)
         events: list[str] = []
         self.repo.incr_counter(user_id, "casino_bets")
         self.progress(user_id, "casino_bet")
@@ -99,7 +115,7 @@ class CasinoMixin:
         balance = self.repo.player(user_id)[0]
         if balance == 0:
             events.append("bankrupt")
-        return CasinoResult(game, stake, roll, payout, balance, self.check_achievements([user_id], {user_id: events}))
+        return CasinoResult(game, stake, roll, payout, balance, self.check_achievements([user_id], {user_id: events}), jackpot)
 
     # ── arena bets ─────────────────────────────────────────────────────
 

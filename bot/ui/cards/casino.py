@@ -19,7 +19,8 @@ def stake_words(mode: str, value: int, stake: int) -> str:
 
 
 def casino_screen(
-    label: str, balance: int, stake: int, chat_id: int, lucky: bool, mode: str = "fixed", value: int = 0
+    label: str, balance: int, stake: int, chat_id: int, lucky: bool, mode: str = "fixed", value: int = 0,
+    jackpot: int = 0,
 ) -> str:
     games = [
         f"{game.emoji} <b>{game.name}</b> · /{game.command}\n<i>{escape(casino_texts.RULES[game.code])}</i>"
@@ -32,12 +33,14 @@ def casino_screen(
             f"💼 <b>{who(label)}</b>: {money(balance)}",
             f"🎟 Ставка: {stake_words(mode, value, stake)}",
             "🍀 <b>Счастливый день:</b> выигрыши ×1.5" if lucky else "",
+            f"💎 Джекпот чата: {money(jackpot)}" if jackpot else "",
         ],
         *games,
         "🤝 <b>1 на 1</b> · /pvp\n<i>Кости, дартс или боулинг против человека, без казино</i>",
         note(
             "Ставка у каждого своя: кнопки с процентами и «ва-банк» меняют её тому, кто нажал. "
-            "Своей суммой — /spin 300, /dice все"
+            "Своей суммой — /spin 300, /dice все. Десятая часть проигрышей копится в джекпот чата, "
+            "и любая игра может сорвать его целиком"
         ),
     )
 
@@ -63,4 +66,5 @@ def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], cha
             f"🎲 Ты: <b>{values[0]}</b> · бот: <b>{values[1]}</b>" if result.game == "dice" else "",
             f"{verdict} · баланс <b>{num(result.balance)}</b>",
         ],
+        f"💎 <b>Джекпот чата!</b> +{money(result.jackpot)}" if result.jackpot else "",
     )

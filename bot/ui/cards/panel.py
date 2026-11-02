@@ -10,7 +10,7 @@ from bot.rules import party as party_rules
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
-from bot.ui.layout import MEDALS, ago, card, money, num, plural, rating, who
+from bot.ui.layout import MEDALS, ago, card, money, note, num, plural, rating, who
 
 
 def season_line(season: str, days_left: int) -> str:
@@ -152,6 +152,20 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, pr
             "📅 Вс 18:00 — итоги недели",
             "🏁 1-е число — итоги сезона",
         ],
+    )
+
+
+def today_screen(event: str, plan: list[tuple[int, str, str, bool]], mine: list[tuple[str, bool]],
+                 running: list[str]) -> str:
+    """plan: (hour, emoji, what, already passed); mine: (what, done today) for the viewer."""
+    schedule = [f"{'✅' if passed else emoji} {hour}:00 · {escape(what)}" for hour, emoji, what, passed in plan]
+    return card(
+        "📅 <b>Сегодня в чате</b>",
+        event,
+        ["🔥 <b>Сейчас идёт</b>", *running] if running else "",
+        ["🕒 <b>Расписание</b>", *schedule],
+        ["👤 <b>Твоё на сегодня</b>", *[f"{'✅' if done else '▫️'} {what}" for what, done in mine]] if mine else "",
+        note("Галочка — уже было или уже забрано. Кнопки ниже — то, что ты ещё не взял сегодня"),
     )
 
 
