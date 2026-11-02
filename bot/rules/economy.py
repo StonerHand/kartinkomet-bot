@@ -91,13 +91,28 @@ def people_voice(right: int, wrong: int) -> tuple[int, str] | None:
 # ── prices that follow the chat's wealth ───────────────────────────────
 # Shop prices are set for a chat where a typical player holds ~2 000 coins. When the median
 # balance of active players is higher, prices grow with it, so a rich chat still has something
-# to save for. Rewards stay fixed: raising them too would only feed the inflation.
+# to save for. Rewards the game creates grow too, but at most REWARD_FACTOR_CAP times: uncapped,
+# a richer chat was paid more and grew richer still (October 2026: ×50 000 in two weeks).
 BASE_WEALTH = 2000
 WEALTH_ACTIVE_DAYS = 14
+REWARD_FACTOR_CAP = 3.0
+# The great redistribution hands out at most this many base wallets (× the reward factor); the
+# rest burns, so one huge wallet can't flood the chat. Not the median's wallets: a bottomless
+# wallet would then feed the median that sets its own cap.
+REDISTRIBUTION_CAP_WALLETS = 10
 
 
 def wealth_factor(median_balance: int) -> float:
     return max(1.0, median_balance / BASE_WEALTH)
+
+
+def reward_factor(wealth: float) -> float:
+    """How much the game's own rewards grow with the chat's wealth: like prices, up to the cap."""
+    return min(wealth, REWARD_FACTOR_CAP)
+
+
+def redistribution_cap(reward: float) -> int:
+    return int(REDISTRIBUTION_CAP_WALLETS * BASE_WEALTH * reward)
 
 
 def scaled(price: int, factor: float) -> int:

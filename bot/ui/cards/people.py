@@ -16,8 +16,9 @@ def ask(emoji: str, question: str, about: str | None, hint: str, remark: str | N
 REDISTRIBUTION_SHOWN = 10
 
 
-def redistribution(victim: str, total: int, shares: list[tuple[str, int]], chat_id: int) -> str:
-    """The great redistribution: whose wallet went, and who caught how much of it."""
+def redistribution(victim: str, total: int, shares: list[tuple[str, int]], chat_id: int, burned: int = 0) -> str:
+    """The great redistribution: whose wallet went, who caught how much of it, and what burned
+    over the cap."""
     caught = []
     for index, (label, amount) in enumerate(shares[:REDISTRIBUTION_SHOWN]):
         place = MEDALS[index] if index < len(MEDALS) else f"{index + 1}."
@@ -30,8 +31,10 @@ def redistribution(victim: str, total: int, shares: list[tuple[str, int]], chat_
         pick(event_texts.REDISTRIBUTION, chat_id),
         f"😱 Кошелёк <b>{who(victim)}</b> · {money(total)}",
         caught,
+        f"🔥 Сгорело <b>{num(burned)}</b> сверх потолка" if burned else "",
         note("Каждый день в 18:00 у одного игрока забирают все монеты и раздают тем, кто играл последние "
-             "две недели, в случайных долях. Завтра — кто-то другой"),
+             "две недели, в случайных долях. Раздают не больше десяти обычных кошельков, остальное "
+             "сгорает. Завтра — кто-то другой"),
     )
 
 

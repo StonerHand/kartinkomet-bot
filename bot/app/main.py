@@ -154,6 +154,9 @@ async def main() -> None:
         LOGGER.info("Handed out one-time gifts to %s players", gifted)
     for username, amount in game.give_grants():
         LOGGER.info("Granted %s coins to %s", amount, username)
+    repaired = game.repair_boss_xp()
+    if repaired:
+        LOGGER.info("Recounted inflated boss XP of %s players", repaired)
     backfilled = game.backfill_achievements()
     if backfilled:
         LOGGER.info("Silently granted %s already-earned achievements", backfilled)

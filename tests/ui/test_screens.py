@@ -294,6 +294,9 @@ class ScreensTest(BotHarness):
             spin = game_rules.Spin(kind, 0, "Пиксельное величие" if kind == "title" else "")
             texts.append(views.spin_result("stoner_hand", spin, None, 5_000_000, -100))
         texts.append(views.admin_stats({key: 12345 for key in ("players_today", "duels", "spin", "higher")}))
+        texts.append(views.admin({"alive": 1234, "executed": 56}, 12, "/data/kartinkomet_v2.sqlite", 1_234_567, 617.3, 3.0))
+        shares = [(name, 6_000 - index * 900) for index, name in enumerate(NAMES.values())]
+        texts.append(views.redistribution("stoner_hand", 1_834_220, shares, -100, burned=1_814_220))
         texts.append(views.shop_screen("stoner_hand", 5_000_000, {item: game.price(item) for item in (
             "shield", "boost", "court", "uncurse", "resurrect", "title")} | {"bounty": game.bounty_amounts()[0]},
             -100, None, game.wealth()))

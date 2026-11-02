@@ -164,9 +164,8 @@ class Events:
         if report is None:
             return False
         label = self.game.repo.user_label
-        text = views.redistribution(
-            label(report.victim), report.total, [(label(player), amount) for player, amount in report.shares], chat_id
-        )
+        shares = [(label(player), amount) for player, amount in report.shares]
+        text = views.redistribution(label(report.victim), report.total, shares, chat_id, report.burned)
         message = await send.send_text(self.bot, chat_id, text, keyboards.after_people())
         if message is None:
             return False

@@ -51,6 +51,24 @@ class EconomyRepo:
             )
         return True
 
+    def earned_rows(self, reason: str) -> list[tuple[int, int, int]]:
+        """(player, coins, at) of every gain with this reason that counted towards the level."""
+        return [tuple(row) for row in self.db.execute(
+            "SELECT user_id, amount, at FROM ledger WHERE reason = ? AND earn = 1 AND amount > 0 ORDER BY at", (reason,)
+        )]
+
+    def reduce_xp(self, excess: dict[int, int]) -> dict[int, int]:
+        """Take `excess` off each player's XP (never below zero); returns the old XP of everyone changed."""
+        old = {}
+        with self.db:
+            for user_id, amount in excess.items():
+                row = self.db.execute("SELECT earned FROM players WHERE user_id = ?", (user_id,)).fetchone()
+                if row is None or amount <= 0:
+                    continue
+                old[user_id] = row[0]
+                self.db.execute("UPDATE players SET earned = MAX(0, earned - ?) WHERE user_id = ?", (amount, user_id))
+        return old
+
     def set_level_seen(self, user_id: int, level: int) -> None:
         with self.db:
             self.db.execute(

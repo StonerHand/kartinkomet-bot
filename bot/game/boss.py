@@ -50,7 +50,7 @@ class BossMixin:
         pic = pool[self.rng.randrange(len(pool))]
         players = self.repo.active_players(self.now() - 7 * 86400)
         hp = rules.max_hp(players, double)
-        loot = self.scaled(rules.loot(hp, double))  # a pool of money that grows like everything else
+        loot = self.reward_scaled(rules.loot(hp, double))  # the game's money: grows like rewards, capped
         duration = rules.DURATION_SECONDS
         if raid:
             hp, loot, duration = hp * rules.RAID_HP_FACTOR, loot * rules.RAID_LOOT_FACTOR, rules.RAID_SECONDS
@@ -93,7 +93,7 @@ class BossMixin:
             fighters = list(self.repo.get_boss(boss_id)["damage"])
             victim = fighters[self.rng.randrange(len(fighters))] if fighters else None
             if victim is not None:
-                fine = self.scaled(rules.COUNTER_FINE) * (2 if enraged else 1)
+                fine = self.reward_scaled(rules.COUNTER_FINE) * (2 if enraged else 1)
                 taken = min(fine, self.repo.player(victim)[0])
                 if taken and self.repo.spend(victim, taken, "boss_counter", self.now()):
                     self.repo.add_boss_loot(boss_id, taken)
@@ -128,7 +128,7 @@ class BossMixin:
             return BossReport(boss, False, granted=self.check_achievements(list(damage)))
         payouts = rules.split_loot(boss["loot"], damage)
         last = boss["last_hit_by"]
-        bonus = self.scaled(rules.LAST_HIT_BONUS)
+        bonus = self.reward_scaled(rules.LAST_HIT_BONUS)
         if isinstance(last, int):
             payouts[last] = payouts.get(last, 0) + bonus
         for user_id, amount in payouts.items():

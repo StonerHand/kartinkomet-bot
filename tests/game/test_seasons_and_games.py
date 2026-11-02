@@ -1,8 +1,9 @@
 """Seasons, prices and rewards by wealth, stakes, whose pic, higher-lower, dice duels, raids, prizes, the trap, the redistribution."""
 
+import json
 from unittest import mock
 
-from bot.game.economy import STARTER_COINS
+from bot.game.economy import STARTER_COINS, XP_REPAIR_KEY
 from bot.rules import boss as boss_rules
 from bot.rules import economy, games, progress, shop
 from tests.helpers import GameCase
@@ -257,7 +258,8 @@ class AdminTrapTest(GameCase):
 
 
 class RewardsFollowWealthTest(GameCase):
-    """When everyone holds a million, rewards the game creates grow like prices do; levels don't."""
+    """When everyone holds a million, prices grow with the chat; the game's own rewards grow too,
+    but at most ×3, and levels count base coins."""
 
     quests = True
 
@@ -267,38 +269,103 @@ class RewardsFollowWealthTest(GameCase):
             self.game.repo.add_coins(user, 1, "vote", self.game.now())
             self.fund(user, 1_000_000)
         self.factor = self.game.wealth()
+        self.cap = economy.REWARD_FACTOR_CAP
 
-    def test_the_factor_is_the_median_wallet_over_the_base(self) -> None:
+    def test_prices_follow_the_median_but_rewards_stop_at_the_cap(self) -> None:
         self.assertGreater(self.factor, 400)
-        self.assertEqual(self.game.reward(economy.VOTE), economy.scaled(economy.VOTE, self.factor))
-        self.assertEqual(self.game.reward(-10), -economy.scaled(10, self.factor))
+        self.assertEqual(self.game.reward_factor(), self.cap)
+        self.assertEqual(self.game.scaled(100), economy.scaled(100, self.factor))
+        self.assertEqual(self.game.reward(economy.VOTE), economy.scaled(economy.VOTE, self.cap))
+        self.assertEqual(self.game.reward(-10), -economy.scaled(10, self.cap))
 
     def test_a_vote_pays_today_s_money_but_levels_by_its_base(self) -> None:
         coins, earned, _ = self.game.repo.player(3)
         paid = self.game.pay(3, economy.VOTE, "vote")
-        self.assertEqual(paid, economy.scaled(economy.VOTE, self.factor))
+        self.assertEqual(paid, economy.scaled(economy.VOTE, self.cap))
         self.assertEqual(self.game.repo.player(3)[:2], (coins + paid, earned + economy.VOTE))
 
     def test_daily_quests_and_the_screen_agree(self) -> None:
         daily = self.game.claim_daily(4)
-        self.assertEqual(daily.reward, economy.scaled(progress.daily_reward(1), self.factor))
+        self.assertEqual(daily.reward, economy.scaled(progress.daily_reward(1), self.cap))
         tasks, _ = self.game.quests_of(4)
-        self.assertEqual(tasks[0].reward, economy.scaled(progress.daily_quests(4, self.game.local_day())[0].reward, self.factor))
+        self.assertEqual(tasks[0].reward, economy.scaled(progress.daily_quests(4, self.game.local_day())[0].reward, self.cap))
 
-    def test_shares_of_a_pool_are_not_scaled_twice(self) -> None:
-        coins = self.coins(5)
-        self.assertEqual(self.game.pay(5, 1000, "boss"), 1000)  # loot already grew when the boss came
-        self.assertEqual(self.coins(5), coins + 1000)
+    def test_shares_of_a_pool_are_paid_as_they_are_and_level_in_base_coins(self) -> None:
+        coins, earned, _ = self.game.repo.player(5)
+        self.assertEqual(self.game.pay(5, 3000, "boss"), 3000)  # loot already grew when the boss came
+        self.assertEqual(self.game.repo.player(5)[:2], (coins + 3000, earned + 1000))
 
-    def test_boss_loot_grows_with_the_chat(self) -> None:
+    def test_boss_loot_grows_like_rewards(self) -> None:
         status, boss = self.game.summon_boss(-100, "Тест", forced=True)
         self.assertEqual(status, "ok")
-        self.assertGreater(boss["loot"], 100_000)
+        self.assertEqual(boss["loot"], economy.scaled(boss_rules.loot(boss["max_hp"]), self.cap))
 
     def test_a_fresh_season_brings_rewards_back_to_base(self) -> None:
         self.game.repo.reset_coins(1111, frozenset(), "season_reset", self.game.now())
         self.game._wealth = None
         self.assertEqual(self.game.reward(economy.VOTE), economy.VOTE)
+
+
+class EconomyMonthTest(GameCase):
+    """A month of a busy chat whose billionaire admin is robbed every single day: the coins the
+    players hold grow at most linearly. Uncapped rewards make them explode within days; an
+    uncapped redistribution floods them with the billion on the first one."""
+
+    def test_a_month_of_play_grows_the_players_coins_linearly(self) -> None:
+        game = self.game
+        game.admins = frozenset({2})
+        players = range(3, 9)
+        self.fund(2, 1_000_000_000)
+        for user in players:
+            self.fund(user, STARTER_COINS)
+        daily_income = 600  # base coins a very active player makes a day: votes, quests, the daily bonus
+        days = 30
+        with mock.patch.object(game, "_redistribution_victim", return_value=2):
+            for _ in range(days):
+                for user in [2, *players]:
+                    game.pay(user, daily_income, "quest")
+                game.redistribute()
+                self.clock.advance(86400)
+        held = sum(self.coins(user) for user in players)
+        cap = economy.REWARD_FACTOR_CAP
+        most = len(players) * (STARTER_COINS + days * daily_income * cap) + days * economy.redistribution_cap(cap)
+        self.assertLessEqual(held, most)  # linear: what they earned plus what the redistributions may hand out
+        self.assertLess(held, 1_000_000_000 // 100)  # the billion itself burned instead of landing on them
+
+
+class BossXpRepairTest(GameCase):
+    """Once: boss payouts recounted for levels in base coins, by how much each boss's loot was scaled."""
+
+    def beaten_boss(self, loot_factor: int, payouts: dict[int, int], raid: bool = False) -> None:
+        hp = 100
+        health = hp * boss_rules.RAID_HP_FACTOR if raid else hp
+        base = boss_rules.loot(hp) * (boss_rules.RAID_LOOT_FACTOR if raid else 1)
+        boss_id = self.game.repo.create_boss(-100, "pic", "Тест", health, base * loot_factor, self.game.now(),
+                                             self.game.now() + 600, raid)
+        self.clock.advance(60)
+        self.game.repo.hit_boss(boss_id, 3, health, self.game.now())
+        self.game.repo.close_boss(boss_id, "won")
+        self.clock.advance(2)
+        for user, amount in payouts.items():
+            self.game.repo.add_coins(user, amount, "boss", self.game.now())  # the old way: XP = coins
+        self.clock.advance(86400)
+
+    def test_inflated_payouts_count_in_base_coins_and_normal_ones_stay(self) -> None:
+        self.game.pay(3, 40, "vote")
+        self.beaten_boss(1, {3: 300})  # a normal boss
+        self.beaten_boss(50_000, {3: 10_000_000, 4: 5_000_000})  # an October one
+        self.beaten_boss(1_000, {4: 2_000_000}, raid=True)
+        before = {user: self.game.repo.player(user) for user in (3, 4)}
+        self.assertEqual(self.game.repair_boss_xp(), 2)
+        self.assertEqual(self.game.repo.player(3)[1], 40 + 300 + 200)
+        self.assertEqual(self.game.repo.player(4)[1], 100 + 2000)
+        self.assertEqual([self.game.repo.player(user)[0] for user in (3, 4)], [before[3][0], before[4][0]])  # coins stay
+        self.assertEqual(json.loads(self.game.repo.meta_str(XP_REPAIR_KEY)), {"3": before[3][1], "4": before[4][1]})
+        self.assertEqual(self.game.repair_boss_xp(), 0)  # once
+
+    def test_a_fresh_chat_just_marks_it_done(self) -> None:
+        self.assertEqual(self.game.repair_boss_xp(), 0)
+        self.assertEqual(self.game.repo.meta_str(XP_REPAIR_KEY), "{}")
 
 
 class RedistributionTest(GameCase):
@@ -335,6 +402,18 @@ class RedistributionTest(GameCase):
         self.fund(4, -1)
         report = self.game.redistribute()
         self.assertEqual((report.victim, report.total), (2, 1_000_000))  # the only wallet with coins
+
+    def test_a_huge_wallet_hands_out_ten_typical_ones_and_the_rest_burns(self) -> None:
+        self.players({3: 2000, 4: 2000, 5: 2000})
+        self.fund(6, 1_000_000)  # the only one who hasn't played lately, but chosen today
+        with mock.patch.object(self.game, "_redistribution_victim", return_value=6):
+            report = self.game.redistribute()
+        cap = economy.REDISTRIBUTION_CAP_WALLETS * economy.BASE_WEALTH
+        self.assertEqual((report.total, report.burned), (1_000_000, 1_000_000 - cap))
+        self.assertEqual(sum(amount for _, amount in report.shares), cap)
+        self.assertEqual(self.coins(6), 0)
+        self.assertEqual(sum(self.coins(user) for user in (3, 4, 5)), 6000 + cap)
+        self.assertEqual(self.game.redistribute(), report)  # the burned part is remembered too
 
     def test_the_first_victim_is_the_admin_s_choice(self) -> None:
         self.clock.value = 1_793_199_600  # 2026-10-28 18:00 in Moscow
