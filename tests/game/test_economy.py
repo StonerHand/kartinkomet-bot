@@ -39,6 +39,17 @@ class EconomyTest(GameCase):
         self.assertEqual(self.game.give_grants(grants), [])
         self.assertEqual(self.game.repo.player(42), (3_000_000, 0, 0))  # not earned: no level
 
+    def test_a_balance_is_set_exactly_and_once(self) -> None:
+        balances = (("balance_test", "Somebody", 3_000),)
+        self.assertEqual(self.game.set_balances(balances), [])  # not known yet: waits
+        self.game.repo.remember_user(42, "somebody", "S", None, self.game.now())
+        self.fund(42, 1_834_220)
+        self.assertEqual(self.game.set_balances(balances), [("Somebody", 1_834_220, 3_000)])
+        self.assertEqual(self.game.repo.player(42), (3_000, 0, 0))  # not earned or lost for the level
+        self.fund(42, 500)
+        self.assertEqual(self.game.set_balances(balances), [])  # once: what comes later stays
+        self.assertEqual(self.coins(42), 3_500)
+
     def test_spend_is_all_or_nothing(self) -> None:
         self.fund(5, 100)
         self.assertFalse(self.game.repo.spend(5, 101, "x", self.game.now()))

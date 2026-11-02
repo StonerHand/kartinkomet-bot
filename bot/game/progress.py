@@ -17,6 +17,10 @@ GRANTS = (
     ("grant_2026_10_23_atrain", "ATrain580", 3_000_000),
     ("grant_2026_10_26_stoner", "stoner_hand", 1_234_567_890),
 )
+# One-time balance settings for one player by username, (key, username, coins): the balance
+# becomes exactly this at the first start after the player is known, never twice. The coins
+# are not scaled: it is the number the player asked for.
+BALANCES = (("balance_2026_11_02_stoner", "stoner_hand", 3_000),)
 
 
 @dataclass(frozen=True)
@@ -99,6 +103,23 @@ class ProgressMixin:
             self.repo.add_coins(user_id, paid_now, "gift", self.now(), earn=False)
             paid.append((username, paid_now))
         return paid
+
+    def set_balances(self, balances=BALANCES) -> list[tuple[str, int, int]]:
+        """Set every listed balance whose player the bot knows; the change goes to the ledger
+        (earn = 0). Returns (username, before, after) of what changed now."""
+        changed = []
+        for key, username, coins in balances:
+            if self.repo.meta_str(f"balance:{key}"):
+                continue
+            user_id = self.repo.user_by_name(username)
+            if user_id is None:
+                continue
+            self.repo.set_meta(f"balance:{key}", self.now())  # marked first: a crash can't apply it twice
+            before = self.repo.player(user_id)[0]
+            if before != coins:
+                self.repo.add_coins(user_id, coins - before, "balance_set", self.now(), earn=False)
+            changed.append((username, before, coins))
+        return changed
 
     # ── event of the day ───────────────────────────────────────────────
 
