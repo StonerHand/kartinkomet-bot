@@ -311,7 +311,7 @@ CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger(user_id, at);
 CREATE TABLE IF NOT EXISTS rounds (
     id TEXT PRIMARY KEY,
     chat_id INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('who', 'bomb', 'bet')),
+    kind TEXT NOT NULL,  -- who | bomb | bet | heist: the code checks it, so a new game needs no migration
     message_id INTEGER,
     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
     ends_at INTEGER NOT NULL,  -- the poll closes, the holder's time runs out, the bet is called off
