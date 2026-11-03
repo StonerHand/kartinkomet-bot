@@ -154,19 +154,19 @@ async def set_stake(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     balance = game.repo.player(user_id)[0]
     if raw == "all":
         game.set_stake(user_id, None)
-        await callback.answer(f"🃏 Ва-банк: ставишь всё, сейчас это {views.num(balance)} 🪙. {pick(texts.STAKE_SET)}")
+        await callback.answer(f"🃏 Ва-банк: ставишь всё, сейчас это {views.coins(balance)}. {pick(texts.STAKE_SET)}")
         await show_stake(bot, game, callback)
         return
     if raw.startswith("p") and raw[1:].isdigit():
         share = int(raw[1:])
         game.set_stake_share(user_id, share)
         stake = casino.share_stake(balance, share, game.stake_min())
-        await callback.answer(f"🎟 Ставка {share}% баланса, сейчас это {views.num(stake)} 🪙. {pick(texts.STAKE_SET)}")
+        await callback.answer(f"🎟 Ставка {share}% баланса, сейчас это {views.coins(stake)}. {pick(texts.STAKE_SET)}")
         await show_stake(bot, game, callback)
         return
     amount = int(raw) if raw.isdigit() else game.scaled(casino.DEFAULT_STAKE)  # buttons of older messages
     game.set_stake(user_id, amount)
-    await callback.answer(f"🎟 Ставка {views.num(amount)} 🪙. {pick(texts.STAKE_SET)}")
+    await callback.answer(f"🎟 Ставка {views.coins(amount)}. {pick(texts.STAKE_SET)}")
     await show_stake(bot, game, callback)
 
 
@@ -177,7 +177,7 @@ async def play_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live,
     info = casino.GAMES.get(code)
 
     async def answer_now() -> None:
-        await send.answer_quietly(callback, f"{info.emoji} Ставка {stake} 🪙. Крутим!")
+        await send.answer_quietly(callback, f"{info.emoji} Ставка {views.coins(stake)}. Крутим!")
 
     refusal = await play(bot, game, live, callback.message.chat.id, callback.from_user.id, code, stake, answer_now)
     if refusal:

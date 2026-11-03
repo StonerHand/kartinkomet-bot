@@ -231,7 +231,9 @@ def quests(ctx: Ctx) -> Screen:
 
 
 def help_screen(ctx: Ctx) -> Screen:
-    return ui.HELP, keyboards.markup(keyboards.back())
+    """The rules in tabs instead of one long wall."""
+    tab = ctx.arg if ctx.arg in ui.HELP_TABS else "main"
+    return views.help_tab(ui.HELP, tab), keyboards.help_tabs(tab)
 
 
 def upload(ctx: Ctx) -> Screen:
@@ -252,7 +254,7 @@ def admin(ctx: Ctx) -> Screen:
 
 # Local hour → what the schedule does then, for «Сегодня в чате».
 DAY_PLAN = (
-    (10, "📰", "событие дня"), (11, "🎯", "тема дня"), (12, "🌅", "пикча дня"), (13, "🗳", "кто из нас"),
+    (10, "📰", "событие дня"), (11, "📸", "тема дня"), (12, "🌅", "пикча дня"), (13, "🗳", "кто из нас"),
     (16, "👹", "босс"), (18, "💸", "великий передел"), (19, "⚖️", "суд над худшей"), (21, "🎬", None),
 )
 
@@ -334,7 +336,7 @@ def live_now(game: Game, chat_id: int) -> list[str]:
     if game.repo.active_challenge_battle(chat_id):
         lines.append("🤺 Идёт вызов")
     rounds = {"who": "🗳 Кто из нас", "bomb": "💣 Бомба", "croc": "🐊 Крокодил", "heist": "🏦 Ограбление",
-              "cup": "🏆 Большой турнир", "theme": "🎯 Тема дня"}
+              "cup": "🏆 Большой турнир", "theme": "📸 Тема дня"}
     for kind, label in rounds.items():
         if game.repo.open_rounds(chat_id, kind):
             lines.append(label)

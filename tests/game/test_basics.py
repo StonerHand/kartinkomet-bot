@@ -1,6 +1,6 @@
 import unittest
 
-from bot.rules import court
+from bot.rules import court, economy
 from tests.helpers import make_game
 
 
@@ -272,7 +272,7 @@ class EconomyTest(unittest.TestCase):
         report = self.game.finish_court(trial.id)
         self.assertIn("self_executioner", self.codes(report.granted, 1))
         self.assertIn("devils_advocate", self.codes(report.granted, 6))
-        self.assertEqual(self.game.repo.player(5)[0], 1)
+        self.assertEqual(self.game.repo.player(5)[0], economy.COURT_VOTE)
 
     def test_deja_vu_and_lucky(self) -> None:
         pic, _, granted = self.game.draw_for(-1, 1)

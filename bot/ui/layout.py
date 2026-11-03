@@ -63,6 +63,11 @@ def num(value: int) -> str:
     return f"{value:,}".replace(",", "\u00a0")
 
 
+def coins(amount: int) -> str:
+    """'1 234 монеты': an amount in plain text, for a button's answer (no markup there)."""
+    return f"{num(amount)} {plural(abs(amount), 'монета', 'монеты', 'монет')}"
+
+
 def money(amount: int) -> str:
     """Coins inside a line are a word, not 🪙: '<b>1 111</b> монет'. One emoji per line, at its start."""
     return f"<b>{num(amount)}</b> {plural(abs(amount), 'монета', 'монеты', 'монет')}"

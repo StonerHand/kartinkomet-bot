@@ -1,6 +1,6 @@
 """People's court 2.0 rules."""
 
-COURT_SECONDS = 60
+COURT_SECONDS = 180  # 60 s went by unnoticed: 23 of 25 courts ended pardoned with nobody voting
 DISLIKES_FOR_COURT = 2
 MIN_KILL_VOTES = 2
 IMMUNITY_SECONDS = 7 * 24 * 3600

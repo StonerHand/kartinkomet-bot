@@ -22,7 +22,7 @@ from bot.game.types import Granted
 from bot.rules import economy
 from bot.rules import games as game_rules
 from bot.rules import party as party_rules
-from bot.rules import shop
+from bot.rules import show as show_rules
 from bot.telegram import send
 from bot.texts import show as show_texts
 from bot.ui import keyboards, views
@@ -605,7 +605,7 @@ class Live:
         found = step.round
         state = json.loads(found["text"])
         text = views.heist_result(step.kind, self.heist_crew(found), state["log"], step.loot,
-                                  shop.JAIL_SECONDS, found["chat_id"])
+                                  show_rules.HEIST_JAIL_SECONDS, found["chat_id"])
         message_id = await self._settle_card(found["chat_id"], found["message_id"], text, keyboards.more_only(), False)
         await send.react(self.bot, found["chat_id"], message_id, "🤑" if step.kind == "clean" else "😱")
         await self.announce(found["chat_id"], list(step.granted))

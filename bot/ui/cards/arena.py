@@ -18,14 +18,14 @@ from bot.ui.layout import (
 
 
 def vote_lines(counts: list[int], labels: tuple[str, ...], marks: list[str] | None = None) -> list[str]:
-    """'🟥 🐉 A · 3 голоса  ▰▰▰▰▰': the square matches the collage strip and the button; the
-    evolution stage (marks) only when the fighters differ."""
+    """'🟥 A · дракон · 3 голоса  ▰▰▰▰▰': the square matches the collage strip and the button
+    (one emoji a line); the evolution stage (marks), in words, only when the fighters differ."""
     leader = max(counts) if counts else 0
     lines = []
     for slot, count in enumerate(counts):
-        stage = f"{marks[slot]} " if marks else ""
+        stage = f" · {marks[slot]}" if marks else ""
         votes = plural(count, "голос", "голоса", "голосов")
-        lines.append(f"{SLOT_COLORS[slot]} {stage}<b>{labels[slot]}</b> · <b>{count}</b> {votes}{bar(count, leader)}")
+        lines.append(f"{SLOT_COLORS[slot]} <b>{labels[slot]}</b>{stage} · <b>{count}</b> {votes}{bar(count, leader)}")
     return lines
 
 
@@ -56,10 +56,11 @@ def battle_card(
     else:
         head = "⚔️ <b>Дуэль</b>" if is_duel else "🏟 <b>Турнир четырёх</b>"
     status_pool = arena_texts.DUEL_STATUS if is_duel else arena_texts.TOURNAMENT_STATUS
-    marks = [shop.stage(pic.wins).emoji for pic in battle.pics]
+    stages = [shop.stage(pic.wins) for pic in battle.pics]
+    marks = [stage.name.lower() for stage in stages]
     # Stages stand on every line or on none, so the counts stay in one column; a fight of eggs
     # shows no stages at all.
-    evolved = any(mark != marks[0] for mark in marks) or marks[0] != "🥚"
+    evolved = any(stage.index != stages[0].index for stage in stages) or stages[0].index > 0
     votes = vote_lines(counts, labels, marks if evolved else None)
     if is_duel and battle.streak > 0:
         votes.insert(0, f"👑 Пикча {slot_names(battle.kind)[0]} — чемпионка, серия <b>{battle.streak}</b>")

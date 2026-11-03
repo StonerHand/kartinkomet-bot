@@ -110,7 +110,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         if status != "ok":
             await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
             return
-        await callback.answer(f"🎯 Награда поднята до {total} 🪙")
+        await callback.answer(f"🎯 Награда поднята до {views.coins(total)}")
         pic = game.repo.get_pic(pic_id)
         if pic is not None:
             await send.send_photo(
@@ -126,7 +126,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         status, price, previous = game.buy_ownership(user_id, pic_id)
         if status != "ok":
             refusals = {"own": "Эта пикча уже твоя", "dead": "Пикчи больше нет на складе",
-                        "poor": f"На покупку нужно {price} 🪙", "taken": "Кто-то купил её раньше тебя"}
+                        "poor": f"На покупку нужно {views.coins(price)}", "taken": "Кто-то купил её раньше тебя"}
             await callback.answer(f"🏷 {refusals[status]}", show_alert=True)
             return
         await callback.answer("🏷 Пикча твоя")
@@ -142,7 +142,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
         return
     price = game.price(item)
-    await callback.answer(f"{views.bought(item, user_id)} · −{price} 🪙")
+    await callback.answer(f"{views.bought(item, user_id)} · −{views.coins(price)}")
     if callback.message is not None and callback.message.message_id:
         await send.delete(bot, callback.message.chat.id, callback.message.message_id)
     if pic is None:
@@ -151,7 +151,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         status = await open_court(bot, game, live, chat_id, pic.id, "bottom", user_id)
         if status != "started":
             game.refund(user_id, item)
-            await send.send_text(bot, chat_id, f"⚖️ Суд не открылся, {price} 🪙 вернулись {views.who(label)}")
+            await send.send_text(bot, chat_id, f"⚖️ Суд не открылся, {views.coins(price)} вернулись {views.who(label)}")
         return
     await send.send_text(bot, chat_id, views.purchase_notice(item, label, pic, chat_id), reply_to=pic_message)
     await live.announce(chat_id, game.flush([user_id]))
@@ -167,13 +167,13 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
         await callback.answer(texts.REFUSED["alive"] if pic else texts.REFUSED["gone"], show_alert=True)
         return
     if not confirmed(user_id, f"res:{pic_id}"):
-        await callback.answer(f"🧟 Воскресить за {price} 🪙? Нажми ещё раз в течение 10 секунд", show_alert=True)
+        await callback.answer(f"🧟 Воскресить за {views.coins(price)}? Нажми ещё раз в течение 10 секунд", show_alert=True)
         return
     status, pic = game.buy(user_id, "resurrect", pic_id)
     if status != "ok" or pic is None:
         await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
         return
-    await callback.answer(f"🧟 Воскрешена · −{price} 🪙")
+    await callback.answer(f"🧟 Воскрешена · −{views.coins(price)}")
     if callback.message is None:
         return
     chat_id = callback.message.chat.id

@@ -108,7 +108,7 @@ def divorce_split(first: int, second: int) -> tuple[int, int]:
 # ── challenges between players ─────────────────────────────────────────
 
 CHALLENGE_MIN = 50
-CHALLENGE_SECONDS = 180  # to accept
+CHALLENGE_SECONDS = 600  # to accept: at 180, 6 of 10 challenges expired unanswered
 
 
 # ── owning pics ───────────────────────────────────────────────────────
