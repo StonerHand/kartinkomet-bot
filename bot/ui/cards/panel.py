@@ -1,11 +1,10 @@
 """Panel screens: home, hall of fame, bottom, graveyard, tops, games, upload, admin."""
 
-from collections.abc import Callable
 from html import escape
 
 from bot.models.records import Pic
+from bot.rules import auction as auction_rules
 from bot.rules import economy, seasons
-from bot.rules import games as game_rules
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
@@ -181,16 +180,18 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, fa
 
 
 def today_screen(event: str, plan: list[tuple[int, str, str, bool]], mine: list[tuple[str, bool]],
-                 running: list[str]) -> str:
-    """plan: (hour, emoji, what, already passed); mine: (what, done today) for the viewer."""
+                 running: list[str], team: list[str] | None = None) -> str:
+    """plan: (hour, emoji, what, already passed); mine: (what, done today) for the viewer; team:
+    the team week's score lines, if one is on."""
     schedule = [f"{'✅' if passed else emoji} {hour}:00 · {escape(what)}" for hour, emoji, what, passed in plan]
     return card(
         "📅 <b>Сегодня в чате</b>",
         event,
         ["🔥 <b>Сейчас идёт</b>", *running] if running else "",
         ["🕒 <b>Расписание</b>", *schedule],
+        team or "",
         ["👤 <b>Твоё на сегодня</b>", *[f"{'✅' if done else '▫️'} {what}" for what, done in mine]] if mine else "",
-        note("Галочка — уже было или уже забрано. Кнопки ниже — то, что ты ещё не взял сегодня"),
+        note("Галочка — уже было или уже забрано. Кнопки ниже — то, что сегодня ещё ждёт тебя"),
     )
 
 
@@ -198,29 +199,39 @@ def _factor(value: float) -> str:
     return f"{value:.1f}".rstrip("0").rstrip(".") if value < 10 else num(round(value))
 
 
-def games_screen(reward: Callable[[int], int] = lambda amount: amount) -> str:
-    """Every game on one line: what it is and how to start it. The rules live in «Правила» → «Игры».
-    reward: base amount → today's money."""
+def games_screen() -> str:
+    """Every game on one line, grouped by how it plays: what it is and how to start it. The rules
+    live in «Правила» → «Игры»; the buttons below follow the same order."""
     return card(
         "🎮 <b>Игры</b>",
         "Всё, за что капают монеты помимо арены",
         [
+            "🗣 <b>Поболтать</b>",
             "🗳 Кто из нас · /who · 13:00",
-            "💣 Бомба · /bomb",
             "🐊 Крокодил пикчами · /croc",
+            "🎭 Шпион · /spy",
             "🤝 Спор на монеты · /bet",
-            "📸 Тема дня · 11:00",
-            "🎬 Шоу · /heist · /cup · 21:00",
         ],
         [
-            "👹 Босс · /boss · 16:00",
+            "⚡ <b>Быстрые</b>",
+            "💣 Бомба · /bomb",
+            "🧨 Сапёр · /mines",
+            "🔐 Сейф · /safe",
+            "🧩 Пикча по кусочку · /pieces",
             "🕵️ Чья пикча · /whose",
-            "🎯 Выше-ниже · /higher",
             "🖋 Подпиши пикчу · /caption",
-            f"🎡 Колесо · /wheel · до {money(reward(game_rules.SPIN_COINS['jackpot']))}",
-            "🔮 Гороскоп · /horoscope",
+            "👹 Босс · /boss · 16:00",
         ],
-        note("Кнопки ниже запускают игру в этом чате. Как играть в каждую — «Правила» → «Игры»"),
+        [
+            "⏰ <b>По часам</b>",
+            "📸 Тема дня · 11:00",
+            f"🔨 Аукцион · {auction_rules.OPEN_HOUR}:00–{auction_rules.CLOSE_HOUR}:00",
+            "🎬 Шоу · /heist · /cup · 21:00",
+            "🚩 Командная неделя · пн–вс",
+        ],
+        "🎯 Выше-ниже · /higher · в личке",
+        note("Кнопки ниже запускают игру в этом чате. Колесо и гороскоп — в /today. "
+             "Как играть в каждую — «Правила» → «Игры»"),
     )
 
 

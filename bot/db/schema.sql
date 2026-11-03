@@ -363,3 +363,14 @@ CREATE TABLE IF NOT EXISTS round_entries (
     at INTEGER NOT NULL,
     PRIMARY KEY (round_id, user_id)
 ) WITHOUT ROWID;
+
+-- ── v6.13: the team week ───────────────────────────────────────────────
+
+-- Who plays for which colour this week: drafted on Monday, settled on Sunday night.
+CREATE TABLE IF NOT EXISTS teams (
+    chat_id INTEGER NOT NULL,
+    week INTEGER NOT NULL,  -- Game.local_week()
+    user_id INTEGER NOT NULL,
+    team TEXT NOT NULL CHECK (team IN ('red', 'blue')),
+    PRIMARY KEY (chat_id, week, user_id)
+) WITHOUT ROWID;

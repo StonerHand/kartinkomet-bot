@@ -19,6 +19,7 @@ from aiogram import Bot
 
 from bot.game.engine import Game
 from bot.game.types import Granted
+from bot.live.table import TABLE_KINDS, WATCHED, TableLive
 from bot.rules import economy
 from bot.rules import games as game_rules
 from bot.rules import party as party_rules
@@ -38,7 +39,9 @@ MAX_FLOOD_HOLD = 60  # a flood wait holds back a chat's redraws at most this lon
 CHEST_OF_NOTE = {"chest": None, "quests_all": "wood", "challenge": "rare", "challenges_all": "legend"}
 
 
-class Live:
+class Live(TableLive):
+    tick_seconds = TICK_SECONDS
+
     def __init__(self, bot: Bot, game: Game) -> None:
         self.bot = bot
         self.game = game
@@ -138,6 +141,7 @@ class Live:
             (repo.open_round_ids(("who", "bomb", "croc")), self.watch_round),
             (repo.open_round_ids(("heist",)), self.watch_heist),
             (repo.open_round_ids(("theme",)), self.watch_theme),
+            (repo.open_round_ids(WATCHED), self.watch_table),
         )
         for ids, watch in watchers:
             for item_id in ids:
@@ -441,6 +445,8 @@ class Live:
 
     def round_card(self, found: dict) -> tuple[str, object]:
         """The live card of an open poll, bomb or heist, with its buttons."""
+        if found["kind"] in TABLE_KINDS:
+            return self.table_card(found)
         remaining = found["ends_at"] - self.game.now()
         if found["kind"] == "heist":
             return self.heist_card(found, remaining)
@@ -477,7 +483,7 @@ class Live:
             fresh = self.game.repo.get_round(round_id)
             return self.round_card(fresh) if fresh and fresh["status"] == "open" else None
 
-        await self._redraw(found["chat_id"], found["message_id"], False, render)
+        await self._redraw(found["chat_id"], found["message_id"], found["kind"] == "piece", render)
 
     async def finish_round(self, round_id: str) -> None:
         found = self.game.repo.get_round(round_id)

@@ -23,11 +23,16 @@ Scheme:
   mr:<y|n>:<proposal>   marriage answer;  cl:<y|n>:<challenge>  challenge answer
   ak:<chat>:<user>:<n|x>  answer to "whom? / how much? / sure?" for /rob /give /marry /pvp /challenge /divorce
   pp:<action>           start one of those from the «👥 Люди» panel screen
+  sy:<j|w>:<round> | sy:v:<round>:<n>   the spy: join / my word / vote
+  mn:<round>:<cell|c|x> the minefield: open a cell / take one's pot / a settled field
+  pc:<round>:<n>        pic by pieces: a letter
+  au:<round>:<n|m|x>    the auction: raise / my bid / withdraw
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.texts.ui import BACK, HELP_TABS
+from bot.ui.layout import SLOT_COLORS
 
 PRIMARY = "primary"
 SUCCESS = "success"
@@ -122,12 +127,14 @@ def today(left: list[str]) -> InlineKeyboardMarkup:
 
 
 def games_menu() -> InlineKeyboardMarkup:
+    """In the screen's order: the talking games, then the quick ones."""
     return markup(
-        [button("🗳 Кто из нас", "gm:who", PRIMARY), button("💣 Бомба", "gm:bomb", DANGER)],
-        [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
-        [button("🖋 Подпиши", "gm:caption", PRIMARY), button("👹 Босс", "boss", DANGER)],
-        [button("🎡 Колесо", "gm:spin", SUCCESS), button("🔮 Гороскоп", "gm:horo")],
-        [button("🐊 Крокодил", "gm:croc", SUCCESS), button("🤝 Спор", "gm:bet")],
+        [button("🗳 Кто из нас", "gm:who", PRIMARY), button("🐊 Крокодил", "gm:croc", SUCCESS)],
+        [button("🎭 Шпион", "gm:spy", PRIMARY), button("🤝 Спор", "gm:bet")],
+        [button("💣 Бомба", "gm:bomb", DANGER), button("🧨 Сапёр", "gm:mines", DANGER)],
+        [button("🔐 Сейф", "gm:safe", SUCCESS), button("🧩 По кусочку", "gm:piece", PRIMARY)],
+        [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🖋 Подпиши", "gm:caption", PRIMARY)],
+        [button("👹 Босс", "boss", DANGER), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
         back(),
     )
 
@@ -328,8 +335,55 @@ def theme_vote(round_id: str, answers: int) -> InlineKeyboardMarkup:
 
 def after_party(kind: str) -> InlineKeyboardMarkup:
     again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER),
-             "croc": button("🐊 Ещё слово", "gm:croc", SUCCESS)}
+             "croc": button("🐊 Ещё слово", "gm:croc", SUCCESS), "spy": button("🎭 Ещё шпион", "gm:spy", PRIMARY),
+             "mines": button("🧨 Ещё поле", "gm:mines", DANGER), "safe": button("🔐 Новый сейф", "gm:safe", SUCCESS),
+             "piece": button("🧩 Ещё кусочек", "gm:piece", PRIMARY)}
     return markup([again[kind], more()])
+
+
+# ── table games, pic by pieces, the auction ───────────────────────────
+
+
+def spy(round_id: str, phase: str, labels: list[str]) -> InlineKeyboardMarkup:
+    """Recruiting: join. Then the word, for each player's eyes only; in the vote, the players."""
+    if phase == "recruit":
+        return markup([button("🙋 Играю", f"sy:j:{round_id}", SUCCESS)])
+    word = [button("🤫 Моё слово", f"sy:w:{round_id}", DANGER)]
+    if phase != "vote":
+        return markup(word)
+    people = [button(clip(label), f"sy:v:{round_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
+    return markup(*(people[start:start + 2] for start in range(0, len(people), 2)), word)
+
+
+MINE_CELLS = {"closed": "❔", "safe": "✅", "mine": "💥", "hidden_mine": "💣"}
+
+
+def mines(round_id: str, side: int, opened: list[int], field: list[int] | None = None) -> InlineKeyboardMarkup:
+    """The field, row by row. field (the mines) is shown once it's over: then the cells only say so."""
+    cells = []
+    for cell in range(side * side):
+        if cell in opened:
+            look = "mine" if field and cell in field else "safe"
+        else:
+            look = "hidden_mine" if field and cell in field else "closed"
+        data = f"mn:{round_id}:x" if field is not None else f"mn:{round_id}:{cell}"
+        cells.append(button(MINE_CELLS[look], data))
+    rows = [cells[start:start + side] for start in range(0, len(cells), side)]
+    if field is None:
+        return markup(*rows, [button("💰 Забрать", f"mn:{round_id}:c", SUCCESS)])
+    return markup(*rows, [button("🧨 Ещё поле", "gm:mines", DANGER), more()])
+
+
+def piece(round_id: str, letters: tuple[str, ...]) -> InlineKeyboardMarkup:
+    return markup([button(f"{SLOT_COLORS[slot]} {letter}", f"pc:{round_id}:{slot}", SLOT_STYLES[slot])
+                   for slot, letter in enumerate(letters)])
+
+
+def auction(round_id: str, raises: list[int]) -> InlineKeyboardMarkup:
+    return markup(
+        [button(f"🔨 +{short(amount)}", f"au:{round_id}:{index}", SUCCESS) for index, amount in enumerate(raises)],
+        [button("👀 Моя ставка", f"au:{round_id}:m"), button("↩️ Забрать", f"au:{round_id}:x")],
+    )
 
 
 def after_whose() -> InlineKeyboardMarkup:

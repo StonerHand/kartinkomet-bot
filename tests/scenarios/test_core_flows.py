@@ -317,7 +317,7 @@ class CoreFlowsTest(BotHarness):
 
     async def test_nothing_fires_outside_the_window(self) -> None:
         self.game.repo.touch_chat(-100, "чат", self.game.now())
-        self.at_hour(15)
+        self.at_hour(8)  # past the backup's window, before the day's event
         await self.events().tick()
         self.assertEqual(self.session.requests, [])
 

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from aiogram.types import InlineKeyboardMarkup
 
 from bot.game.engine import Game
+from bot.rules import auction as auction_rules
 from bot.rules import casino
 from bot.rules import show as show_rules
 from bot.texts import ui
@@ -171,7 +172,7 @@ def best_pic(repo, user_id: int) -> tuple[str, float, int, int] | None:
 
 
 def games(ctx: Ctx) -> Screen:
-    return views.games_screen(ctx.game.reward), keyboards.games_menu()
+    return views.games_screen(), keyboards.games_menu()
 
 
 def people(ctx: Ctx) -> Screen:
@@ -255,7 +256,8 @@ def admin(ctx: Ctx) -> Screen:
 # Local hour → what the schedule does then, for «Сегодня в чате».
 DAY_PLAN = (
     (10, "📰", "событие дня"), (11, "📸", "тема дня"), (12, "🌅", "пикча дня"), (13, "🗳", "кто из нас"),
-    (16, "👹", "босс"), (18, "💸", "великий передел"), (19, "⚖️", "суд над худшей"), (21, "🎬", None),
+    (auction_rules.OPEN_HOUR, "🔨", "аукцион"), (16, "👹", "босс"), (18, "💸", "великий передел"),
+    (19, "⚖️", "суд над худшей"), (21, "🎬", None),
 )
 
 
@@ -289,8 +291,17 @@ def today(ctx: Ctx) -> Screen:
     game, user_id = ctx.game, ctx.user_id
     mine = day_list(game, user_id)
     plan = [(at, emoji, what if at != 21 else f"шоу: {what}", passed) for at, emoji, what, passed in day_plan(game)]
-    text = views.today_screen(views.day_event_line(game.day_event()), plan, mine, live_now(game, ctx.chat_id))
+    text = views.today_screen(views.day_event_line(game.day_event()), plan, mine, live_now(game, ctx.chat_id),
+                              team_lines(game, ctx.chat_id, user_id))
     return text, keyboards.today([label for label, done in mine if not done])
+
+
+def team_lines(game: Game, chat_id: int, user_id: int) -> list[str]:
+    """The team week's score and the viewer's colour, while one is on."""
+    week = game.team_week(chat_id)
+    if week is None:
+        return []
+    return views.team_score_lines(week.scores, week.teams.get(user_id))
 
 
 SCREENS: dict[str, Callable[[Ctx], Screen]] = {
@@ -336,7 +347,8 @@ def live_now(game: Game, chat_id: int) -> list[str]:
     if game.repo.active_challenge_battle(chat_id):
         lines.append("🤺 Идёт вызов")
     rounds = {"who": "🗳 Кто из нас", "bomb": "💣 Бомба", "croc": "🐊 Крокодил", "heist": "🏦 Ограбление",
-              "cup": "🏆 Большой турнир", "theme": "📸 Тема дня"}
+              "cup": "🏆 Большой турнир", "theme": "📸 Тема дня", "spy": "🎭 Шпион", "mines": "🧨 Сапёр",
+              "safe": "🔐 Сейф", "piece": "🧩 Пикча по кусочку", "auction": "🔨 Аукцион"}
     for kind, label in rounds.items():
         if game.repo.open_rounds(chat_id, kind):
             lines.append(label)

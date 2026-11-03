@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from bot.db.repo import Repo
 from bot.game.arena import ArenaMixin
+from bot.game.auction import AuctionMixin
 from bot.game.boss import BossMixin
 from bot.game.casino import CasinoMixin
 from bot.game.challenges import ChallengesMixin
@@ -24,6 +25,8 @@ from bot.game.shop import ShopMixin
 from bot.game.show import ShowMixin
 from bot.game.social import SocialMixin
 from bot.game.statuses import StatusMixin
+from bot.game.table import TableMixin
+from bot.game.teams import TeamsMixin
 from bot.game.types import Note
 from bot.rules import economy
 
@@ -33,13 +36,14 @@ ACTIVITY_REASONS = {"vote", "guess", "court_vote", "like", "upload"}
 # chat's wealth. The wheel's spin_* reasons too.
 REWARD_REASONS = ACTIVITY_REASONS | {
     "quest", "challenge", "daily", "daily_family", "caption_win", "gold", "whose", "hl", "chest", "bomb_pass", "heist",
-    "cup", "croc", "theme", "own_income",
+    "cup", "croc", "theme", "own_income", "spy", "mines", "safe", "piece", "team",
 }
 
 
 class Game(
     PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, QuizMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
-    SocialMixin, ChallengesMixin, BossMixin, EconomyMixin, PartyMixin, ShowMixin,
+    SocialMixin, ChallengesMixin, BossMixin, EconomyMixin, PartyMixin, ShowMixin, TableMixin, AuctionMixin,
+    TeamsMixin,
 ):
 
     def __init__(

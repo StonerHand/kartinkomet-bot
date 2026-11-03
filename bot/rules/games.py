@@ -19,6 +19,19 @@ WHOSE_OPTIONS = 4
 WHOSE_REWARD = 10
 WHOSE_COOLDOWN_SECONDS = 120
 
+# "Pic by pieces": a piece of one pic grows stage by stage; which of four is it?
+PIECE_OPTIONS = 4
+PIECE_STAGE_SECONDS = 20
+PIECE_ZOOMS = (0.2, 0.4, 0.7)  # the piece's side, a share of the pic's shorter edge, stage by stage
+PIECE_REWARDS = (20, 12, 6)  # base coins for the right letter, by the stage it was pressed in: «whose
+PIECE_COOLDOWN_SECONDS = 300  # pic?» pays 10 every two minutes, this about as much per minute
+
+
+def piece_center(rng: random.Random) -> tuple[float, float]:
+    """Where the piece is cut: off the very edges, where pics rarely say anything."""
+    return round(rng.uniform(0.25, 0.75), 3), round(rng.uniform(0.25, 0.75), 3)
+
+
 # "Higher or lower": which of two pics has the higher rating; played in private chat
 HL_REWARD = 2
 HL_PAID_PER_DAY = 25  # correct answers that pay; the streak and the record count on regardless

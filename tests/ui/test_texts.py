@@ -1,9 +1,12 @@
 import unittest
 
 from bot.rules.achievements import ALL_CODES
-from bot.texts import arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui
+from bot.texts import (
+    arena, boss, captions, casino, court, days, events, games, party, progress, shop, show, social, table, toasts, tops, ui
+)
 from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick, reset
+from bot.ui import views
 from tests.layout import EMOJI, NOT_COUNTED, assert_html, fits
 
 EXPECTED_SIZES = {
@@ -40,7 +43,8 @@ TEMPLATES = {"bot.texts.social.ROB_GUARDED": "{victim}"}
 
 
 def all_pools():
-    for module in (arena, boss, captions, casino, court, days, events, games, progress, shop, social, toasts, tops, ui):
+    for module in (arena, boss, captions, casino, court, days, events, games, party, progress, shop, show, social, table,
+                   toasts, tops, ui):
         for name, value in vars(module).items():
             if name.isupper() and isinstance(value, tuple) and value and isinstance(value[0], str):
                 yield f"{module.__name__}.{name}", value
@@ -114,8 +118,14 @@ class TextsTest(unittest.TestCase):
 
 class StaticTextTest(unittest.TestCase):
     def test_static_html(self) -> None:
-        for text in (ui.START, ui.HELP, ui.UPLOAD_PRIVATE_ONLY):
+        for text in (ui.START, ui.UPLOAD_PRIVATE_ONLY, *(views.help_tab(ui.HELP, tab) for tab in ui.HELP_TABS)):
             assert_html(text)
+
+    def test_every_rule_sits_in_a_tab(self) -> None:
+        """The rules are read tab by tab: a block no tab claims is never shown."""
+        shown = "\n\n".join(views.help_tab(ui.HELP, tab) for tab in ui.HELP_TABS)
+        for block in ui.HELP.split("\n\n")[1:]:
+            self.assertIn(block, shown)
 
 
 if __name__ == "__main__":

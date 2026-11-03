@@ -13,7 +13,7 @@ from bot.ui.cards.seasons import points, season_badges
 from bot.ui.layout import bare, money, note, num, plural, rating, who
 
 
-BADGE_MARKS = {"who": "🗳", "bomb": "💥"}
+BADGE_MARKS = {"who": "🗳", "bomb": "💥", "theme": "📸", "mines": "🧨", "team": "🚩"}
 
 
 @dataclass(frozen=True)
