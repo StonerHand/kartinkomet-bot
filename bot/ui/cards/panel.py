@@ -273,6 +273,11 @@ def admin_stats(usage: dict[str, int]) -> str:
         ["👹 <b>Боссы</b>", f"обычные {n('bosses')} · рейды {n('raids')}", f"побед {n('bosses_won')}"],
         ["🎮 <b>Игры</b>", f"казино {n('casino')} · колесо {n('spin')}", f"гороскоп {n('horoscope')} · подписи {n('captions')}",
          f"чья пикча {n('whose')} · выше-ниже {n('higher')}"],
+        ["🗳 <b>Игры чата</b>", f"кто из нас {n('round_who')} · бомба {n('round_bomb')}",
+         f"крокодил {n('round_croc')} · споры {n('round_bet')}", f"шпион {n('round_spy')} · сапёр {n('round_mines')}",
+         f"сейф {n('round_safe')} · кусочки {n('round_piece')}",
+         f"шоу <b>{num(usage.get('round_heist', 0) + usage.get('round_cup', 0))}</b> · тема {n('round_theme')}",
+         f"аукцион {n('round_auction')}"],
         ["🛒 <b>Экономика</b>", f"бонус дня {n('daily')} · покупки {n('purchases')}",
          f"подарки {n('gifts')} · грабежи {n('robberies')}"],
     )

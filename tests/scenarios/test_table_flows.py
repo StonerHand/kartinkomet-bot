@@ -72,6 +72,40 @@ class TableFlowsTest(BotHarness):
         self.assertIn("пойман", result)
         self.assertIn(f"user{spy}", result)
 
+    async def test_the_spy_moves_on_as_soon_as_everyone_is_done(self) -> None:
+        await self.send("/spy", sender=2)
+        found = self.game.repo.open_rounds(-100, "spy")[0]
+        phase = lambda: json.loads(self.game.repo.get_round(found["id"])["text"])["phase"]  # noqa: E731
+        await self.press(f"sy:s:{found['id']}", sender=2)
+        self.assertIn("хотя бы", self.session.of("AnswerCallbackQuery")[-1].text)
+        for person in (3, 4):
+            await self.press(f"sy:j:{found['id']}", sender=person)
+        await self.press(f"sy:s:{found['id']}", sender=3)
+        self.assertIn("только тот", self.session.of("AnswerCallbackQuery")[-1].text)
+        await self.press(f"sy:s:{found['id']}", sender=2)  # no clock moved from here on
+        self.assertEqual(phase(), "talk")
+        for person in (2, 3):
+            await self.press(f"sy:r:{found['id']}", sender=person)
+        talk, _ = self.live.round_card(self.game.repo.get_round(found["id"]))
+        self.assertIn("готовы: <b>2</b> из 3", talk)
+        await self.press(f"sy:r:{found['id']}", sender=4)
+        self.assertEqual(phase(), "vote")
+        players = self.game.spy_players(self.game.repo.get_round(found["id"]))
+        for person in players:
+            target = next(other for other in players if other != person)
+            await self.press(f"sy:v:{found['id']}:{players.index(target)}", sender=person)
+        self.assertEqual(self.game.repo.get_round(found["id"])["status"], "done")
+        self.assertIn("Шпион", self.session.of("EditMessageText")[-1].text)
+
+    async def test_a_game_button_answers_before_the_card_goes_out(self) -> None:
+        buffer = BytesIO()
+        Image.new("RGB", (300, 200), (30, 120, 200)).save(buffer, "JPEG")
+        self.session.image = buffer.getvalue()
+        await self.press("gm:piece", sender=3)
+        kinds = [self.session.kind(request) for request in self.session.requests]
+        self.assertLess(kinds.index("AnswerCallbackQuery"), kinds.index("SendPhoto"))
+        self.assertIn("Режу", self.session.of("AnswerCallbackQuery")[0].text)
+
     async def test_the_minefield_pays_and_burns(self) -> None:
         await self.send("/mines", sender=2)
         found = self.game.repo.open_rounds(-100, "mines")[0]

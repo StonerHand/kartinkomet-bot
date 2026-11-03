@@ -176,8 +176,8 @@ class CoreFlowsTest(BotHarness):
     async def test_votes_are_batched_into_one_edit(self) -> None:
         import bot.live.timers as timers
 
+        self.addCleanup(setattr, timers, "REFRESH_DELAY", timers.REFRESH_DELAY)
         timers.REFRESH_DELAY = 0.05
-        self.addCleanup(setattr, timers, "REFRESH_DELAY", 1.5)
         battle = self.game.start_duel(-100).battle
         self.game.repo.set_battle_message(battle.id, 70)
         for voter in range(3, 8):
@@ -262,12 +262,13 @@ class CoreFlowsTest(BotHarness):
                 await original(0)
             self.clock.advance(seconds)
 
+        delay = timers.REFRESH_DELAY
         timers.asyncio.sleep, timers.REFRESH_DELAY = fake_sleep, 0
         try:
             self.clock.advance(DUEL_SECONDS)
             await self.live.battle_countdown(battle.id)
         finally:
-            timers.asyncio.sleep, timers.REFRESH_DELAY = original, 1.5
+            timers.asyncio.sleep, timers.REFRESH_DELAY = original, delay
         finished = self.game.repo.get_battle(battle.id)
         self.assertTrue(finished.extended)
         self.assertEqual(finished.status, "done")

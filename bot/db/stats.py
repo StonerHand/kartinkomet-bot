@@ -200,6 +200,8 @@ class StatsRepo:
             "gifts": one("SELECT COUNT(*) FROM ledger WHERE at >= ? AND reason = 'gift' AND amount > 0", since),
             "daily": one("SELECT COUNT(*) FROM ledger WHERE at >= ? AND reason = 'daily'", since),
         }
+        for kind, count in self.db.execute("SELECT kind, COUNT(*) FROM rounds WHERE created_at >= ? GROUP BY kind", (since,)):
+            stats[f"round_{kind}"] = count  # the chat's games: who, bomb, croc, spy, mines, safe…
         for key, value in self.db.execute("SELECT key, value FROM counters WHERE user_id = 0 AND key LIKE 'use:%'"):
             _, day, name = key.split(":", 2)
             if int(day) >= since_day:

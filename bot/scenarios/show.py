@@ -72,7 +72,7 @@ async def heist_join(callback: CallbackQuery, game: Game, live: Live) -> None:
     status = game.join_heist(round_id, callback.from_user.id)
     await send.answer_quietly(callback, JOIN_TOASTS[status])
     if status == "ok":
-        live.request_refresh_round(round_id)
+        await heist_moved(game, live, round_id)
 
 
 @router.callback_query(F.data.startswith("hv:"))
@@ -81,6 +81,14 @@ async def heist_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
     status = game.vote_heist(round_id, callback.from_user.id, int(raw) if raw in ("0", "1") else -1)
     await send.answer_quietly(callback, VOTE_TOASTS[status])
     if status == "ok":
+        await heist_moved(game, live, round_id)
+
+
+async def heist_moved(game: Game, live: Live, round_id: str) -> None:
+    """A full crew needn't wait out the recruiting, nor a crew that has all voted its stage."""
+    if game.heist_all_in(round_id):
+        await live.hurry(round_id)
+    else:
         live.request_refresh_round(round_id)
 
 

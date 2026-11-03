@@ -85,6 +85,16 @@ class ShowMixin:
         self.repo.put_round_vote(round_id, user_id, option, role)
         return "ok"
 
+    def heist_all_in(self, round_id: str) -> bool:
+        """Nothing left to wait for: the crew is full while recruiting, or every member has voted
+        in a stage. The phase then plays out at once."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["kind"] != "heist" or found["status"] != "open":
+            return False
+        if not state_of(found)["stage"]:
+            return len(found["votes"]) >= show.MAX_CREW
+        return all(choice in (0, 1) for choice, _ in found["votes"].values())
+
     def heist_crew(self, found: dict) -> list[tuple[int, str]]:
         """(member, role) in the order they joined."""
         return [(user, show.role_of(role)) for user, (_, role) in sorted(found["votes"].items(), key=lambda v: v[1][1])]

@@ -1,5 +1,6 @@
 """The evening show end to end: a heist from recruiting to the loot, the cup from intro to champion."""
 
+import json
 from unittest import mock
 
 from bot.rules import show as rules
@@ -33,6 +34,20 @@ class ShowFlowsTest(BotHarness):
         self.assertEqual(self.coins(4), rules.LOOT_PER_MEMBER)
         await self.send("/heist", sender=5)
         self.assertIn("уже было", self.session.of("SendEphemeralMessage")[-1].text)
+
+    async def test_a_full_crew_and_a_crew_that_all_voted_move_on_at_once(self) -> None:
+        await self.send("/heist", sender=2)
+        found = self.game.repo.open_rounds(-100, "heist")[0]
+        crew = list(range(2, 2 + rules.MAX_CREW))
+        for member in crew:
+            await self.press(f"hj:{found['id']}", sender=member)
+        self.assertEqual(json.loads(self.game.repo.get_round(found["id"])["text"])["stage"], 1)  # no clock moved
+        with mock.patch.object(self.game.rng, "random", return_value=0.0):
+            for member in crew[:-1]:
+                await self.press(f"hv:{found['id']}:0", sender=member)
+            self.assertEqual(json.loads(self.game.repo.get_round(found["id"])["text"])["stage"], 1)
+            await self.press(f"hv:{found['id']}:1", sender=crew[-1])
+        self.assertEqual(json.loads(self.game.repo.get_round(found["id"])["text"])["stage"], 2)
 
     async def test_the_cup_from_intro_to_champion(self) -> None:
         await self.send("/cup", sender=2)

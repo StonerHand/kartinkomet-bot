@@ -79,6 +79,14 @@ class PartyRepo:
             self.db.execute("UPDATE rounds SET ends_at = ?, text = ? WHERE id = ? AND status = 'open'",
                             (ends_at, text, round_id))
 
+    def hurry_round(self, round_id: str, now: int) -> bool:
+        """End the round's phase now: everyone has had their say."""
+        with self.db:
+            cursor = self.db.execute(
+                "UPDATE rounds SET ends_at = ? WHERE id = ? AND status = 'open' AND ends_at > ?", (now, round_id, now)
+            )
+        return cursor.rowcount == 1
+
     def clear_round_choices(self, round_id: str) -> None:
         """Every vote back to 'none yet' (-1), stakes kept: a heist's next stage."""
         with self.db:

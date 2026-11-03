@@ -21,7 +21,7 @@ def people_word(count: int) -> str:
 
 
 def spy_card(phase: str, players: list[str], remaining: int, counts: list[int] | None = None,
-             round_id: str = "") -> str:
+             round_id: str = "", ready: int = 0) -> str:
     """Recruiting, the talk (everyone checks their word and writes one about it), the vote."""
     if phase == "recruit":
         return card(
@@ -29,15 +29,18 @@ def spy_card(phase: str, players: list[str], remaining: int, counts: list[int] |
             steady(texts.SPY_FLAVOUR, round_id),
             ["👥 <b>Играют</b>", *(f"▫️ {who(name)}" for name in players)],
             note(f"Жми «Играю», нужно от {table.SPY_MIN} до {table.SPY_MAX} человек. Всем придёт одно слово, "
-                 f"а одному — «ты шпион». Шпион слова не знает и должен не спалиться"),
+                 f"а одному — «ты шпион». Шпион слова не знает и должен не спалиться. Кто начал игру, может "
+                 f"не ждать таймера: «Начать», когда соберутся трое"),
         )
     if phase == "talk":
         return card(
             f"🎭 <b>Шпион</b> · обсуждение · <b>{timer(remaining)}</b>",
             steady(texts.SPY_FLAVOUR, round_id),
             ["👥 <b>Играют</b>", *(f"▫️ {who(name)}" for name in players)],
+            f"✋ К голосованию готовы: <b>{ready}</b> из {len(players)}" if ready else "",
             note("Жми «Моё слово» — увидишь только ты. Каждый пишет в чат одно слово про своё: "
-                 "не слишком прямо, а то шпион догадается. Потом голосование"),
+                 "не слишком прямо, а то шпион догадается. Твоё слово в чате — жми «К голосованию»: "
+                 "когда готовы все, голосование начнётся сразу"),
         )
     counts = counts or [0] * len(players)
     leader = max(counts, default=0)
@@ -45,8 +48,8 @@ def spy_card(phase: str, players: list[str], remaining: int, counts: list[int] |
         f"🎭 <b>Шпион</b> · голосование · <b>{timer(remaining)}</b>",
         steady(texts.SPY_FLAVOUR, round_id),
         [f"▫️ {who(name)} · <b>{count}</b>{bar(count, leader)}" for name, count in zip(players, counts)],
-        note("Кто шпион? Голосуют только игроки, за себя нельзя. Поймали — каждому знавшему слово "
-             "монеты. Ничья или мимо — шпион уходит с призом"),
+        note("Кто шпион? Голосуют только игроки, за себя нельзя. Проголосуют все — итог сразу. Поймали — "
+             "каждому знавшему слово монеты. Ничья или мимо — шпион уходит с призом"),
     )
 
 
