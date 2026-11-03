@@ -24,7 +24,7 @@ async def give(message: Message, command: CommandObject, bot: Bot, game: Game, l
 async def run_give(bot: Bot, game: Game, live: Live, chat_id: int, giver: int, state: dict) -> str | None:
     amount = state["amount"]
     status, granted = game.give(giver, state["to"], amount)
-    refusals = {"self": "Себе дарить — это просто перекладывать из кармана в карман", "small": "Подарок от 1 🪙",
+    refusals = {"self": "Себе дарить — это просто перекладывать из кармана в карман", "small": "Подарок — хотя бы одна монета",
                 "broke": "Столько у тебя нет"}
     if status != "ok":
         return refusals[status]
@@ -101,7 +101,7 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
         "gone": "Это предложение уже не актуально",
         "not_for_you": "Отвечать не тебе. Не встревай",
         "expired": "Предложение протухло. Кольцо вернули в ломбард",
-        "broke": f"На свадьбу нужно {game.wedding_price()} 🪙 с каждого. Не хватает",
+        "broke": f"На свадьбу нужно {views.coins(game.wedding_price())} с каждого. Не хватает",
         "taken": "Кто-то из вас уже в браке",
     }
     if status in refusals:

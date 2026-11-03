@@ -152,7 +152,7 @@ def croc_result(word: str, explainer: str, guesser: str | None, reward: int, cha
 
 def theme_card(theme: str, answers: int, closes_at_hour: int, round_id: str = "") -> str:
     return card(
-        "🎯 <b>Тема дня</b>",
+        "📸 <b>Тема дня</b>",
         steady(texts.THEME_FLAVOUR, round_id),
         f"🖼 <b>{escape(theme)}</b>",
         f"📨 Ответов: <b>{answers}</b>" if answers else "",
@@ -164,7 +164,7 @@ def theme_card(theme: str, answers: int, closes_at_hour: int, round_id: str = ""
 def theme_vote_card(theme: str, counts: list[int], remaining: int, round_id: str = "") -> str:
     leader = max(counts, default=0)
     return card(
-        f"🎯 <b>Тема дня</b> · голосование · <b>{timer(remaining)}</b>",
+        f"📸 <b>Тема дня</b> · голосование · <b>{timer(remaining)}</b>",
         escape(theme),
         [f"▫️ Ответ {index + 1} · <b>{count}</b>{bar(count, leader)}" for index, count in enumerate(counts)],
         note("Ответы — в альбоме выше, по порядку. Жми номер лучшего, за свой голосовать нельзя"),
@@ -177,11 +177,11 @@ def theme_result(theme: str, authors: list[str], counts: list[int], winners: lis
     lines = [f"{MEDALS[index] if index < len(MEDALS) else f'{index + 1}.'} {who(name)} · {count} {votes_word(count)}"
              for index, (name, count) in enumerate(item for item in ranked if item[1])]
     verdict = (f"👑 {', '.join(f'<b>{who(name)}</b>' for name in winners)} · +{money(prize)}" if winners else "")
-    return card("🎯 <b>Тема дня</b> · итог", pick(texts.THEME_RESULT, chat_id), f"🖼 {escape(theme)}", lines, verdict)
+    return card("📸 <b>Тема дня</b> · итог", pick(texts.THEME_RESULT, chat_id), f"🖼 {escape(theme)}", lines, verdict)
 
 
 def theme_few(theme: str) -> str:
-    return card("🎯 <b>Тема дня</b> · без голосования", texts.THEME_FEW, f"🖼 {escape(theme)}")
+    return card("📸 <b>Тема дня</b> · без голосования", texts.THEME_FEW, f"🖼 {escape(theme)}")
 
 
 def owner_change(buyer: str, previous: str | None, price: int) -> str:

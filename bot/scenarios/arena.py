@@ -188,8 +188,8 @@ BET_ANSWERS = {
     "closed": "💰 Ставки закрыты, бой окончен",
     "fighter": "💰 Участникам вызова ставить нельзя. Совесть, всё такое",
     "other_slot": "💰 Твоя ставка уже стоит на другой пикче. Не жадничай",
-    "max": "💰 Потолок — {max} 🪙 на бой",
-    "broke": "💰 Не хватает монет. Ставка — {step} 🪙",
+    "max": "💰 Потолок — {max} на бой",
+    "broke": "💰 Не хватает монет. Ставка — {step}",
 }
 
 
@@ -201,8 +201,8 @@ async def bet(callback: CallbackQuery, game: Game, live: Live) -> None:
         return
     status, total = game.bet_battle(battle_id, callback.from_user.id, int(raw_slot))
     if status != "ok":
-        answer = BET_ANSWERS.get(status, "Не вышло").format(step=views.num(game.bet_step()), max=views.num(game.bet_max()))
+        answer = BET_ANSWERS.get(status, "💰 Не вышло").format(step=views.coins(game.bet_step()), max=views.coins(game.bet_max()))
         await callback.answer(answer, show_alert=status not in ("max",))
         return
-    await callback.answer(f"💰 Ставка принята: всего {total} 🪙 на эту пикчу")
+    await callback.answer(f"💰 Ставка принята: всего {views.coins(total)} на эту пикчу")
     live.request_refresh_battle(battle_id)

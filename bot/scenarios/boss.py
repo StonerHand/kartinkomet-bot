@@ -77,7 +77,7 @@ async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         await callback.answer("⏳ Замах ещё не готов. Секунду")
         return
     if result.status == "broke":
-        await callback.answer(f"💥 Супер-удар стоит {views.num(game.super_price())} 🪙", show_alert=True)
+        await callback.answer(f"💥 Супер-удар стоит {views.coins(game.super_price())}", show_alert=True)
         return
     if result.status in ("over", "gone"):
         await callback.answer("👹 Бой с боссом окончен")
@@ -91,8 +91,8 @@ async def hit(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         # The card shows the counterattack; only its victim, if it's the hitter, hears it here.
         game.repo.set_meta(f"boss_counter:{boss_id}", f"{result.counter_victim}:{result.fine}")
         if result.counter_victim == callback.from_user.id and result.fine:
-            struck = f" · босс дал сдачи: −{result.fine} 🪙"
-    await callback.answer(f"{pick(pool)} · −{result.damage} ❤️ (осталось {result.hp}){shield}{struck}")
+            struck = f" · босс дал сдачи: −{views.coins(result.fine)}"
+    await callback.answer(f"{pick(pool)} · урон {result.damage}, осталось {result.hp}{shield}{struck}")
     if result.killed:
         await live.finish_boss(boss_id)
     else:

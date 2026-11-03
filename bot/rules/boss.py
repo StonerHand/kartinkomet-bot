@@ -15,12 +15,12 @@ from dataclasses import dataclass
 DURATION_SECONDS = 600
 SUMMON_COOLDOWN_SECONDS = 3 * 3600
 HIT_COOLDOWN_SECONDS = 2.0
-BASE_HP = 40
-HP_PER_PLAYER = 15  # per player active in the last week: a boss should take the chat a few minutes
-MIN_HP = 80
+BASE_HP = 60
+HP_PER_PLAYER = 20  # per player active in the last week: the chat won 25 bosses of 27 at 15
+MIN_HP = 100
 SUPER_PRICE = 25
 BASE_LOOT = 200
-LOOT_PER_HP = 2
+LOOT_PER_HP = 1.5  # with the health raised by a third, the loot stays as it was
 LAST_HIT_BONUS = 50
 COUNTER_EVERY = 15
 COUNTER_FINE = 15
@@ -57,7 +57,7 @@ def max_hp(active_players: int, double: bool = False) -> int:
 
 
 def loot(hp: int, double: bool = False) -> int:
-    value = BASE_LOOT + LOOT_PER_HP * hp
+    value = int(BASE_LOOT + LOOT_PER_HP * hp)
     return value * 2 if double else value
 
 

@@ -116,12 +116,12 @@ async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         "final": "Это и была апелляция. Приговор окончательный",
         "not_owner": "Апелляцию подаёт только тот, кто загрузил пикчу",
         "late": "Срок апелляции вышел. Пять минут — и всё",
-        "broke": f"Залог — {views.num(game.appeal_bail())} 🪙. Столько у тебя нет",
+        "broke": f"Залог — {views.coins(game.appeal_bail())}. Столько у тебя нет",
     }
     if result.status != "started" or result.court is None:
         await callback.answer(answers.get(result.status, "Не вышло"), show_alert=True)
         return
-    await callback.answer(f"📜 Апелляция подана. Залог {views.num(result.court.bail)} 🪙")
+    await callback.answer(f"📜 Апелляция подана. Залог {views.coins(result.court.bail)}")
     if callback.message is not None:
         filed = (callback.message.caption or callback.message.text or "").split("\n")[0]
         note = "📜 <b>Подана апелляция</b> — повторный суд ниже"

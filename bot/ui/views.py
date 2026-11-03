@@ -26,7 +26,7 @@ from bot.ui.cards.party import (
 )
 from bot.ui.cards.panel import (
     home, hall, bottom, REMOVAL_REASONS, graveyard, top, upload_hub, upload_progress, admin,
-    PEOPLE_SCREEN, admin_stats, games_screen, season_line, today_screen, home_personal
+    PEOPLE_SCREEN, admin_stats, games_screen, season_line, today_screen, home_personal, help_tab
 )
 from bot.ui.cards.people import ask, gift, redistribution, robbery, proposal, wedding, rejected, divorce
 from bot.ui.cards.pics import pic_footer, pic_caption
@@ -37,14 +37,14 @@ from bot.ui.cards.progress import (
 from bot.ui.cards.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
 from bot.ui.cards.shop import shop_screen, pic_menu, bought, PURCHASE_FACTS, purchase_notice, wanted_poster
 from bot.ui.layout import (
-    BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
+    BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, coins, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
     slot_names, rating, delta, who, card, cited, plural, ago, duration, hp_bar, marked, note
 )
 
 __all__ = [
     "BAR_CELLS", "DUEL_SLOTS", "PEOPLE_SCREEN", "MEDALS", "NOTE_CHESTS", "PURCHASE_FACTS",
     "RARITY_WORDS", "REMOVAL_REASONS", "SLOT_COLORS", "TOURNAMENT_SLOTS", "Wallet", "admin", "ago",
-    "announcement", "appeal_hint", "ask", "marked", "note", "bar", "bare", "battle_card", "battle_report", "battle_result",
+    "announcement", "appeal_hint", "ask", "coins", "marked", "note", "bar", "bare", "battle_card", "battle_report", "battle_result",
     "bets_line", "bets_result", "boss_card", "boss_result", "bottom", "bought", "bounty_line",
     "caption_cancelled", "caption_card", "caption_result", "card", "casino_result", "casino_screen",
     "casino_title", "challenge_card", "challenge_closed", "challenge_names", "challenge_result",
@@ -59,5 +59,5 @@ __all__ = [
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
     "heist_card", "heist_result", "cup_intro", "cup_champion",
-    "today_screen", "home_personal", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
+    "today_screen", "home_personal", "help_tab", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
 ]

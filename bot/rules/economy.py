@@ -5,7 +5,7 @@ from dataclasses import dataclass
 # Coins per action.
 VOTE = 1
 GUESS = 3  # voted for the winner of a battle
-COURT_VOTE = 1
+COURT_VOTE = 3  # a court asks more of a voter than a duel does
 LIKE_RECEIVED = 2  # someone liked your pic for the first time
 UPLOAD = 1
 CAPTION_WIN = 15

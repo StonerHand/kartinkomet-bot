@@ -183,7 +183,7 @@ async def grab_gold(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
     if not won:
         await callback.answer(pick(game_texts.GOLD_CLAIMED), show_alert=True)
         return
-    await callback.answer(f"⚡ Твоё! +{views.num(game.reward(economy.GOLD))} 🪙", show_alert=True)
+    await callback.answer(f"⚡ Твоё! +{views.coins(game.reward(economy.GOLD))}", show_alert=True)
     if callback.message is not None:
         label = game.repo.user_label(callback.from_user.id)
         chat_id = callback.message.chat.id

@@ -77,7 +77,8 @@ class ScreensTest(BotHarness):
         for board in ("uploads", "loved", "killers", "streaks", "rich"):
             await self.press(f"m:top:{board}", sender=ADMIN)
         self.session.refuse = {"SendEphemeralMessage"}  # personal screens fall back to the panel
-        for tab in ("m:me", "m:me:pics", "m:me:casino", "m:me:ach", "m:mine", "m:today"):
+        for tab in ("m:me", "m:me:pics", "m:me:casino", "m:me:ach", "m:mine", "m:today",
+                    "m:help", "m:help:games", "m:help:money", "m:help:day"):
             await self.press(tab, sender=ADMIN)
         await self.press("m:quests", sender=ADMIN)
 

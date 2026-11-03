@@ -2,7 +2,7 @@
 
 from unittest import mock
 
-from bot.rules import shop, show
+from bot.rules import show
 from tests.helpers import GameCase, make_game
 
 CHAT = -100
@@ -52,7 +52,7 @@ class HeistTest(GameCase):
             step = self.game.advance_heist(round_id)
         self.assertEqual(step.kind, "busted")
         for user in (2, 3):
-            self.assertEqual(self.game.repo.counter(user, "jail_until"), self.game.now() + shop.JAIL_SECONDS)
+            self.assertEqual(self.game.repo.counter(user, "jail_until"), self.game.now() + show.HEIST_JAIL_SECONDS)
         self.assertIsNone(self.game.advance_heist(round_id))
 
 

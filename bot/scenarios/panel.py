@@ -10,7 +10,7 @@ from bot.game.engine import Game
 from bot.scenarios.higher import deal
 from bot.telegram import send
 from bot.texts import ui
-from bot.ui import screens
+from bot.ui import keyboards, screens, views
 from bot.ui.screens import Ctx
 
 router = Router(name="panel")
@@ -88,7 +88,8 @@ async def personal(message: Message, bot: Bot, game: Game, admins: frozenset[int
 
 @router.message(Command("help"))
 async def help_command(message: Message, bot: Bot) -> None:
-    await send.reply_personal(bot, message, ui.HELP, seconds=HELP_SECONDS)
+    await send.reply_personal(bot, message, views.help_tab(ui.HELP, "main"), keyboards.help_tabs("main"),
+                              seconds=HELP_SECONDS)
 
 
 @router.message(Command("id"))

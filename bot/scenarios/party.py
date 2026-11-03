@@ -387,15 +387,15 @@ async def theme_answer(message: Message, bot: Bot, game: Game) -> None:
         text = views.theme_card(game.theme_state(found)["theme"], answers, rules.THEME_VOTE_HOUR, found["id"])
         await send.edit_text(bot, message.chat.id, found["message_id"], text, None)
     elif status == "full":
-        await send.reply_personal(bot, message, views.marked(f"Ответов уже {rules.THEME_MAX_ENTRIES}, мест нет", "🎯"))
+        await send.reply_personal(bot, message, views.marked(f"Ответов уже {rules.THEME_MAX_ENTRIES}, мест нет", "📸"))
 
 
 THEME_TOASTS = {
     "ok": "🗳 Голос принят",
-    "own": "🎯 За свой ответ голосовать нельзя",
-    "same": "🎯 Твой голос уже здесь",
-    "closed": "🎯 Голосование закончилось",
-    "gone": "🎯 Этой темы больше нет",
+    "own": "📸 За свой ответ голосовать нельзя",
+    "same": "📸 Твой голос уже здесь",
+    "closed": "📸 Голосование закончилось",
+    "gone": "📸 Этой темы больше нет",
 }
 
 

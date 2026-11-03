@@ -6,7 +6,6 @@ from html import escape
 from bot.models.records import Pic
 from bot.rules import economy, seasons
 from bot.rules import games as game_rules
-from bot.rules import party as party_rules
 from bot.texts import tops as top_texts
 from bot.texts import ui
 from bot.texts.pick import pick
@@ -19,6 +18,13 @@ def season_line(season: str, days_left: int) -> str:
     if days_left <= 1:
         return f"🏆 Сезон · {month} · последний день"
     return f"🏆 Сезон · {month} · ещё {days_left} {plural(days_left, 'день', 'дня', 'дней')}"
+
+
+def help_tab(full: str, tab: str) -> str:
+    """One tab of the rules: the help's blocks that open with the tab's emoji, under one title."""
+    _, detail, marks = ui.HELP_TABS[tab]
+    blocks = [block for block in full.split("\n\n")[1:] if block.startswith(marks)]
+    return "\n\n".join([f"❓ <b>Правила</b> · {detail}", *blocks])
 
 
 def now_block(live_now: list[str]) -> list[str]:
@@ -161,7 +167,7 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, fa
             "🕒 <b>Расписание</b>",
             "💾 04:00 — бэкап админам",
             "📰 10:00 — событие дня",
-            "🎯 11:00 — тема дня",
+            "📸 11:00 — тема дня",
             "🌅 12:00 — пикча дня",
             "🗳 13:00 — кто из нас",
             "👹 16:00 — босс, в субботу рейд",
@@ -193,55 +199,29 @@ def _factor(value: float) -> str:
 
 
 def games_screen(reward: Callable[[int], int] = lambda amount: amount) -> str:
-    """reward: base amount → today's (rewards grow with the chat's wealth)."""
-    return (
-        "🎮 <b>Игры</b>\n"
-        "<i>Всё, за что капают монеты помимо арены. Казино и люди — отдельными кнопками в пульте</i>\n"
-        "\n"
-        "🗳 <b>Кто из нас</b> · /who\n"
-        "Вопрос про чат, ответы — его люди. Полчаса на голоса, победитель носит титул сутки. "
-        "Сам приходит в 13:00, свой вопрос — /who и текст\n"
-        "\n"
-        "💣 <b>Бомба</b> · /bomb\n"
-        "Достаётся случайному человеку. Передавай ответом на чьё-то сообщение, пока не рванула: "
-        "на кого рванёт — теряет монеты и носит позор сутки\n"
-        "\n"
-        "🤝 <b>Спор</b> · /bet\n"
-        "Спор о жизни чата: /bet и сам спор. Все ставят на «сбудется» или «не сбудется», автор решает, "
-        "победители делят ставки\n"
-        "\n"
-        "🐊 <b>Крокодил</b> · /croc\n"
-        f"Тебе слово, объясняй его только пикчами со склада, чат угадывает. Угадавшему и тебе по +{money(reward(party_rules.CROC_REWARD))}\n"
-        "\n"
-        "🎯 <b>Тема дня</b> · 11:00\n"
-        "Отвечай на тему своей пикчей до 20:00, потом чат выбирает лучшую\n"
-        "\n"
-        "🎬 <b>Вечернее шоу</b> · 21:00\n"
-        "Через день: ограбление банка всем чатом (/heist) или большой турнир восьми пикч (/cup)\n"
-        "\n"
-        "👹 <b>Босс</b> · /boss\n"
-        "Пикча-чудовище на 10 минут. Чат бьёт его кнопками, добыча делится по урону. "
-        "Приходит сам в 16:00, призвать можно раз в 3 часа. По субботам — рейд до полуночи\n"
-        "\n"
-        "🖋 <b>Подпиши пикчу</b> · /caption\n"
-        f"Минута на подпись ответом на пикчу, потом анонимное голосование. Победителю +{money(reward(economy.CAPTION_WIN))}\n"
-        "\n"
-        "🎡 <b>Колесо фортуны</b> · /wheel\n"
-        f"Раз в день бесплатно: монеты, проклятие или благословение твоей пикчи, легенда. 777 — +{money(reward(game_rules.SPIN_COINS["jackpot"]))}\n"
-        "\n"
-        "🔮 <b>Гороскоп</b> · /horoscope\n"
-        "Личная пикча и предсказание, раз в день\n"
-        "\n"
-        "🕵️ <b>Чья пикча?</b> · /whose\n"
-        f"Пикча и четыре имени: угадай, кто её загрузил. Полминуты, за верный ответ +{money(reward(game_rules.WHOSE_REWARD))}\n"
-        "\n"
-        "🎯 <b>Выше-ниже</b> · /higher\n"
-        "Две пикчи, угадай, у какой рейтинг выше. Играется в личке с ботом, рекорд серии — в рейтингах\n"
-        "\n"
-        "⚡ <b>Золотая пикча</b>\n"
-        f"Иногда выпадает в рандоме. Кто первый нажмёт — тому +{money(reward(economy.GOLD))}"
+    """Every game on one line: what it is and how to start it. The rules live in «Правила» → «Игры».
+    reward: base amount → today's money."""
+    return card(
+        "🎮 <b>Игры</b>",
+        "Всё, за что капают монеты помимо арены",
+        [
+            "🗳 Кто из нас · /who · 13:00",
+            "💣 Бомба · /bomb",
+            "🐊 Крокодил пикчами · /croc",
+            "🤝 Спор на монеты · /bet",
+            "📸 Тема дня · 11:00",
+            "🎬 Шоу · /heist · /cup · 21:00",
+        ],
+        [
+            "👹 Босс · /boss · 16:00",
+            "🕵️ Чья пикча · /whose",
+            "🎯 Выше-ниже · /higher",
+            "🖋 Подпиши пикчу · /caption",
+            f"🎡 Колесо · /wheel · до {money(reward(game_rules.SPIN_COINS['jackpot']))}",
+            "🔮 Гороскоп · /horoscope",
+        ],
+        note("Кнопки ниже запускают игру в этом чате. Как играть в каждую — «Правила» → «Игры»"),
     )
-
 
 
 PEOPLE_SCREEN = (

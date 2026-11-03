@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from bot.game.types import Granted
 from bot.models.records import Battle, Pic
-from bot.rules import deck, shop, show
+from bot.rules import deck, show
 
 
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ class ShowMixin:
             self.repo.update_round(round_id, found["ends_at"], json.dumps(state))
             self.repo.close_round(round_id, 0)
             for user_id in crew:
-                self.repo.set_counter(user_id, "jail_until", self.now() + shop.JAIL_SECONDS)
+                self.repo.set_counter(user_id, "jail_until", self.now() + show.HEIST_JAIL_SECONDS)
             return HeistStep(self.repo.get_round(round_id), "busted", event, option, False, crew=tuple(crew))
         if state["stage"] == show.STAGES:
             self.repo.update_round(round_id, found["ends_at"], json.dumps(state))

@@ -14,6 +14,7 @@ MAX_CREW = 8
 ROLES = ("hacker", "driver", "decoy", "muscle")  # handed out in the order people join
 ROLE_BONUS = 0.2  # a stage's option is this much likelier when its role is in the crew
 LOOT_PER_MEMBER = 300  # base coins each member takes from a clean job
+HEIST_JAIL_SECONDS = 3600  # a busted crew sits an hour, not a robber's six: the show is once a day
 
 
 @dataclass(frozen=True)

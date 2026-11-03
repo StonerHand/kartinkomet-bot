@@ -27,7 +27,7 @@ Scheme:
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot.texts.ui import BACK
+from bot.texts.ui import BACK, HELP_TABS
 
 PRIMARY = "primary"
 SUCCESS = "success"
@@ -454,6 +454,12 @@ def tops(active: str, week: bool = False) -> InlineKeyboardMarkup:
         [button("⚰️ Кладбище", "m:grave"), button("🏆 Сезоны", "m:seasons")],
         back(),
     )
+
+
+def help_tabs(tab: str) -> InlineKeyboardMarkup:
+    tabs = [button(label, "m:help" if code == "main" else f"m:help:{code}", PRIMARY if code == tab else None)
+            for code, (label, _, _) in HELP_TABS.items()]
+    return markup(tabs[:2], tabs[2:], back())
 
 
 PROFILE_TABS = (("main", "👤 Основное"), ("pics", "📦 Склад"), ("casino", "🎰 Казино"), ("ach", "🏅 Ачивки"))

@@ -86,8 +86,9 @@ class ProgressTest(unittest.TestCase):
 class BossShopTest(unittest.TestCase):
     def test_boss_hp_scales(self) -> None:
         self.assertEqual(boss.max_hp(0), boss.MIN_HP)
-        self.assertEqual(boss.max_hp(10), 190)
-        self.assertEqual(boss.max_hp(10, double=True), 380)
+        self.assertEqual(boss.max_hp(10), boss.BASE_HP + 10 * boss.HP_PER_PLAYER)
+        self.assertEqual(boss.max_hp(10, double=True), 2 * boss.max_hp(10))
+        self.assertAlmostEqual(boss.loot(boss.max_hp(6)), 460, delta=15)  # tougher, but six players' loot as before
 
     def test_loot_split_by_damage(self) -> None:
         self.assertEqual(boss.split_loot(300, {1: 20, 2: 10}), {1: 200, 2: 100})
