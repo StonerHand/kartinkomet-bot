@@ -1,5 +1,7 @@
 """Table games of the chat: /spy, /mines, /safe, /pieces, and the bids of the daily auction."""
 
+from collections.abc import Awaitable, Callable
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
@@ -18,6 +20,7 @@ from bot.ui.layout import plain
 router = Router(name="table")
 
 GROUP_ONLY = "👥 Это игра для группового чата: добавь бота в чат и зови всех туда"
+PENDING = {"piece": "🧩 Режу пикчи…"}  # what a button says while a slow card is on its way
 REFUSALS = {
     "spy": ("🎭", {"active": "Шпион уже идёт — смотри выше", "cooldown": "Следующий шпион — через {wait}"}),
     "mines": ("🧨", {"active": "Поле уже лежит — смотри выше", "cooldown": "Новое поле — через {wait}"}),
@@ -36,8 +39,13 @@ def refusal(game: Game, chat_id: int, kind: str, status: str) -> str | None:
     return views.marked(texts[status].format(wait=views.duration(left)), emoji)
 
 
-async def post_round(bot: Bot, game: Game, live: Live, found: dict) -> str:
+Ready = Callable[[], Awaitable[None]] | None  # called once the round exists, before its card goes out
+
+
+async def post_round(bot: Bot, game: Game, live: Live, found: dict, ready: Ready = None) -> str:
     """Send a new round's card and start watching it: 'started', or 'failed' (the round is gone)."""
+    if ready:
+        await ready()
     text, markup = live.round_card(found)
     message = await send.send_text(bot, found["chat_id"], text, markup)
     if message is None:
@@ -48,10 +56,11 @@ async def post_round(bot: Bot, game: Game, live: Live, found: dict) -> str:
     return "started"
 
 
-async def start(bot: Bot, game: Game, live: Live, chat_id: int, kind: str, user_id: int) -> str:
-    """'started' or why not. A round whose clock ran out while the bot was busy is settled first."""
+async def start(bot: Bot, game: Game, live: Live, chat_id: int, kind: str, user_id: int, ready: Ready = None) -> str:
+    """'started' or why not. A round whose clock ran out while the bot was busy is settled first.
+    ready: what to do the moment the game is sure to start (a button stops spinning)."""
     if kind == "piece":
-        return await start_piece(bot, game, live, chat_id)
+        return await start_piece(bot, game, live, chat_id, ready)
     starters = {"spy": lambda: game.start_spy(chat_id, user_id, pick(party_texts.CROC_WORDS, chat_id)),
                 "mines": lambda: game.start_mines(chat_id), "safe": lambda: game.start_safe(chat_id)}
     status, found = starters[kind]()
@@ -60,13 +69,15 @@ async def start(bot: Bot, game: Game, live: Live, chat_id: int, kind: str, user_
         status, found = starters[kind]()
     if status != "started" or found is None:
         return status
-    return await post_round(bot, game, live, found)
+    return await post_round(bot, game, live, found, ready)
 
 
-async def start_piece(bot: Bot, game: Game, live: Live, chat_id: int) -> str:
+async def start_piece(bot: Bot, game: Game, live: Live, chat_id: int, ready: Ready = None) -> str:
     status, found = game.start_piece(chat_id)
     if status != "started" or found is None:
         return status
+    if ready:
+        await ready()  # cutting four pics takes a moment
     state = game.piece_state(found)
     pics = game.piece_pics(found)
     board = await pictures.build_pieces(bot, pics, state["answer"], game_rules.PIECE_ZOOMS[0], tuple(state["center"]))
@@ -126,11 +137,21 @@ async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         await send.answer_quietly_alert(callback, GROUP_ONLY)
         return
     kind = callback.data.split(":", 1)[1]
-    status = await start(bot, game, live, chat_id, kind, callback.from_user.id)
+    answered = False
+
+    async def ready() -> None:
+        """The button stops spinning before the card is sent, not after."""
+        nonlocal answered
+        answered = True
+        await send.answer_quietly(callback, PENDING.get(kind))
+
+    status = await start(bot, game, live, chat_id, kind, callback.from_user.id, ready)
     answer = refusal(game, chat_id, kind, status)
-    if answer:
+    if answer and answered:  # it failed after the button had its answer
+        await send.personal(bot, chat_id, callback.from_user.id, answer, callback_query_id=callback.id)
+    elif answer:
         await send.answer_quietly_alert(callback, plain(answer))
-    else:
+    elif not answered:
         await send.answer_quietly(callback)
 
 
@@ -159,6 +180,30 @@ SECRETS = {
 }
 
 
+START_TOASTS = {
+    "ok": "▶️ Начинаем",
+    "not_author": "🎭 Начать раньше может только тот, кто позвал играть",
+    "few": f"🎭 Нужно хотя бы {rules.SPY_MIN} игрока",
+    "started": "🎭 Игра уже началась",
+    "gone": "🎭 Этой игры больше нет",
+}
+READY_TOASTS = {
+    "ok": "✋ Отмечено. Голосование — когда готовы все",
+    "already": "✋ Уже отмечено",
+    "not_player": "🎭 Ты не в этой игре",
+    "closed": "🎭 Обсуждение закончилось",
+    "gone": "🎭 Этой игры больше нет",
+}
+
+
+async def spy_moved(game: Game, live: Live, round_id: str) -> None:
+    """After a join, a «ready» or a vote: the phase ends at once if nobody's left to wait for."""
+    if game.spy_all_in(round_id):
+        await live.hurry(round_id)
+    else:
+        live.request_refresh_round(round_id)
+
+
 @router.callback_query(F.data.startswith("sy:"))
 async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
     parts = callback.data.split(":")
@@ -167,7 +212,17 @@ async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
         status = game.join_spy(round_id, callback.from_user.id)
         await send.answer_quietly(callback, JOIN_TOASTS[status])
         if status == "ok":
-            live.request_refresh_round(round_id)
+            await spy_moved(game, live, round_id)
+    elif action == "s":
+        status = game.start_spy_now(round_id, callback.from_user.id)
+        await send.answer_quietly(callback, START_TOASTS[status])
+        if status == "ok":
+            await live.hurry(round_id)
+    elif action == "r":
+        status = game.spy_ready(round_id, callback.from_user.id)
+        await send.answer_quietly(callback, READY_TOASTS[status])
+        if status == "ok":
+            await spy_moved(game, live, round_id)
     elif action == "w":
         status, word = game.spy_secret(round_id, callback.from_user.id)
         text = f"🤫 Твоё слово: {word}. Не называй его прямо" if status == "word" else SECRETS[status]
@@ -177,7 +232,7 @@ async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
         status = game.vote_spy(round_id, callback.from_user.id, int(index) if index.isdigit() else -1)
         await send.answer_quietly(callback, VOTE_TOASTS[status])
         if status == "ok":
-            live.request_refresh_round(round_id)
+            await spy_moved(game, live, round_id)
 
 
 # ── the minefield ─────────────────────────────────────────────────────
@@ -234,6 +289,7 @@ async def try_code(message: Message, bot: Bot, game: Game, live: Live, found: di
     attempt = game.guess_safe(found["id"], message.from_user.id, code)
     refusals = {
         "invalid": f"Код — {rules.SAFE_DIGITS} разные цифры, например 0729",
+        "repeat": "Этот код уже пробовали — смотри попытки в сейфе. Монеты целы",
         "poor": f"Попытка стоит {views.money(game.safe_price())}",
         "wait": f"Следующая попытка — через {attempt.wait} с",
         "closed": "Сейф уже закрыт",

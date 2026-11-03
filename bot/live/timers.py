@@ -32,7 +32,9 @@ LOGGER = logging.getLogger(__name__)
 TICK_SECONDS = 15
 # A battle nobody voted in gets one overtime instead of ending empty.
 OVERTIME_SECONDS = 30
-REFRESH_DELAY = 1.5
+# A vote's redraw waits this long for the votes right behind it. The chat's pace (LIVE_EDIT_GAP)
+# caps the edits anyway, so a short wait only shows the first vote sooner.
+REFRESH_DELAY = 0.5
 LIVE_EDIT_GAP = 3.5  # seconds between two live-card redraws in one chat; tests set 0
 MAX_FLOOD_HOLD = 60  # a flood wait holds back a chat's redraws at most this long
 # Notes that put a chest in someone's backpack: kind → tier (None = the note's own code).
@@ -595,17 +597,32 @@ class Live(TableLive):
         while (found := self.game.repo.get_round(round_id)) is not None and found["status"] == "open":
             remaining = found["ends_at"] - self.game.now()
             if remaining <= 0:
-                step = self.game.advance_heist(round_id)
-                if step is not None and step.kind != "stage":
-                    await self.settle_heist(step)
-                elif step is not None:
-                    await self.refresh_round(round_id)
+                await self.step_heist(round_id)
                 first = True
                 continue
             if not first:
                 self.request_refresh_round(round_id)
             first = False
             await asyncio.sleep(min(TICK_SECONDS, remaining))
+
+    async def step_heist(self, round_id: str) -> None:
+        """The phase that is over plays out: the next stage's card, or the result."""
+        step = self.game.advance_heist(round_id)
+        if step is not None and step.kind != "stage":
+            await self.settle_heist(step)
+        elif step is not None:
+            await self.refresh_round(round_id)
+
+    async def hurry(self, round_id: str) -> None:
+        """Everyone has made their move: the phase ends now instead of on its clock (the loop that
+        watches the round finds the next phase already running)."""
+        found = self.game.repo.get_round(round_id)
+        if found is None or not self.game.repo.hurry_round(round_id, self.game.now()):
+            return
+        if found["kind"] == "heist":
+            await self.step_heist(round_id)
+        elif found["kind"] == "spy":
+            await self.advance_spy(round_id)
 
     async def settle_heist(self, step) -> None:
         found = step.round

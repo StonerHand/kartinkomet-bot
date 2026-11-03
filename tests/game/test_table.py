@@ -134,7 +134,9 @@ class SafeTest(GameCase):
         attempt = self.game.guess_safe(round_id, 2, wrong)
         self.assertEqual((attempt.status, attempt.exact, attempt.near), ("miss", 2, 2))
         self.assertEqual(self.coins(2), 100 - table.SAFE_GUESS_PRICE)
-        self.assertEqual(self.game.guess_safe(round_id, 2, wrong).status, "wait")
+        self.assertEqual(self.game.guess_safe(round_id, 3, wrong).status, "repeat")  # free: tried already
+        self.assertEqual(self.coins(3), 0)
+        self.assertEqual(self.game.guess_safe(round_id, 2, code[::-1]).status, "wait")
 
     def test_the_cracker_takes_the_tries_and_the_seed(self) -> None:
         round_id, code = self.open_safe()

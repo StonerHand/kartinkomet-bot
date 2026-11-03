@@ -28,7 +28,8 @@ class TableLive:
             labels = [game.repo.user_label(user) for user in players]
             phase = state_of(found)["phase"]
             counts = game.spy_counts(found)
-            text = views.spy_card(phase, labels, remaining, [counts[user] for user in players], found["id"])
+            ready = len(state_of(found).get("ready", []))
+            text = views.spy_card(phase, labels, remaining, [counts[user] for user in players], found["id"], ready)
             return text, keyboards.spy(found["id"], phase, labels)
         if kind == "mines":
             state = state_of(found)

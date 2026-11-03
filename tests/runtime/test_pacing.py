@@ -49,8 +49,8 @@ class PacingTest(BotHarness):
         self.assertEqual(len(self.session.of("EditMessageCaption")) - before, 3)
 
     async def test_a_busy_card_keeps_one_redraw_waiting(self) -> None:
+        self.addCleanup(setattr, timers, "REFRESH_DELAY", timers.REFRESH_DELAY)
         timers.LIVE_EDIT_GAP, timers.REFRESH_DELAY = 0.5, 0
-        self.addCleanup(setattr, timers, "REFRESH_DELAY", 1.5)
         boss = await self.boss()
         for hitter in range(10, 30):
             await self.press(f"bh:{boss['id']}", sender=hitter)

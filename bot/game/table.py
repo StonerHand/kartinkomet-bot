@@ -39,7 +39,7 @@ class MinesResult:
 
 @dataclass(frozen=True)
 class SafeGuess:
-    status: str  # miss | cracked | invalid | poor | wait | closed | gone
+    status: str  # miss | cracked | invalid | repeat | poor | wait | closed | gone
     exact: int = 0
     near: int = 0
     wait: int = 0  # seconds until this player may try again
@@ -77,7 +77,7 @@ class TableMixin:
             return "active", active[0]
         if self.spy_cooldown_left(chat_id):
             return "cooldown", None
-        state = {"phase": "recruit", "word": word, "spy": None}
+        state = {"phase": "recruit", "word": word, "spy": None, "ready": []}
         round_id = self.repo.create_round(
             chat_id, "spy", self.now(), self.now() + table.SPY_RECRUIT_SECONDS, starter, json.dumps(state)
         )
@@ -105,6 +105,49 @@ class TableMixin:
         if not self.repo.put_round_vote(round_id, user_id, -1, len(found["votes"]), replace=False):
             return "already"
         return "ok"
+
+    def start_spy_now(self, round_id: str, user_id: int) -> str:
+        """'ok' | 'not_author' | 'few' | 'started' | 'gone': whoever started the game needn't wait
+        out the recruiting once enough have joined."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["kind"] != "spy" or found["status"] != "open":
+            return "gone"
+        if state_of(found)["phase"] != "recruit":
+            return "started"
+        if found["author"] != user_id:
+            return "not_author"
+        return "ok" if len(found["votes"]) >= table.SPY_MIN else "few"
+
+    def spy_ready(self, round_id: str, user_id: int) -> str:
+        """'ok' | 'already' | 'not_player' | 'closed' | 'gone': a player has said their word and
+        is ready to vote; when all are, the vote opens at once."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["kind"] != "spy" or found["status"] != "open":
+            return "gone"
+        state = state_of(found)
+        if state["phase"] != "talk":
+            return "closed"
+        if user_id not in found["votes"]:
+            return "not_player"
+        ready = state.setdefault("ready", [])
+        if user_id in ready:
+            return "already"
+        ready.append(user_id)
+        self._save(found, state)
+        return "ok"
+
+    def spy_all_in(self, round_id: str) -> bool:
+        """Nothing left to wait for: the game is full while recruiting, every player is ready in
+        the talk, or every player has voted."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["kind"] != "spy" or found["status"] != "open":
+            return False
+        phase = state_of(found)["phase"]
+        if phase == "recruit":
+            return len(found["votes"]) >= table.SPY_MAX
+        if phase == "talk":
+            return set(found["votes"]) <= set(state_of(found).get("ready", []))
+        return all(choice in found["votes"] for choice, _ in found["votes"].values())
 
     def spy_secret(self, round_id: str, user_id: int) -> tuple[str, str | None]:
         """What a player sees behind «My word»: ('word', the word) | ('spy', None) |
@@ -298,6 +341,8 @@ class TableMixin:
             return SafeGuess("closed")
         if not table.valid_guess(guess):
             return SafeGuess("invalid")
+        if any(tried == guess for _, tried, _, _ in state_of(found)["log"]):
+            return SafeGuess("repeat")
         last, tries = found["votes"].get(user_id, (0, 0))
         wait = last + table.SAFE_GUESS_GAP - self.now()
         if wait > 0:

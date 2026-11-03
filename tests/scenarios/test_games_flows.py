@@ -163,9 +163,12 @@ class GamesFlowsTest(BotHarness):
             await self.press(f"m:top:{board}")
 
     async def test_admin_stats(self) -> None:
+        await self.send("/mines", sender=3)
         await self.send("/menu", sender=ADMIN)
         await self.press("adm:stats", sender=ADMIN)
-        self.assertIn("Статистика", self.session.of("EditMessageText")[-1].text)
+        stats = self.session.of("EditMessageText")[-1].text
+        self.assertIn("Статистика", stats)
+        self.assertIn("сапёр <b>1</b>", stats)  # the chat's games are counted too
 
     async def test_casino_share_buttons(self) -> None:
         self.fund(3, 1000)

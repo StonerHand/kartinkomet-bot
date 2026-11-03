@@ -23,7 +23,7 @@ Scheme:
   mr:<y|n>:<proposal>   marriage answer;  cl:<y|n>:<challenge>  challenge answer
   ak:<chat>:<user>:<n|x>  answer to "whom? / how much? / sure?" for /rob /give /marry /pvp /challenge /divorce
   pp:<action>           start one of those from the «👥 Люди» panel screen
-  sy:<j|w>:<round> | sy:v:<round>:<n>   the spy: join / my word / vote
+  sy:<j|s|w|r>:<round> | sy:v:<round>:<n>   the spy: join / start / my word / ready / vote
   mn:<round>:<cell|c|x> the minefield: open a cell / take one's pot / a settled field
   pc:<round>:<n>        pic by pieces: a letter
   au:<round>:<n|m|x>    the auction: raise / my bid / withdraw
@@ -347,10 +347,10 @@ def after_party(kind: str) -> InlineKeyboardMarkup:
 def spy(round_id: str, phase: str, labels: list[str]) -> InlineKeyboardMarkup:
     """Recruiting: join. Then the word, for each player's eyes only; in the vote, the players."""
     if phase == "recruit":
-        return markup([button("🙋 Играю", f"sy:j:{round_id}", SUCCESS)])
+        return markup([button("🙋 Играю", f"sy:j:{round_id}", SUCCESS), button("▶️ Начать", f"sy:s:{round_id}")])
     word = [button("🤫 Моё слово", f"sy:w:{round_id}", DANGER)]
     if phase != "vote":
-        return markup(word)
+        return markup([*word, button("✋ К голосованию", f"sy:r:{round_id}", PRIMARY)])
     people = [button(clip(label), f"sy:v:{round_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
     return markup(*(people[start:start + 2] for start in range(0, len(people), 2)), word)
 
