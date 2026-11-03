@@ -26,8 +26,10 @@ from bot.live.timers import Live
 from bot.rules import boss as boss_rules
 from bot.rules import days, economy
 from bot.rules import party as party_rules
+from bot.rules import auction as auction_rules
 from bot.rules import show as show_rules
-from bot.scenarios import party, show, upload
+from bot.rules import teams as team_rules
+from bot.scenarios import party, show, table, upload
 from bot.scenarios.boss import summon
 from bot.scenarios.court import open_court
 from bot.telegram import send
@@ -61,6 +63,9 @@ JOBS = (
     Job("evening_show", show_rules.SHOW_HOUR, None, per_chat=True),
     Job("weekly", 18, 6, per_chat=True),
     Job("season_warning", 12, None, per_chat=True),  # posts only on the last day of a month
+    Job("auction", auction_rules.OPEN_HOUR, None, per_chat=True),
+    Job("teams_start", team_rules.START[1], team_rules.START[0], per_chat=True),
+    Job("teams_end", team_rules.END[1], team_rules.END[0], per_chat=True),
 )
 
 
@@ -84,6 +89,9 @@ class Events:
             "who_of_us": self.who_of_us,
             "evening_show": self.evening_show,
             "theme": self.theme,
+            "auction": self.auction,
+            "teams_start": self.teams_start,
+            "teams_end": self.teams_end,
         }
 
     def start(self) -> None:
@@ -109,6 +117,7 @@ class Events:
         await self.close_season()
         await party.announce_expired_bets(self.bot, self.game)
         await show.advance_cups(self.bot, self.game, self.live)
+        await table.settle_auctions(self.bot, self.game, self.live)
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:
@@ -179,6 +188,38 @@ class Events:
     async def theme(self, chat_id: int) -> bool:
         """11:00: the theme of the day; answers until 20:00, then the vote."""
         return await party.open_theme(self.bot, self.game, self.live, chat_id)
+
+    async def auction(self, chat_id: int) -> bool:
+        """15:00: the day's lot; sealed bids until 22:00."""
+        return await table.open_auction(self.bot, self.game, chat_id)
+
+    def team_members(self, week) -> list[tuple[str, str, int]]:
+        label = self.game.repo.user_label
+        return [(label(user), colour, points) for user, colour, points in week.members]
+
+    async def teams_start(self, chat_id: int) -> bool:
+        """Monday 10:00: last week's result if Sunday's never came out, then the new draft."""
+        await self.teams_end(chat_id, self.game.local_week() - 1)
+        status, week = self.game.draft_teams(chat_id)
+        if status != "drafted" or week is None:
+            return False
+        message = await send.send_text(self.bot, chat_id, views.teams_start(self.team_members(week), chat_id))
+        if message is not None:
+            await send.react(self.bot, chat_id, message.message_id, "🔥")
+        return message is not None
+
+    async def teams_end(self, chat_id: int, week: int | None = None) -> bool:
+        """Sunday 22:00: the colour that earned more wins the week."""
+        result = self.game.finish_teams(chat_id, week)
+        if result is None:
+            return False
+        week = result.week
+        text = views.teams_result(result.winner, self.team_members(week), week.scores, result.bonus, chat_id)
+        message = await send.send_text(self.bot, chat_id, text, keyboards.more_only())
+        if message is not None and result.winner is not None:
+            await send.react(self.bot, chat_id, message.message_id, "🏆", big=True)
+        await self.live.announce(chat_id, list(result.granted))
+        return message is not None
 
     async def evening_show(self, chat_id: int) -> bool:
         """21:00: a heist one night, the big cup the next."""

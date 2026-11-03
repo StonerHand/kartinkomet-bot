@@ -1,4 +1,4 @@
-"""Pics from Telegram: downloads (cached) and the arena collage built from them."""
+"""Pics from Telegram: downloads (cached), the arena collage and the pieces board built from them."""
 
 import asyncio
 import logging
@@ -7,7 +7,7 @@ from io import BytesIO
 
 from aiogram import Bot
 
-from bot.media import collage
+from bot.media import collage, pieces
 from bot.rules import progress, shop
 from bot.telegram import send
 
@@ -48,4 +48,17 @@ async def build_collage(bot: Bot, pics) -> bytes | None:
         return await asyncio.to_thread(collage.build, list(images), stages, frames)
     except Exception:  # any failure here just means "no collage", the album fallback still works
         LOGGER.warning("Collage failed, falling back to album", exc_info=True)
+        return None
+
+
+async def build_pieces(bot: Bot, pics, hidden: int, zoom: float, center: tuple[float, float]) -> bytes | None:
+    """«Pic by pieces»: the piece of pics[hidden] at this zoom beside all four. None if any
+    download or the drawing fails: the game then doesn't start, or keeps its last picture."""
+    try:
+        images = await asyncio.gather(*(download(bot, pic.file_id) for pic in pics))
+        if any(image is None for image in images):
+            return None
+        return await asyncio.to_thread(pieces.board, images[hidden], list(images), zoom, center)
+    except Exception:
+        LOGGER.warning("Pieces board failed", exc_info=True)
         return None

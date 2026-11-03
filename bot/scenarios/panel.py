@@ -80,10 +80,15 @@ async def open_screen(message: Message, bot: Bot, game: Game, admins: frozenset[
         await open_panel(message, bot, game, admins, name)
 
 
-@router.message(Command("me", "quests", "chest"))
+# A command → the screen it opens, for the one who asked.
+SCREEN_COMMANDS = {"me": "me", "quests": "quests", "chest": "quests", "games": "games", "people": "people",
+                   "today": "today"}
+
+
+@router.message(Command(*SCREEN_COMMANDS))
 async def personal(message: Message, bot: Bot, game: Game, admins: frozenset[int]) -> None:
-    command = (message.text or "").split()[0].lstrip("/").split("@")[0]
-    await open_screen(message, bot, game, admins, "me" if command == "me" else "quests")
+    command = (message.text or "").split()[0].lstrip("/").split("@")[0].casefold()
+    await open_screen(message, bot, game, admins, SCREEN_COMMANDS.get(command, "me"))
 
 
 @router.message(Command("help"))

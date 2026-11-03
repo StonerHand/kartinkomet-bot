@@ -35,6 +35,10 @@ from bot.ui.cards.progress import (
     task_line, quests_screen, daily_result, chest_opening, chest_opened, day_event_line, day_event
 )
 from bot.ui.cards.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
+from bot.ui.cards.table import (
+    PIECE_LETTERS, TEAM_MARKS, TEAM_NAMES, auction_card, auction_result, mines_card, mines_result, piece_card, piece_result,
+    safe_card, safe_result, spy_card, spy_result, team_score_lines, teams_result, teams_start
+)
 from bot.ui.cards.shop import shop_screen, pic_menu, bought, PURCHASE_FACTS, purchase_notice, wanted_poster
 from bot.ui.layout import (
     BAR_CELLS, SLOT_COLORS, MEDALS, timer, bar, num, money, coins, bare, DUEL_SLOTS, TOURNAMENT_SLOTS,
@@ -59,5 +63,8 @@ __all__ = [
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
     "heist_card", "heist_result", "cup_intro", "cup_champion",
+    "PIECE_LETTERS", "TEAM_MARKS", "TEAM_NAMES", "auction_card", "auction_result", "mines_card", "mines_result", "piece_card",
+    "piece_result", "safe_card", "safe_result", "spy_card", "spy_result", "team_score_lines", "teams_result",
+    "teams_start",
     "today_screen", "home_personal", "help_tab", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",
 ]

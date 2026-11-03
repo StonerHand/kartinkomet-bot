@@ -14,11 +14,12 @@ from bot.db.pics import PicsRepo
 from bot.db.schema import apply_schema, connect
 from bot.db.seasons import SeasonsRepo
 from bot.db.stats import StatsRepo
+from bot.db.teams import TeamsRepo
 
 
 class Repo(
     MetaRepo, PicsRepo, ArenaRepo, CourtRepo, StatsRepo, EconomyRepo, GamesRepo, ChatsRepo, PeopleRepo, SeasonsRepo,
-    PartyRepo,
+    PartyRepo, TeamsRepo,
 ):
 
     def __init__(self, database_path: Path | str) -> None:

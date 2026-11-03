@@ -1,10 +1,11 @@
-"""Guessing games: "whose pic?" in the chat, "higher or lower" in private."""
+"""Guessing games: "whose pic?" and "pic by pieces" in the chat, "higher or lower" in private."""
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 
 from bot.game.types import Granted
 from bot.models.records import Pic
-from bot.rules import games
+from bot.rules import deck, games
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,18 @@ class HLAnswer:
     streak: int = 0  # after this answer (the final one when wrong)
     record_before: int = 0
     paid: int = 0
+
+
+@dataclass(frozen=True)
+class PieceStep:
+    round: dict
+    kind: str  # stage (a bigger piece) | done
+    pics: tuple[Pic, ...]
+    answer: int  # the hidden pic's letter, 0-3
+    stage: int
+    paid: dict[int, int] = field(default_factory=dict)  # who pressed the right letter → coins
+    wrong: int = 0  # how many pressed another
+    granted: tuple[Granted, ...] = ()
 
 
 class QuizMixin:
@@ -147,3 +160,65 @@ class QuizMixin:
             return HLAnswer("right", first, second, streak, record_before, paid)
         self.repo.set_meta(f"hl:{user_id}", "")
         return HLAnswer("wrong", first, second, streak, record_before)
+
+    # ── pic by pieces ──────────────────────────────────────────────────
+
+    def start_piece(self, chat_id: int) -> tuple[str, dict | None]:
+        """'started' | 'active' | 'cooldown' | 'shortage'. Four pics from the chat's deck; a piece
+        of one of them, which grows every PIECE_STAGE_SECONDS."""
+        active = self.repo.open_rounds(chat_id, "piece")
+        if active:
+            return "active", active[0]
+        if self.piece_cooldown_left(chat_id):
+            return "cooldown", None
+        drawn = deck.draw_many(self.repo, deck.scope_of(chat_id), self.now(), games.PIECE_OPTIONS)
+        if len(drawn) < games.PIECE_OPTIONS:
+            return "shortage", None
+        state = {"pics": [pic.id for pic, _ in drawn], "answer": self.rng.randrange(games.PIECE_OPTIONS),
+                 "stage": 0, "center": games.piece_center(self.rng)}
+        round_id = self.repo.create_round(chat_id, "piece", self.now(), self.now() + games.PIECE_STAGE_SECONDS,
+                                          text=json.dumps(state))
+        return "started", self.repo.get_round(round_id)
+
+    def piece_cooldown_left(self, chat_id: int) -> int:
+        return max(0, games.PIECE_COOLDOWN_SECONDS - (self.now() - self.repo.last_round_at(chat_id, "piece")))
+
+    def piece_state(self, found: dict) -> dict:
+        return json.loads(found["text"])
+
+    def piece_pics(self, found: dict) -> list[Pic | None]:
+        return [self.repo.get_pic(pic_id) for pic_id in self.piece_state(found)["pics"]]
+
+    def guess_piece(self, round_id: str, user_id: int, option: int) -> str:
+        """'ok' | 'already' | 'closed' | 'gone'. One letter per person, kept with the stage it
+        was pressed in: the earlier, the more it pays."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["kind"] != "piece" or not 0 <= option < games.PIECE_OPTIONS:
+            return "gone"
+        if found["status"] != "open" or self.now() >= found["ends_at"]:
+            return "closed"
+        stage = self.piece_state(found)["stage"]
+        return "ok" if self.repo.put_round_vote(round_id, user_id, option, stage, replace=False) else "already"
+
+    def advance_piece(self, round_id: str) -> PieceStep | None:
+        """When the stage's time is up: a bigger piece, or after the last one the answer — the
+        right letters are paid by the stage they were pressed in."""
+        found = self.repo.get_round(round_id)
+        if found is None or found["status"] != "open" or self.now() < found["ends_at"]:
+            return None
+        state = self.piece_state(found)
+        pics = tuple(self.piece_pics(found))
+        if state["stage"] + 1 < len(games.PIECE_ZOOMS) and all(pics):
+            state["stage"] += 1
+            self.repo.update_round(round_id, self.now() + games.PIECE_STAGE_SECONDS, json.dumps(state))
+            return PieceStep(self.repo.get_round(round_id), "stage", pics, state["answer"], state["stage"])
+        if not self.repo.close_round(round_id, state["answer"]):
+            return None
+        paid = {}
+        for user_id, (option, stage) in found["votes"].items():
+            if option == state["answer"]:
+                paid[user_id] = self.pay(user_id, games.PIECE_REWARDS[stage], "piece")
+                self.repo.incr_counter(user_id, "pieces_right")
+        wrong = len(found["votes"]) - len(paid)
+        return PieceStep(self.repo.get_round(round_id), "done", pics, state["answer"], state["stage"], paid, wrong,
+                         tuple(self.check_achievements(list(found["votes"]))))

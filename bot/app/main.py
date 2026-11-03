@@ -16,43 +16,25 @@ from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.scenarios import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, party, pics, progress,
-    replies, shop, show, social, targets, upload,
+    replies, shop, show, social, table, targets, upload,
 )
 from bot.scenarios.schedule import Events
 
 LOGGER = logging.getLogger("kartinkomet")
 STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
 
+# Ten doors, not thirty: each opens a screen with the rest on its buttons. Every other command
+# (/bomb, /rob, /spin…) still works when typed, and «Правила» lists them.
 GROUP_COMMANDS = [
     BotCommand(command="menu", description="🎛 пульт: всё в одном месте"),
     BotCommand(command="pic", description="🎲 рандомная пикча"),
     BotCommand(command="duel", description="⚔️ дуэль двух пикч"),
-    BotCommand(command="tournament", description="🏟 турнир четырёх"),
-    BotCommand(command="daily", description="🎁 бонус дня"),
-    BotCommand(command="quests", description="📜 квесты и сундуки"),
-    BotCommand(command="casino", description="🎰 казино"),
-    BotCommand(command="spin", description="🎰 слоты: /spin 100"),
-    BotCommand(command="dice", description="🎲 кости против бота: /dice 100"),
-    BotCommand(command="shop", description="🛒 лавка"),
-    BotCommand(command="boss", description="👹 призвать босса"),
-    BotCommand(command="challenge", description="🤺 вызов на дуэль за монеты"),
-    BotCommand(command="pvp", description="🎲 кости 1 на 1 на монеты"),
-    BotCommand(command="who", description="🗳 кто из нас: вопрос про чат"),
-    BotCommand(command="bomb", description="💣 бомба: передай, пока не рванула"),
-    BotCommand(command="bet", description="🤝 спор на монеты: /bet и сам спор"),
-    BotCommand(command="croc", description="🐊 крокодил: объясни слово пикчами"),
-    BotCommand(command="heist", description="🏦 ограбление банка всем чатом"),
-    BotCommand(command="cup", description="🏆 большой турнир восьми пикч"),
-    BotCommand(command="whose", description="🕵️ угадай, чья пикча"),
-    BotCommand(command="higher", description="🎯 выше-ниже: угадай рейтинг"),
-    BotCommand(command="give", description="🎁 подарить монеты"),
-    BotCommand(command="rob", description="😈 ограбить кого-нибудь"),
-    BotCommand(command="marry", description="💍 сделать предложение"),
-    BotCommand(command="caption", description="🖋 подпиши пикчу"),
-    BotCommand(command="wheel", description="🎡 колесо фортуны раз в день"),
-    BotCommand(command="horoscope", description="🔮 гороскоп на сегодня"),
-    BotCommand(command="top", description="🏆 рейтинги"),
+    BotCommand(command="games", description="🎮 все игры чата"),
+    BotCommand(command="people", description="👥 ограбить, подарить, вызвать, свадьба"),
+    BotCommand(command="casino", description="🎰 казино: слоты, кости, дартс"),
+    BotCommand(command="today", description="📅 сегодня: бонус, колесо, гороскоп, квесты"),
     BotCommand(command="me", description="👤 моя карточка"),
+    BotCommand(command="top", description="🏆 рейтинги"),
     BotCommand(command="help", description="❓ правила"),
 ]
 # Uploading works only in private chats, so only they get /upload in the menu.
@@ -119,6 +101,7 @@ def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispa
     dispatcher.include_routers(
         panel.router,
         party.router,  # before the others: a bomb holder's reply to a person is a pass, not a message
+        table.router,  # a reply to the safe is a try at its code, not a reply to the bot
         pics.router,
         arena.router,
         upload.router,
