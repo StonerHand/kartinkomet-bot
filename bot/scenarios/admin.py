@@ -139,7 +139,7 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
     elif action.startswith("spare:"):
         pic_id = action.split(":", 1)[1]
         revived = game.pardon(pic_id)
-        await callback.answer("🕊 Воскрешена" if revived else "Уже жива или не найдена", show_alert=True)
+        await callback.answer("🕊 Воскрешена" if revived else "🕊 Уже жива или не найдена", show_alert=True)
         text, markup = screens.render("grave", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.redraw(bot, message, callback.from_user.id, text, markup)
     else:

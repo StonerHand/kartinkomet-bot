@@ -43,12 +43,18 @@ def header(head: str) -> str:
     return f"{title}</b>\n{meta}" if dot and not fits(head) else head
 
 
+COARSE_TIMER = 300  # from here up a timer counts minutes: its card changes once a minute, not every tick
+
+
 def timer(seconds: int) -> str:
-    """'0:45', '9:59', '7:59:59' (hours appear only when needed: raids last all evening)."""
+    """'0:45', '4:59' near the end; '12 мин', '2 ч 05 мин' further off. A live card is redrawn
+    only when its text changes, and the chat's edits are few (LIVE_EDIT_GAP): a half-hour poll
+    ticking seconds spent them on its clock, and votes everywhere waited."""
     seconds = max(0, seconds)
-    if seconds >= 3600:
-        return f"{seconds // 3600}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
-    return f"{seconds // 60}:{seconds % 60:02d}"
+    if seconds < COARSE_TIMER:
+        return f"{seconds // 60}:{seconds % 60:02d}"
+    hours, minutes = divmod(-(-seconds // 60), 60)
+    return f"{hours} ч {minutes:02d} мин" if hours else f"{minutes} мин"
 
 
 def bar(count: int, leader: int) -> str:

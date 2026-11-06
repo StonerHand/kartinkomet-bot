@@ -64,7 +64,8 @@ def casino_result(label: str, result: CasinoResult, values: tuple[int, ...], cha
         pick(pool, chat_id),
         [
             f"🎲 Ты: <b>{values[0]}</b> · бот: <b>{values[1]}</b>" if result.game == "dice" else "",
-            f"{verdict} · баланс <b>{num(result.balance)}</b>",
+            verdict,
+            f"👛 Баланс <b>{num(result.balance)}</b>",  # its own line: with the verdict it outgrew a phone
         ],
         f"💎 <b>Джекпот чата!</b> +{money(result.jackpot)}" if result.jackpot else "",
     )

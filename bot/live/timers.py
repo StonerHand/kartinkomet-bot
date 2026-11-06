@@ -208,6 +208,10 @@ class Live(TableLive, DuelsLive):
         widget and render() gives its data; its edits share the chat's pace."""
         if message_id is None:
             return
+        drawn = render()  # cheap; a card that would come out the same doesn't take the chat's turn
+        if drawn is None or (widget_api.is_drawn(chat_id, message_id, drawn[0]) if widget
+                             else send.is_drawn(chat_id, message_id, drawn[0], drawn[1])):
+            return
         now = time.monotonic()
         slot = max(now, self._next_edit.get(chat_id, 0.0))
         self._next_edit[chat_id] = slot + LIVE_EDIT_GAP

@@ -122,6 +122,10 @@ def widget_id(message: Message) -> str | None:
 _drawn: dict[tuple[int, int], str] = {}  # what each widget shows now: an unchanged redraw isn't sent
 
 
+def is_drawn(chat_id: int, message_id: int, chat_data: str) -> bool:
+    return _drawn.get((chat_id, message_id)) == chat_data
+
+
 async def live_edit_data(bot: Bot, chat_id: int, message_id: int, chat_data: str) -> float:
     """A live widget's redraw, skipped when its data hasn't changed. Returns the flood hold."""
     if _drawn.get((chat_id, message_id)) == chat_data:

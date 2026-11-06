@@ -63,7 +63,7 @@ async def daily_button(callback: CallbackQuery, bot: Bot, game: Game, live: Live
         return
     refusal = await claim(bot, game, live, chat_id, callback.from_user.id, callback.id)
     if refusal:
-        await callback.answer(refusal, show_alert=True)
+        await callback.answer(views.marked(refusal, "🎁"), show_alert=True)
     else:
         await send.answer_quietly(callback, "🎁 Получено")
 

@@ -48,7 +48,9 @@ Green before every push:
 
 After changing any message: `.venv/bin/python scripts/dump_screens.py .screens/all.html` and look at the
 changed cards at phone width. After touching scenarios' hot paths, sending or live cards:
-`.venv/bin/python scripts/load_test.py`.
+`.venv/bin/python scripts/load_test.py`. For a whole-bot check: `.venv/bin/python scripts/crawl.py [backup]`
+presses every button as a player and as the admin, lets two days pass, and reports errors, slow
+handlers, broken layouts, bad button answers and anything left running.
 
 ## House rules
 

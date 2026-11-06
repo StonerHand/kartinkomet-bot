@@ -77,6 +77,14 @@ class WidgetFlowsTest(BotHarness):
         self.assertFalse(self.live.is_widget_round(self.game.repo.open_rounds(-100, "safe")[0]["id"]))
         await self.press("adm:health", sender=ADMIN)
         self.assertIn("ещё не открыл", self.screen())
+        tries = len(self.session.of("SendWidget"))
+        await self.send("/mines", sender=2)  # refused a moment ago: not asked again for a while
+        self.assertEqual(len(self.session.of("SendWidget")), tries)
+        self.assertIn("Сапёр", self.session.of("SendMessage")[-1].text)
+        self.clock.advance(3600)
+        self.session.refuse = set()
+        await self.send("/spy", sender=3)  # an hour later Telegram is asked again
+        self.assertEqual(len(self.session.of("SendWidget")), tries + 1)
 
     async def test_the_safe_as_a_widget(self) -> None:
         await self.widgets_on()

@@ -105,7 +105,7 @@ async def answer_proposal(callback: CallbackQuery, bot: Bot, game: Game, live: L
         "taken": "Кто-то из вас уже в браке",
     }
     if status in refusals:
-        await callback.answer(refusals[status], show_alert=True)
+        await callback.answer(views.marked(refusals[status], "💍"), show_alert=True)
         return
     await callback.answer()
     if callback.message is None or proposal is None:

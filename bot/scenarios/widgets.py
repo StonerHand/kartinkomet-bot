@@ -29,15 +29,26 @@ BOARD_SIZE = 5  # season places the board shows
 BOARD_CACHE_SECONDS = 60  # how often clients ask for the board's fresh data
 FEED_SIZE = 5
 BIG_WIN = 5  # a slot win this many times the stake goes to the machine's feed
+RETRY_SECONDS = 3600  # after Telegram refuses a widget, games go out as cards this long without asking again
 
 
-def enabled(game: Game, chat_id: int) -> bool:
+def switched_on(game: Game, chat_id: int) -> bool:
+    """The admin's switch for this chat."""
     return chat_id < 0 and game.repo.meta_int(f"widgets:{chat_id}") == 1
 
 
+def enabled(game: Game, chat_id: int) -> bool:
+    """Switched on, and Telegram hasn't refused one within the last RETRY_SECONDS: a refused
+    attempt before every game was a wasted round trip before the card went out."""
+    return switched_on(game, chat_id) and game.now() - game.repo.meta_int("widgets_refused") >= RETRY_SECONDS
+
+
 def toggle(game: Game, chat_id: int) -> bool:
-    on = not enabled(game, chat_id)
+    """Switching on asks Telegram afresh at the next game, whatever it said before."""
+    on = not switched_on(game, chat_id)
     game.repo.set_meta(f"widgets:{chat_id}", int(on))
+    if on:
+        game.repo.set_meta("widgets_refused", 0)
     return on
 
 
