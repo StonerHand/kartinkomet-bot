@@ -4,6 +4,8 @@ redraws as data edits, results as captions, and the fallback to cards when Teleg
 import json
 from unittest import mock
 
+from aiogram.types import Chat
+
 from bot.app.main import update_types
 from bot.rules import table
 from tests.harness import ADMIN, BotHarness
@@ -32,6 +34,16 @@ class WidgetFlowsTest(BotHarness):
 
     def last_data(self) -> dict:
         return json.loads(self.session.of("EditMessageWidgetData")[-1].chat_data)
+
+    async def test_the_switch_lives_in_the_groups_admin_panel(self) -> None:
+        await self.send("/admin", sender=ADMIN, chat=Chat(id=ADMIN, type="private"))
+        private = self.session.of("SendMessage")[-1]
+        self.assertNotIn("adm:widgets", self.buttons(private))
+        self.assertIn("включаются в /admin группового чата", private.text)
+        await self.send("/admin", sender=ADMIN)
+        group = self.session.of("SendMessage")[-1]
+        self.assertIn("adm:widgets", self.buttons(group))
+        self.assertNotIn("группового чата", group.text)
 
     async def test_games_stay_cards_until_the_admin_switches_widgets_on(self) -> None:
         await self.send("/mines", sender=2)

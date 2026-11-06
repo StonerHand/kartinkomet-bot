@@ -247,7 +247,7 @@ def admin(ctx: Ctx) -> Screen:
     game = ctx.game
     text = views.admin(
         ctx.repo.totals(), ctx.repo.count_users(), str(ctx.repo.database_path),
-        game.typical_wallet(), game.wealth(), ctx.repo.duplicate_stats(),
+        game.typical_wallet(), game.wealth(), ctx.repo.duplicate_stats(), ctx.is_private,
     )
     events_on = None if ctx.is_private else ctx.repo.chat_events_on(ctx.chat_id)
     widgets_on = None if ctx.is_private else ctx.repo.meta_int(f"widgets:{ctx.chat_id}") == 1
