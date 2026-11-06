@@ -172,7 +172,8 @@ def best_pic(repo, user_id: int) -> tuple[str, float, int, int] | None:
 
 
 def games(ctx: Ctx) -> Screen:
-    return views.games_screen(), keyboards.games_menu()
+    widgets_on = not ctx.is_private and ctx.repo.meta_int(f"widgets:{ctx.chat_id}") == 1
+    return views.games_screen(widgets_on), keyboards.games_menu(widgets_on)
 
 
 def people(ctx: Ctx) -> Screen:

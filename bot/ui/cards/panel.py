@@ -204,9 +204,10 @@ def _factor(value: float) -> str:
     return f"{value:.1f}".rstrip("0").rstrip(".") if value < 10 else num(round(value))
 
 
-def games_screen() -> str:
+def games_screen(widgets_on: bool = False) -> str:
     """Every game on one line, grouped by how it plays: what it is and how to start it. The rules
-    live in «Правила» → «Игры»; the buttons below follow the same order."""
+    live in «Правила» → «Игры»; the buttons below follow the same order. widgets_on: the chat has
+    HTML widgets on, so the slot machine is there and the screen says which games are widgets."""
     return card(
         "🎮 <b>Игры</b>",
         "Всё, за что капают монеты помимо арены",
@@ -228,15 +229,23 @@ def games_screen() -> str:
             "👹 Босс · /boss · 16:00",
         ],
         [
+            "🥊 <b>Вдвоём на ставку</b>",
+            "✊ Цу-е-фа · /rps",
+            "❌ Крестики-нолики · /ttt",
+        ],
+        [
             "⏰ <b>По часам</b>",
             "📸 Тема дня · 11:00",
             f"🔨 Аукцион · {auction_rules.OPEN_HOUR}:00–{auction_rules.CLOSE_HOUR}:00",
             "🎬 Шоу · /heist · /cup · 21:00",
             "🚩 Командная неделя · пн–вс",
         ],
-        "🎯 Выше-ниже · /higher · в личке",
-        note("Кнопки ниже запускают игру в этом чате. Колесо и гороскоп — в /today. "
-             "Как играть в каждую — «Правила» → «Игры»"),
+        ["📊 Табло · /board", "🎰 Автомат на всех · /machine" if widgets_on else "",
+         "🎯 Выше-ниже · /higher · в личке"],
+        note("Кнопки ниже запускают игру в этом чате. Колесо и гороскоп — в «Сегодня». "
+             "Как играть в каждую — «Правила» → «Игры»",
+             "Виджеты включены: сапёр, сейф, шпион, игры вдвоём и табло — мини-приложения прямо "
+             "в сообщении" if widgets_on else ""),
     )
 
 

@@ -37,9 +37,9 @@ def spy_card(phase: str, players: list[str], remaining: int, counts: list[int] |
             f"🎭 <b>Шпион</b> · обсуждение · <b>{timer(remaining)}</b>",
             steady(texts.SPY_FLAVOUR, round_id),
             ["👥 <b>Играют</b>", *(f"▫️ {who(name)}" for name in players)],
-            f"✋ К голосованию готовы: <b>{ready}</b> из {len(players)}" if ready else "",
+            f"✋ Готовы голосовать: <b>{ready}</b> из {len(players)}" if ready else "",
             note("Жми «Моё слово» — увидишь только ты. Каждый пишет в чат одно слово про своё: "
-                 "не слишком прямо, а то шпион догадается. Твоё слово в чате — жми «К голосованию»: "
+                 "не слишком прямо, а то шпион догадается. Твоё слово в чате — жми «Голосуем»: "
                  "когда готовы все, голосование начнётся сразу"),
         )
     counts = counts or [0] * len(players)

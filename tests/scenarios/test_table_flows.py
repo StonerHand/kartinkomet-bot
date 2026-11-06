@@ -27,10 +27,15 @@ class MenuTest(BotHarness):
     async def test_the_games_screen_starts_the_new_games(self) -> None:
         await self.send("/games", sender=3)
         buttons = self.buttons(self.session.of("SendEphemeralMessage")[-1])
-        for data in ("gm:spy", "gm:mines", "gm:safe", "gm:piece"):
+        for data in ("gm:spy", "gm:mines", "gm:safe", "gm:piece", "pp:rps", "pp:ttt", "gm:board"):
             self.assertIn(data, buttons)
+        self.assertNotIn("gm:machine", buttons)  # a widget: only where the chat has them on
         await self.press("gm:mines", sender=3)
         self.assertIn("Сапёр", self.session.of("SendMessage")[-1].text)
+        await self.press("gm:board", sender=3)
+        self.assertIn("Табло", self.session.of("SendMessage")[-1].text)
+        await self.press("gm:machine", sender=3)
+        self.assertIn("выключены", self.session.of("AnswerCallbackQuery")[-1].text)
 
 
 class TableFlowsTest(BotHarness):
@@ -87,7 +92,7 @@ class TableFlowsTest(BotHarness):
         for person in (2, 3):
             await self.press(f"sy:r:{found['id']}", sender=person)
         talk, _ = self.live.round_card(self.game.repo.get_round(found["id"]))
-        self.assertIn("готовы: <b>2</b> из 3", talk)
+        self.assertIn("голосовать: <b>2</b> из 3", talk)
         await self.press(f"sy:r:{found['id']}", sender=4)
         self.assertEqual(phase(), "vote")
         players = self.game.spy_players(self.game.repo.get_round(found["id"]))

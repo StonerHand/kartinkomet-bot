@@ -32,7 +32,7 @@ Scheme:
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot.rules.duels import RPS, RPS_NAMES
+from bot.rules.duels import RPS
 from bot.texts.ui import BACK, HELP_TABS
 from bot.ui.layout import SLOT_COLORS
 
@@ -128,15 +128,19 @@ def today(left: list[str]) -> InlineKeyboardMarkup:
     return markup(buttons[:2], buttons[2:4], back())
 
 
-def games_menu() -> InlineKeyboardMarkup:
-    """In the screen's order: the talking games, then the quick ones."""
+def games_menu(widgets_on: bool = False) -> InlineKeyboardMarkup:
+    """In the screen's order: the talking games, the quick ones, the duels for two, the board;
+    the slot machine only where the chat has widgets."""
+    machine = [button("🎰 Автомат", "gm:machine", SUCCESS)] if widgets_on else []
     return markup(
         [button("🗳 Кто из нас", "gm:who", PRIMARY), button("🐊 Крокодил", "gm:croc", SUCCESS)],
-        [button("🎭 Шпион", "gm:spy", PRIMARY), button("🤝 Спор", "gm:bet")],
+        [button("🎭 Шпион", "gm:spy", PRIMARY), button("🤝 Спор", "gm:bet", SUCCESS)],
         [button("💣 Бомба", "gm:bomb", DANGER), button("🧨 Сапёр", "gm:mines", DANGER)],
         [button("🔐 Сейф", "gm:safe", SUCCESS), button("🧩 По кусочку", "gm:piece", PRIMARY)],
         [button("🕵️ Чья пикча", "gm:whose", PRIMARY), button("🖋 Подпиши", "gm:caption", PRIMARY)],
         [button("👹 Босс", "boss", DANGER), button("🎯 Выше-ниже", "gm:hl", PRIMARY)],
+        [button("✊ Цу-е-фа", "pp:rps", PRIMARY), button("❌ Крестики", "pp:ttt", PRIMARY)],
+        [button("📊 Табло", "gm:board", PRIMARY), *machine],
         back(),
     )
 
@@ -146,7 +150,7 @@ def people_menu() -> InlineKeyboardMarkup:
     return markup(
         [button("😈 Ограбить", "pp:rob", DANGER), button("🎁 Подарить", "pp:give", SUCCESS)],
         [button("🤺 Вызов", "pp:challenge", PRIMARY), button("🎲 1 на 1", "pp:pvp", PRIMARY)],
-        [button("✊ Камень-ножницы", "pp:rps", PRIMARY), button("❌ Крестики", "pp:ttt", PRIMARY)],
+        [button("✊ Цу-е-фа", "pp:rps", PRIMARY), button("❌ Крестики", "pp:ttt", PRIMARY)],
         [button("💍 Свадьба", "pp:marry"), button("💔 Развод", "pp:divorce")],
         back(),
     )
@@ -278,8 +282,8 @@ def challenge(challenge_id: str) -> InlineKeyboardMarkup:
 
 
 def rps(challenge_id: str) -> InlineKeyboardMarkup:
-    return markup([button(f"{mark} {name.capitalize()}", f"rp:{challenge_id}:{index}", PRIMARY)
-                   for index, (mark, name) in enumerate(zip(RPS, RPS_NAMES))])
+    """The three hands, as big as a row of three allows; the card names them."""
+    return markup([button(mark, f"rp:{challenge_id}:{index}", PRIMARY) for index, mark in enumerate(RPS)])
 
 
 TTT_CELLS = {"X": "❌", "O": "⭕", ".": "▫️"}
@@ -357,7 +361,7 @@ def after_party(kind: str) -> InlineKeyboardMarkup:
     again = {"who": button("🗳 Ещё вопрос", "gm:who", PRIMARY), "bomb": button("💣 Ещё бомбу", "gm:bomb", DANGER),
              "croc": button("🐊 Ещё слово", "gm:croc", SUCCESS), "spy": button("🎭 Ещё шпион", "gm:spy", PRIMARY),
              "mines": button("🧨 Ещё поле", "gm:mines", DANGER), "safe": button("🔐 Новый сейф", "gm:safe", SUCCESS),
-             "piece": button("🧩 Ещё кусочек", "gm:piece", PRIMARY)}
+             "piece": button("🧩 Ещё раунд", "gm:piece", PRIMARY)}
     return markup([again[kind], more()])
 
 
@@ -370,7 +374,7 @@ def spy(round_id: str, phase: str, labels: list[str]) -> InlineKeyboardMarkup:
         return markup([button("🙋 Играю", f"sy:j:{round_id}", SUCCESS), button("▶️ Начать", f"sy:s:{round_id}")])
     word = [button("🤫 Моё слово", f"sy:w:{round_id}", DANGER)]
     if phase != "vote":
-        return markup([*word, button("✋ К голосованию", f"sy:r:{round_id}", PRIMARY)])
+        return markup([*word, button("✋ Голосуем", f"sy:r:{round_id}", PRIMARY)])
     people = [button(clip(label), f"sy:v:{round_id}:{index}", PRIMARY) for index, label in enumerate(labels)]
     return markup(*(people[start:start + 2] for start in range(0, len(people), 2)), word)
 

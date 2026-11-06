@@ -26,7 +26,7 @@ function btn(t,q){return '<button data-q="'+q+'">'+t+'</button>'}
 function R(){var z=D.z;$('tm').textContent=z?'':left();
 $('ph').textContent=z?(z.k=='caught'?'Шпион пойман: '+z.spy:z.k=='escaped'?'Шпион ушёл: '+z.spy:'Отменён: мало игроков')+(z.w?'. Слово: '+z.w:''):PH[D.f]+(D.f=='talk'&&D.r?' · готовы '+D.r+' из '+(D.p||[]).length:'');
 var h='';(D.p||[]).forEach(function(n,i){h+='<button data-q="v'+i+'"'+(D.f=='vote'?'':' disabled')+'><span>'+n+'</span><b>'+(D.f=='vote'||z?(D.c||[])[i]||0:'')+'</b></button>'});$('pl').innerHTML=h;
-var a=z?'':D.f=='recruit'?btn('🙋 Играю','j')+btn('▶️ Начать','s'):D.f=='talk'?btn('🤫 Моё слово','w')+btn('✋ К голосованию','r'):btn('🤫 Моё слово','w');$('act').innerHTML=a;
+var a=z?'':D.f=='recruit'?btn('🙋 Играю','j')+btn('▶️ Начать','s'):D.f=='talk'?btn('🤫 Моё слово','w')+btn('✋ Голосуем','r'):btn('🤫 Моё слово','w');$('act').innerHTML=a;
 var b=document.querySelectorAll('[data-q]');for(var i=0;i<b.length;i++)b[i].addEventListener('click',tap)}
 function tap(e){var q=e.currentTarget.getAttribute('data-q');Q(q).then(function(a){
 if(q=='w'){var m=$('me');m.style.display='block';m.textContent=a.spy?'🕶 Ты шпион. Слушай и не спались':a.w?'🤫 Твоё слово: '+a.w:(MSG[a.s]||'Слово придёт после сбора');T('success');return}

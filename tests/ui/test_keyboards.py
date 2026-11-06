@@ -53,6 +53,19 @@ def all_keyboards():
     yield "boss_over", keyboards.boss_over()
     yield "proposal", keyboards.proposal("p" * 12)
     yield "challenge", keyboards.challenge("c" * 12)
+    yield "people", keyboards.people_menu()
+    yield "games_widgets", keyboards.games_menu(widgets_on=True)
+    yield "rps", keyboards.rps("c" * 12)
+    yield "ttt", keyboards.ttt("c" * 12, "XO.......")
+    yield "ttt_over", keyboards.ttt("c" * 12, "XXXOO....", over=True, stake=99999)
+    yield "mines", keyboards.mines("r" * 12, 4, [0, 5])
+    yield "mines_over", keyboards.mines("r" * 12, 4, [0, 5], [5, 9])
+    for phase in ("recruit", "talk", "vote"):
+        yield f"spy_{phase}", keyboards.spy("r" * 12, phase, ["averyveryverylongname"] * 8)
+    yield "auction", keyboards.auction("r" * 12, [50, 200, 99999])
+    yield "piece", keyboards.piece("r" * 12, ("A", "B", "C", "D"))
+    for kind in ("who", "bomb", "croc", "spy", "mines", "safe", "piece"):
+        yield f"after_{kind}", keyboards.after_party(kind)
 
 
 class KeyboardTest(unittest.TestCase):
