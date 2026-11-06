@@ -81,7 +81,7 @@ async def summon_from_bottom(callback: CallbackQuery, bot: Bot, game: Game, live
         "immune": court_texts.IMMUNE,
     }
     if status in answers:
-        await callback.answer(pick(answers[status]), show_alert=status != "started")
+        await callback.answer(views.marked(pick(answers[status]), "⚖️"), show_alert=status != "started")
     elif status == "gone":
         await callback.answer("⚰️ Её уже нет в живых", show_alert=True)
     else:
@@ -119,7 +119,7 @@ async def appeal(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> N
         "broke": f"Залог — {views.coins(game.appeal_bail())}. Столько у тебя нет",
     }
     if result.status != "started" or result.court is None:
-        await callback.answer(answers.get(result.status, "Не вышло"), show_alert=True)
+        await callback.answer(views.marked(answers.get(result.status, "Не вышло"), "📜"), show_alert=True)
         return
     await callback.answer(f"📜 Апелляция подана. Залог {views.coins(result.court.bail)}")
     if callback.message is not None:

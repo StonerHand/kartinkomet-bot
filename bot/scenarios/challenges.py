@@ -157,7 +157,7 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
         "shortage": "На складе не хватает пикч для боя",
     }
     if result.status in refusals:
-        await callback.answer(refusals[result.status], show_alert=True)
+        await callback.answer(views.marked(refusals[result.status], "🤺"), show_alert=True)
         return
     if callback.message is None or result.challenge is None:
         await callback.answer()

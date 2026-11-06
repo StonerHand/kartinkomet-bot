@@ -71,7 +71,7 @@ async def caption_vote(callback: CallbackQuery, game: Game, live: Live) -> None:
         "closed": "Голосование уже закрыто",
         "gone": "Этого конкурса уже нет",
     }
-    await callback.answer(answers[status], show_alert=status in ("own", "gone"))
+    await callback.answer(views.marked(answers[status], "🖋"), show_alert=status in ("own", "gone"))
     if status == "ok":
         live.request_refresh_game(game_id)
 
@@ -148,7 +148,7 @@ async def whose_guess(callback: CallbackQuery, game: Game, live: Live) -> None:
         "closed": "Раунд уже закончился",
         "gone": "Этого раунда уже нет",
     }
-    await callback.answer(answers[status], show_alert=status in ("own", "gone"))
+    await callback.answer(views.marked(answers[status], "🕵️"), show_alert=status in ("own", "gone"))
     if status == "ok":
         live.request_refresh_game(game_id)
 

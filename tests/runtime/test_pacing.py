@@ -48,6 +48,15 @@ class PacingTest(BotHarness):
         self.assertGreaterEqual(time.monotonic() - started, 0.1)  # three redraws, two gaps
         self.assertEqual(len(self.session.of("EditMessageCaption")) - before, 3)
 
+    async def test_a_card_that_would_come_out_the_same_doesnt_wait_its_turn(self) -> None:
+        boss = await self.boss()
+        await self.live.refresh_boss(boss["id"])
+        timers.LIVE_EDIT_GAP = 5  # the chat's next turn is seconds away
+        started = time.monotonic()
+        await self.live.refresh_boss(boss["id"])  # nothing changed: no turn taken, no wait
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertLess(self.live._next_edit.get(-100, 0) - time.monotonic(), 1)
+
     async def test_a_busy_card_keeps_one_redraw_waiting(self) -> None:
         self.addCleanup(setattr, timers, "REFRESH_DELAY", timers.REFRESH_DELAY)
         timers.LIVE_EDIT_GAP, timers.REFRESH_DELAY = 0.5, 0

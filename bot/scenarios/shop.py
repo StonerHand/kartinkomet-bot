@@ -108,7 +108,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         amount = game.bounty_amounts()[BOUNTY_CODES[code]]
         status, total = game.put_bounty(user_id, pic_id, amount)
         if status != "ok":
-            await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
+            await callback.answer(views.marked(texts.REFUSED.get(status, "Не вышло"), "🛒"), show_alert=True)
             return
         await callback.answer(f"🎯 Награда поднята до {views.coins(total)}")
         pic = game.repo.get_pic(pic_id)
@@ -139,7 +139,7 @@ async def buy(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -> None
         return
     status, pic = game.buy(user_id, item, pic_id)
     if status != "ok":
-        await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
+        await callback.answer(views.marked(texts.REFUSED.get(status, "Не вышло"), "🛒"), show_alert=True)
         return
     price = game.price(item)
     await callback.answer(f"{views.bought(item, user_id)} · −{views.coins(price)}")
@@ -164,14 +164,14 @@ async def resurrect(callback: CallbackQuery, bot: Bot, game: Game, live: Live) -
     price = game.price("resurrect")
     pic = game.repo.get_pic(pic_id)
     if pic is None or pic.status == "alive":
-        await callback.answer(texts.REFUSED["alive"] if pic else texts.REFUSED["gone"], show_alert=True)
+        await callback.answer(views.marked(texts.REFUSED["alive"] if pic else texts.REFUSED["gone"], "🧟"), show_alert=True)
         return
     if not confirmed(user_id, f"res:{pic_id}"):
         await callback.answer(f"🧟 Воскресить за {views.coins(price)}? Нажми ещё раз в течение 10 секунд", show_alert=True)
         return
     status, pic = game.buy(user_id, "resurrect", pic_id)
     if status != "ok" or pic is None:
-        await callback.answer(texts.REFUSED.get(status, "Не вышло"), show_alert=True)
+        await callback.answer(views.marked(texts.REFUSED.get(status, "Не вышло"), "🛒"), show_alert=True)
         return
     await callback.answer(f"🧟 Воскрешена · −{views.coins(price)}")
     if callback.message is None:
@@ -202,7 +202,7 @@ TITLE_PROMPT_SECONDS = 600
 async def title_button(callback: CallbackQuery, bot: Bot, game: Game) -> None:
     price = game.price("title")
     if game.repo.player(callback.from_user.id)[0] < price:
-        await callback.answer(texts.REFUSED["broke"], show_alert=True)
+        await callback.answer(views.marked(texts.REFUSED["broke"], "🛒"), show_alert=True)
         return
     await callback.answer()
     chat_id = callback.message.chat.id

@@ -374,3 +374,11 @@ CREATE TABLE IF NOT EXISTS teams (
     team TEXT NOT NULL CHECK (team IN ('red', 'blue')),
     PRIMARY KEY (chat_id, week, user_id)
 ) WITHOUT ROWID;
+
+-- ── v6.16: lookups that run on every reply in the chat ────────────────────
+-- A reply to the bot is matched to its game by the replied message (the safe, the theme, a
+-- caption contest, a court's last word); a cooldown asks when a chat's last round of a kind began.
+CREATE INDEX IF NOT EXISTS idx_rounds_message ON rounds(chat_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_rounds_started ON rounds(chat_id, kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_games_message ON games(chat_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_courts_message ON courts(chat_id, message_id);

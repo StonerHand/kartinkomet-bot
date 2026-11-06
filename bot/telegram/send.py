@@ -103,6 +103,11 @@ async def edit_caption(
 _drawn: dict[tuple[int, int], int] = {}  # (chat, message) → what a live card shows now
 
 
+def is_drawn(chat_id: int, message_id: int, text: str, markup: InlineKeyboardMarkup | None) -> bool:
+    """The card shows exactly this already: a redraw would change nothing."""
+    return _drawn.get((chat_id, message_id)) == hash((text, markup.model_dump_json() if markup else None))
+
+
 async def live_edit(
     bot: Bot, chat_id: int, message_id: int, text: str, markup: InlineKeyboardMarkup | None, photo: bool
 ) -> float:

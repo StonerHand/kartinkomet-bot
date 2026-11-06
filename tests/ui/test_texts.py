@@ -7,6 +7,7 @@ from bot.texts import (
 from bot.texts.achievements import ACHIEVEMENTS, UNLOCKED
 from bot.texts.pick import pick, reset
 from bot.ui import views
+from bot.ui.layout import timer
 from tests.layout import EMOJI, NOT_COUNTED, assert_html, fits
 
 EXPECTED_SIZES = {
@@ -114,6 +115,13 @@ class TextsTest(unittest.TestCase):
         recent = [pick(pool, "chat") for _ in range(200)]
         for index in range(5, len(recent)):
             self.assertNotIn(recent[index], recent[index - 5 : index])
+
+
+class TimerTest(unittest.TestCase):
+    def test_seconds_near_the_end_minutes_further_off(self) -> None:
+        self.assertEqual([timer(45), timer(299), timer(300), timer(1799), timer(3600), timer(7500)],
+                         ["0:45", "4:59", "5 мин", "30 мин", "1 ч 00 мин", "2 ч 05 мин"])
+        self.assertEqual(timer(-5), "0:00")
 
 
 class StaticTextTest(unittest.TestCase):
