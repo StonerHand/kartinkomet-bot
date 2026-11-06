@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.3 system-ui;color:var(--tg-theme-text-color);background:var(--tg-theme-bg-color);padding:10px;width:100%}
+.top{display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:17px}.h{color:var(--tg-theme-hint-color);font-size:13px}
+#code{display:flex;gap:8px;justify-content:center;margin:10px 0}
+#code span{width:44px;height:52px;border-radius:10px;background:var(--tg-theme-secondary-bg-color);font:700 26px ui-monospace,monospace;display:flex;align-items:center;justify-content:center}
+#k{display:flex;flex-wrap:wrap;gap:6px}
+#k button{width:calc(33.3% - 4px);height:44px;border:0;border-radius:10px;font:600 19px system-ui;background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color)}
+#k button:disabled{opacity:.3}#k .go{background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
+#st{min-height:20px;margin:6px 0;text-align:center}
+#l div{display:flex;justify-content:space-between;font:14px ui-monospace,monospace}
+.open{animation:o .6s ease-out}@keyframes o{50%{transform:scale(1.15)}}
+</style></head><body>
+<div class="top"><h1>🔐 Сейф</h1><span class="h" id="tm"></span></div>
+<div class="h" id="pot"></div><div id="code"></div><div id="k"></div>
+<div id="st" class="h"></div><div id="l"></div>
+<script>
+var W=window.TelegramWidget,D={},busy=0,c='';
+function $(i){return document.getElementById(i)}
+function L(){try{D=JSON.parse(W.chatData||'{}')}catch(e){D={}}}
+function T(t){try{W.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function say(t){$('st').textContent=t}
+var ERR={BUSY:'Секунду…',RATE_LIMITED:'Не так быстро',TIMEOUT:'Бот не ответил',NOT_ALLOWED:'Здесь играть нельзя'};
+function Q(s){if(busy)return Promise.resolve({});busy=1;return W.request(s).then(function(a){busy=0;try{return JSON.parse(a.result||'{}')}catch(e){return{}}},function(e){busy=0;say(ERR[e.code]||'Не вышло');return{}})}
+function left(){var s=Math.max(0,(D.t||0)-Date.now()/1000|0);return (s/60|0)+':'+('0'+s%60).slice(-2)}
+function code(){var h='';for(var i=0;i<4;i++)h+='<span>'+(D.k?D.k[i]:(c[i]||''))+'</span>';$('code').innerHTML=h;if(D.k)$('code').className='open'}
+function keys(){var h='',s='123456789⌫0✓';for(var i=0;i<12;i++){var d=s[i],u=d>='0'&&d<='9'&&c.indexOf(d)>=0;
+h+='<button'+(d=='✓'?' class="go"':'')+(u||D.x||(d=='✓'&&c.length<4)?' disabled':'')+' data-d="'+d+'">'+d+'</button>'}
+$('k').innerHTML=h;var b=$('k').children;for(i=0;i<b.length;i++)b[i].addEventListener('click',press)}
+function R(){$('tm').textContent=D.x?'':left();$('pot').textContent='Внутри: '+(D.p||0)+' · попытка '+(D.c||0);code();keys();
+var l='';(D.l||[]).slice().reverse().forEach(function(r){l+='<div><span>'+r[0]+'</span><span>'+r[1]+' на месте · '+r[2]+' не там</span></div>'});$('l').innerHTML=l;
+if(D.x==1)say('🎉 Вскрыт: '+(D.w||''));else if(D.x==2)say('Сейф устоял, деньги ждут следующего')}
+function press(e){var d=e.currentTarget.getAttribute('data-d');
+if(d=='⌫')c=c.slice(0,-1);else if(d=='✓'){var t=c;Q('t'+t).then(function(a){
+if(a.s=='miss'){T('warning');say(t+': '+a.e+' на месте, '+a.n+' не там');c=''}else if(a.s=='cracked'){T('success');say('🎉 Открыто!')}
+else if(a.s=='repeat')say('Этот код уже пробовали');else if(a.s=='poor')say('Не хватает монет на попытку');
+else if(a.s=='wait')say('Следующая попытка через '+a.w+' с');else if(a.s)say('Сейф закрыт');code();keys()});return}
+else if(c.length<4)c+=d;code();keys()}
+W.onEvent('chatDataChanged',function(){L();R()});L();R();
+setInterval(function(){if(!D.x)$('tm').textContent=left()},1000);W.ready();
+</script></body></html>

@@ -14,6 +14,7 @@ from bot.game.auction import AuctionMixin
 from bot.game.boss import BossMixin
 from bot.game.casino import CasinoMixin
 from bot.game.challenges import ChallengesMixin
+from bot.game.duels import BoardDuelsMixin
 from bot.game.court import CourtMixin
 from bot.game.economy import EconomyMixin
 from bot.game.minigames import MiniGamesMixin
@@ -43,7 +44,7 @@ REWARD_REASONS = ACTIVITY_REASONS | {
 class Game(
     PicsMixin, ArenaMixin, CourtMixin, MiniGamesMixin, QuizMixin, StatusMixin, ProgressMixin, CasinoMixin, ShopMixin,
     SocialMixin, ChallengesMixin, BossMixin, EconomyMixin, PartyMixin, ShowMixin, TableMixin, AuctionMixin,
-    TeamsMixin,
+    TeamsMixin, BoardDuelsMixin,
 ):
 
     def __init__(

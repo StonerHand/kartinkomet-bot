@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.3 system-ui;color:var(--tg-theme-text-color);background:var(--tg-theme-bg-color);padding:10px;width:100%;text-align:center}
+h1{font-size:17px;text-align:left}.h{color:var(--tg-theme-hint-color);font-size:13px}
+#r{display:flex;gap:8px;justify-content:center;margin:12px 0}
+#r span{width:76px;height:84px;border-radius:14px;background:linear-gradient(#222,#444);color:#fff;font:700 34px system-ui;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 12px #000}
+#go{width:100%;border:0;border-radius:12px;padding:12px;font:700 17px system-ui;background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
+#go:disabled{opacity:.5}
+#st{min-height:22px;margin:8px 0;font-weight:600}
+#f div{display:flex;justify-content:space-between;font-size:14px}
+.win{animation:w .4s 3}@keyframes w{50%{transform:scale(1.12)}}
+</style></head><body>
+<h1>🎰 Автомат</h1><div id="r"></div><button id="go">Крутить</button>
+<div id="st"></div><div class="h" id="me">Ставка — как в казино: 10% баланса или своя</div><div id="f"></div>
+<script>
+var W=window.TelegramWidget,D={},busy=0,S=['BAR','🍇','🍋','7'],cur=[3,3,3];
+function $(i){return document.getElementById(i)}
+function L(){try{D=JSON.parse(W.chatData||'{}')}catch(e){D={}}}
+function T(t){try{W.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function say(t){$('st').textContent=t}
+var ERR={BUSY:'Секунду…',RATE_LIMITED:'Не так быстро',TIMEOUT:'Бот не ответил',NOT_ALLOWED:'Здесь играть нельзя'};
+var NO={small:'Ставка меньше минимума',broke:'Не хватает монет',cool:'Автомат остывает, секунду'};
+function reels(){$('r').innerHTML=cur.map(function(x){return '<span>'+S[x]+'</span>'}).join('')}
+function feed(){var h='';(D.f||[]).forEach(function(r){h+='<div><span>'+r[0]+'</span><b>+'+r[1]+'</b></div>'});$('f').innerHTML=h?'<div class="h">Крупные выигрыши</div>'+h:''}
+$('go').addEventListener('click',function(){if(busy)return;busy=1;$('go').disabled=true;say('');
+var spin=setInterval(function(){cur=cur.map(function(){return Math.random()*4|0});reels()},90);
+W.request('s').then(function(a){var r={};try{r=JSON.parse(a.result||'{}')}catch(e){}
+setTimeout(function(){clearInterval(spin);busy=0;$('go').disabled=false;
+if(!r.v){say(NO[r.e]||'Не вышло');return}var i=r.v-1;cur=[i%4,(i>>2)%4,(i>>4)%4];reels();
+if(r.w>r.k){T('success');say('+'+(r.w-r.k)+' монет!');$('r').className='win'}else{T(r.w?'warning':'error');say(r.w?'Вернулось '+r.w:'−'+r.k);$('r').className=''}
+$('me').textContent='Баланс: '+r.b},1200)},function(e){clearInterval(spin);busy=0;$('go').disabled=false;say(ERR[e.code]||'Не вышло')})});
+W.onEvent('chatDataChanged',function(){L();feed()});L();reels();feed();W.ready();
+</script></body></html>

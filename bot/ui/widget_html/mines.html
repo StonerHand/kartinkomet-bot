@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.3 system-ui;color:var(--tg-theme-text-color);background:var(--tg-theme-bg-color);padding:10px;width:100%}
+.top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+h1{font-size:17px}.h{color:var(--tg-theme-hint-color);font-size:13px}
+#g{display:flex;flex-wrap:wrap;gap:6px}
+.c{width:calc(25% - 5px);height:52px;border:0;border-radius:10px;font:600 20px system-ui;background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color);transition:transform .15s}
+.c:active{transform:scale(.92)}.o{background:#2e7d32;color:#fff}.m{background:#c62828;color:#fff}
+#cash{width:100%;margin-top:8px;border:0;border-radius:10px;padding:10px;font:600 15px system-ui;background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
+#st{min-height:20px;margin-top:6px;text-align:center}
+#p div{display:flex;justify-content:space-between;font-size:14px}
+</style></head><body>
+<div class="top"><h1>🧨 Сапёр</h1><span class="h" id="tm"></span></div>
+<div id="g"></div><button id="cash">💰 Забрать свой банк</button>
+<div id="st" class="h"></div><div id="p"></div>
+<script>
+var W=window.TelegramWidget,D={},busy=0;
+function $(i){return document.getElementById(i)}
+function L(){try{D=JSON.parse(W.chatData||'{}')}catch(e){D={}}}
+function T(t){try{W.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function say(t){$('st').textContent=t}
+var ERR={BUSY:'Секунду…',RATE_LIMITED:'Не так быстро',TIMEOUT:'Бот не ответил',NOT_ALLOWED:'Здесь играть нельзя'};
+function Q(s){if(busy)return Promise.resolve({});busy=1;return W.request(s).then(function(a){busy=0;try{return JSON.parse(a.result||'{}')}catch(e){return{}}},function(e){busy=0;say(ERR[e.code]||'Не вышло');return{}})}
+function left(){var s=Math.max(0,(D.t||0)-Date.now()/1000|0);return (s/60|0)+':'+('0'+s%60).slice(-2)}
+var END={2:'🏁 Поле чистое, банки выплачены',3:'⏰ Время вышло, банки выплачены'};
+function R(){var g=$('g'),o=D.o||[],m=D.m||[],h='';
+for(var i=0;i<16;i++){var k=o.indexOf(i)>=0,x=m.indexOf(i)>=0;
+h+='<button class="c'+(k?(x?' m':' o'):'')+'" data-i="'+i+'">'+(x?(k?'💥':'💣'):(k?'✓':''))+'</button>'}
+g.innerHTML=h;var b=g.children;for(i=0;i<b.length;i++)b[i].addEventListener('click',tap);
+$('tm').textContent=D.x?'':left();$('cash').style.display=D.x?'none':'block';
+var p='';(D.p||[]).forEach(function(r){p+='<div><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'});
+$('p').innerHTML=p?'<div class="h">Не забрали</div>'+p:'';
+if(D.x)say(D.x==1?'💥 Подрыв: '+(D.b||'')+'. Невзятое сгорело':END[D.x]);else if(!$('st').textContent)say('Следующая клетка: '+(D.n||0))}
+function tap(e){if(D.x)return;var i=+e.currentTarget.getAttribute('data-i');
+Q('o'+i).then(function(a){if(a.s=='safe'){T('success');say('+'+a.v+' в твой банк')}
+else if(a.s=='boom'){T('error');say('💥 Мина!')}else if(a.s=='cleared'){T('success');say('🏁 Поле чистое!')}
+else if(a.s=='open')say('Уже открыта');else if(a.s)say('Поле закрыто')})}
+$('cash').addEventListener('click',function(){Q('c').then(function(a){if(a.s=='ok'){T('success');say('💰 +'+a.v+' в кошелёк')}else if(a.s=='empty')say('Забирать нечего: открой клетку');else if(a.s)say('Поле закрыто')})});
+W.onEvent('chatDataChanged',function(){L();R()});L();R();
+setInterval(function(){if(!D.x)$('tm').textContent=left()},1000);W.ready();
+</script></body></html>

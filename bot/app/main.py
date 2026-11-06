@@ -9,16 +9,17 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats, CallbackQuery
 
 from bot.app.config import load_config
-from bot.app.middleware import RememberUser
+from bot.app.middleware import RememberUser, WidgetQueries
 from bot.app.watchdog import STALL_SECONDS, PollingWatchdog, alert_admins
 from bot.db.repo import Repo
 from bot.game.engine import Game
 from bot.live.timers import Live
 from bot.scenarios import (
     admin, arena, boss, casino, challenges, court, fallback, games, higher, inline, panel, party, pics, progress,
-    replies, shop, show, social, table, targets, upload,
+    replies, shop, show, social, table, targets, upload, widgets,
 )
 from bot.scenarios.schedule import Events
+from bot.telegram.widgets import QUERY_UPDATES
 
 LOGGER = logging.getLogger("kartinkomet")
 STALE_BACKLOG_SECONDS = 600  # a restart takes seconds; a backlog this old means the bot was down
@@ -92,16 +93,32 @@ async def drop_stale_backlog(bot: Bot) -> int:
         return 0
 
 
+async def update_types(bot: Bot, dispatcher: Dispatcher) -> list[str]:
+    """The updates to ask Telegram for: the handlers' and the widget taps. Telegram ignores types it
+    doesn't know; should it ever refuse them instead, polling goes on without the widget taps
+    (a getUpdates without an offset confirms nothing)."""
+    used = dispatcher.resolve_used_update_types()
+    wanted = [*used, *QUERY_UPDATES]
+    try:
+        await bot.get_updates(limit=1, timeout=0, allowed_updates=wanted)
+    except TelegramAPIError:
+        LOGGER.warning("Telegram refused the widget update types; polling without them", exc_info=True)
+        return used
+    return wanted
+
+
 def build_dispatcher(game: Game, live: Live, admin_ids: frozenset[int]) -> Dispatcher:
     dispatcher = Dispatcher(game=game, live=live, admins=admin_ids)
     dispatcher.message.outer_middleware(RememberUser(game))
     dispatcher.callback_query.outer_middleware(RememberUser(game))
+    dispatcher.update.outer_middleware(WidgetQueries(game, live))
     dispatcher.errors.register(fallback.on_error)
     # Order matters: court catches plain replies to the bot, fallback catches every leftover button.
     dispatcher.include_routers(
         panel.router,
         party.router,  # before the others: a bomb holder's reply to a person is a pass, not a message
         table.router,  # a reply to the safe is a try at its code, not a reply to the bot
+        widgets.router,
         pics.router,
         arena.router,
         upload.router,
@@ -182,7 +199,7 @@ async def main() -> None:
             await dispatcher.stop_polling()
 
         guard = asyncio.create_task(watchdog.watch(on_stall))
-        await dispatcher.start_polling(bot)
+        await dispatcher.start_polling(bot, allowed_updates=await update_types(bot, dispatcher))
     finally:
         if guard is not None:
             guard.cancel()

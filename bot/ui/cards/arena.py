@@ -4,12 +4,13 @@ from html import escape
 
 from bot.game.types import BattleReport
 from bot.models.records import Battle
-from bot.rules import casino
+from bot.rules import casino, duels
 from bot.rules import economy
 from bot.rules import shop
 from bot.rules.arena import DEATH_LOSS_STREAK
 from bot.texts import arena as arena_texts
 from bot.texts import events as event_texts
+from bot.texts import duels as duel_texts
 from bot.texts import social as social_texts
 from bot.texts.pick import pick, steady
 from bot.ui.layout import (
@@ -194,6 +195,14 @@ def challenge_card(challenge: dict, labels: dict[int, str], chat_id: int, remain
         f"🥊 <b>{challenger}</b> против {opponent}",
         f"💰 Ставка {money(challenge['stake'])} · банк <b>{num(challenge['stake'] * 2)}</b>",
     ]
+    if challenge.get("game") in duels.BOARD_GAMES:
+        board = duels.BOARD_GAMES[challenge["game"]]
+        return card(
+            f"{board.emoji} <b>{board.name}</b> · <b>{timer(remaining)}</b>",
+            pick(duel_texts.DUEL_CALL, chat_id),
+            *duel,
+            note(board.rules),
+        )
     if challenge.get("game"):
         info = casino.GAMES[challenge["game"]]
         return card(
@@ -216,7 +225,8 @@ def challenge_closed(challenge: dict, labels: dict[int, str], status: str) -> st
         "declined": "Отказ. Ставка вернулась",
         "cancelled": "Вызов отозван. Ставка вернулась",
         "expired": "Никто не принял. Ставка вернулась",
-        "accepted": "Вызов принят — бой ниже" if not challenge.get("game") else "Вызов принят — бросаем",
+        "accepted": "Вызов принят — бой ниже" if not challenge.get("game")
+        else "Вызов принят — играем ниже" if challenge["game"] in duels.BOARD_GAMES else "Вызов принят — бросаем",
     }[status]
     return card(f"🤺 <b>Вызов</b> · {challenger} · {money(challenge['stake'])}", reason)
 

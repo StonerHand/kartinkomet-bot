@@ -9,7 +9,7 @@ from bot.game.table import state_of
 from bot.rules import games as game_rules
 from bot.rules import table
 from bot.telegram import pictures, send
-from bot.ui import keyboards, views
+from bot.ui import keyboards, views, widgets
 
 TABLE_KINDS = ("spy", "mines", "safe", "piece", "auction")
 WATCHED = ("spy", "mines", "safe", "piece")  # the auction's card waits for bids; the schedule settles it
@@ -49,6 +49,38 @@ class TableLive:
         text = views.auction_card(game.auction_lot(found), bidders, game.auction_raises(), game.auction_min_price(),
                                   found["id"])
         return text, keyboards.auction(found["id"], game.auction_raises())
+
+    # ── the same games as HTML widgets ─────────────────────────────────
+
+    def is_widget_round(self, round_id: str) -> bool:
+        return bool(self.game.repo.meta_int(f"wround:{round_id}"))
+
+    def round_widget_data(self, found: dict, result: dict | None = None) -> str:
+        """What a table game's widget draws now; result: how a spy game ended (its widget's end)."""
+        game, state, kind = self.game, state_of(found), found["kind"]
+        if kind == "mines":
+            over = 0
+            if found["status"] == "done":
+                cleared = len(state["open"]) == table.MINES_SIDE ** 2 - table.MINES_COUNT
+                over = 1 if found["result"] is not None else 2 if cleared else 3
+            pots = [] if over else [(game.repo.user_label(user), game.reward(coins))
+                                    for user, coins in game.mines_pots(found).items()]
+            stepper = game.repo.user_label(found["result"]) if over == 1 else None
+            return widgets.mines_data(state["open"], state["mines"] if over else None, pots,
+                                      game.reward(table.cell_value(len(state["open"]))), found["ends_at"], over, stepper)
+        if kind == "safe":
+            log = [(guess, exact, near) for _, guess, exact, near in state["log"]]
+            done = found["status"] == "done"
+            cracker = game.repo.user_label(found["result"]) if done and found["result"] is not None else None
+            over = 0 if not done else 1 if cracker else 2
+            inside = state["pot"] + (0 if done else game.safe_seed())
+            return widgets.safe_data(log, inside, game.safe_price(), found["ends_at"], over,
+                                     state["code"] if done else None, cracker)
+        players = game.spy_players(found)
+        counts = game.spy_counts(found)
+        return widgets.spy_data(state["phase"], [game.repo.user_label(user) for user in players],
+                                [counts[user] for user in players], len(state.get("ready", [])), found["ends_at"],
+                                result)
 
     def safe_log(self, found: dict) -> list[tuple[str, str, int, int]]:
         return [(self.game.repo.user_label(user), guess, exact, near)
@@ -108,6 +140,13 @@ class TableLive:
 
     # ── the spy ────────────────────────────────────────────────────────
 
+    async def spy_moved(self, round_id: str) -> None:
+        """After a join, a «ready» or a vote: the phase ends at once if nobody's left to wait for."""
+        if self.game.spy_all_in(round_id):
+            await self.hurry(round_id)
+        else:
+            self.request_refresh_round(round_id)
+
     async def advance_spy(self, round_id: str) -> None:
         step = self.game.advance_spy(round_id)
         if step is None:
@@ -122,7 +161,11 @@ class TableLive:
                                 [step.counts.get(user, 0) for user in players], state_of(found)["word"], step.reward,
                                 found["chat_id"])
         markup = keyboards.after_party("spy") if step.kind != "cancelled" else keyboards.more_only()
-        message_id = await self._settle_card(found["chat_id"], found["message_id"], text, markup, False)
+        final = None
+        if self.is_widget_round(found["id"]):
+            ending = {"k": step.kind, "spy": labels.get(step.spy, ""), "w": state_of(found)["word"]}
+            final = self.round_widget_data(found, ending)
+        message_id = await self._settle_card(found["chat_id"], found["message_id"], text, markup, False, final)
         if step.kind != "cancelled":
             await send.react(self.bot, found["chat_id"], message_id, "🔥" if step.kind == "caught" else "😱")
         await self.announce(found["chat_id"], list(step.granted))
@@ -137,7 +180,8 @@ class TableLive:
                                   [(labels[user], coins) for user, coins in result.paid.items()],
                                   [(labels[user], coins) for user, coins in result.burned.items()], found["chat_id"])
         markup = keyboards.mines(found["id"], table.MINES_SIDE, state["open"], state["mines"])
-        message_id = await self._settle_card(found["chat_id"], found["message_id"], text, markup, False)
+        final = self.round_widget_data(found) if self.is_widget_round(found["id"]) else None
+        message_id = await self._settle_card(found["chat_id"], found["message_id"], text, markup, False, final)
         await send.react(self.bot, found["chat_id"], message_id, "🤯" if result.kind == "boom" else "🤑")
         await self.announce(found["chat_id"], list(result.granted))
 
@@ -147,8 +191,9 @@ class TableLive:
         found = result.round
         cracker = self.game.repo.user_label(result.cracker) if result.cracker is not None else None
         text = views.safe_result(result.code, cracker, result.pot, result.seed, self.safe_log(found), found["chat_id"])
+        final = self.round_widget_data(found) if self.is_widget_round(found["id"]) else None
         message_id = await self._settle_card(found["chat_id"], found["message_id"], text,
-                                             keyboards.after_party("safe"), False)
+                                             keyboards.after_party("safe"), False, final)
         if result.cracker is not None:
             await send.react(self.bot, found["chat_id"], message_id, "🤑", big=True)
         await self.announce(found["chat_id"], list(result.granted))

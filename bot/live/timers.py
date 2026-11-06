@@ -19,12 +19,14 @@ from aiogram import Bot
 
 from bot.game.engine import Game
 from bot.game.types import Granted
+from bot.live.duels import DuelsLive
 from bot.live.table import TABLE_KINDS, WATCHED, TableLive
 from bot.rules import economy
 from bot.rules import games as game_rules
 from bot.rules import party as party_rules
 from bot.rules import show as show_rules
 from bot.telegram import send
+from bot.telegram import widgets as widget_api
 from bot.texts import show as show_texts
 from bot.ui import keyboards, views
 
@@ -41,7 +43,7 @@ MAX_FLOOD_HOLD = 60  # a flood wait holds back a chat's redraws at most this lon
 CHEST_OF_NOTE = {"chest": None, "quests_all": "wood", "challenge": "rare", "challenges_all": "legend"}
 
 
-class Live(TableLive):
+class Live(TableLive, DuelsLive):
     tick_seconds = TICK_SECONDS
 
     def __init__(self, bot: Bot, game: Game) -> None:
@@ -144,6 +146,7 @@ class Live(TableLive):
             (repo.open_round_ids(("heist",)), self.watch_heist),
             (repo.open_round_ids(("theme",)), self.watch_theme),
             (repo.open_round_ids(WATCHED), self.watch_table),
+            (self.game.open_board_duels(), self.watch_duel),
         )
         for ids, watch in watchers:
             for item_id in ids:
@@ -197,10 +200,12 @@ class Live(TableLive):
         self._spawn(f"{key}:{id(run)}", run())
 
     async def _redraw(
-        self, chat_id: int, message_id: int | None, photo: bool, render: Callable[[], tuple[str, object] | None]
+        self, chat_id: int, message_id: int | None, photo: bool, render: Callable[[], tuple[str, object] | None],
+        widget: bool = False,
     ) -> None:
         """Redraw a live card in its turn: render() runs after the wait, so the card shows the
-        latest state; None means the thing has settled meanwhile."""
+        latest state; None means the thing has settled meanwhile. widget: the card is an HTML
+        widget and render() gives its data; its edits share the chat's pace."""
         if message_id is None:
             return
         now = time.monotonic()
@@ -211,7 +216,11 @@ class Live(TableLive):
         drawn = render()
         if drawn is None:
             return
-        hold = min(await send.live_edit(self.bot, chat_id, message_id, drawn[0], drawn[1], photo), MAX_FLOOD_HOLD)
+        if widget:
+            hold = await widget_api.live_edit_data(self.bot, chat_id, message_id, drawn[0])
+        else:
+            hold = await send.live_edit(self.bot, chat_id, message_id, drawn[0], drawn[1], photo)
+        hold = min(hold, MAX_FLOOD_HOLD)
         if hold:
             self._next_edit[chat_id] = max(self._next_edit[chat_id], time.monotonic() + hold)
 
@@ -234,8 +243,16 @@ class Live(TableLive):
     def labels(self, user_ids) -> dict[int, str]:
         return {user_id: self.game.repo.user_label(user_id) for user_id in user_ids if isinstance(user_id, int)}
 
-    async def _settle_card(self, chat_id: int, message_id: int | None, text: str, markup, photo: bool) -> int | None:
-        """Put the result into the live card; if Telegram refuses, post it as a new message."""
+    async def _settle_card(self, chat_id: int, message_id: int | None, text: str, markup, photo: bool,
+                           widget_data: str | None = None) -> int | None:
+        """Put the result into the live card; if Telegram refuses, post it as a new message. A
+        widget gets its final data and the result as its caption (what clients without widgets show)."""
+        if widget_data is not None and message_id is not None:
+            await widget_api.edit_data(self.bot, chat_id, message_id, widget_data)
+            if await send.edit_caption(self.bot, chat_id, message_id, text, None):
+                return message_id
+            sent = await send.send_text(self.bot, chat_id, text, markup)
+            return sent.message_id if sent else None
         edit = send.edit_caption if photo else send.edit_text
         if message_id is not None and await edit(self.bot, chat_id, message_id, text, markup):
             return message_id
@@ -481,11 +498,15 @@ class Live(TableLive):
         if found is None or found["status"] != "open":
             return
 
+        widget = self.is_widget_round(round_id)
+
         def render():
             fresh = self.game.repo.get_round(round_id)
-            return self.round_card(fresh) if fresh and fresh["status"] == "open" else None
+            if fresh is None or fresh["status"] != "open":
+                return None
+            return (self.round_widget_data(fresh), None) if widget else self.round_card(fresh)
 
-        await self._redraw(found["chat_id"], found["message_id"], found["kind"] == "piece", render)
+        await self._redraw(found["chat_id"], found["message_id"], found["kind"] == "piece", render, widget)
 
     async def finish_round(self, round_id: str) -> None:
         found = self.game.repo.get_round(round_id)

@@ -27,10 +27,12 @@ Scheme:
   mn:<round>:<cell|c|x> the minefield: open a cell / take one's pot / a settled field
   pc:<round>:<n>        pic by pieces: a letter
   au:<round>:<n|m|x>    the auction: raise / my bid / withdraw
+  rp:<challenge>:<n> | tt:<challenge>:<cell|x>   board duels: a pick / a move
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot.rules.duels import RPS, RPS_NAMES
 from bot.texts.ui import BACK, HELP_TABS
 from bot.ui.layout import SLOT_COLORS
 
@@ -144,6 +146,7 @@ def people_menu() -> InlineKeyboardMarkup:
     return markup(
         [button("😈 Ограбить", "pp:rob", DANGER), button("🎁 Подарить", "pp:give", SUCCESS)],
         [button("🤺 Вызов", "pp:challenge", PRIMARY), button("🎲 1 на 1", "pp:pvp", PRIMARY)],
+        [button("✊ Камень-ножницы", "pp:rps", PRIMARY), button("❌ Крестики", "pp:ttt", PRIMARY)],
         [button("💍 Свадьба", "pp:marry"), button("💔 Развод", "pp:divorce")],
         back(),
     )
@@ -272,6 +275,23 @@ def challenge(challenge_id: str) -> InlineKeyboardMarkup:
     return markup(
         [button("✅ Принять", f"cl:y:{challenge_id}", SUCCESS), button("❌ Отказ", f"cl:n:{challenge_id}", DANGER)]
     )
+
+
+def rps(challenge_id: str) -> InlineKeyboardMarkup:
+    return markup([button(f"{mark} {name.capitalize()}", f"rp:{challenge_id}:{index}", PRIMARY)
+                   for index, (mark, name) in enumerate(zip(RPS, RPS_NAMES))])
+
+
+TTT_CELLS = {"X": "❌", "O": "⭕", ".": "▫️"}
+
+
+def ttt(challenge_id: str, board: str, over: bool = False, stake: int = 0) -> InlineKeyboardMarkup:
+    """The board, row by row; once it's over its cells only say so and a rematch sits below."""
+    cells = [button(TTT_CELLS[mark], f"tt:{challenge_id}:{'x' if over else index}") for index, mark in enumerate(board)]
+    rows = [cells[start:start + 3] for start in range(0, 9, 3)]
+    if over:
+        rows.append([button(f"🔁 Реванш {short(stake)}", f"rm:{challenge_id}", DANGER), more()])
+    return markup(*rows)
 
 
 def rematch(challenge_id: str, stake: int, dice: bool) -> InlineKeyboardMarkup:
@@ -537,12 +557,15 @@ def uploading() -> InlineKeyboardMarkup:
     return markup([button("✅ Готово", "up:done", SUCCESS), button("✖️ Отмена", "up:cancel", DANGER)])
 
 
-def admin(events_on: bool | None = None) -> InlineKeyboardMarkup:
-    """events_on is None in private chats, where scheduled events don't apply."""
+def admin(events_on: bool | None = None, widgets_on: bool | None = None) -> InlineKeyboardMarkup:
+    """events_on and widgets_on are None in private chats, where neither applies."""
     events_row = []
     if events_on is not None:
         label = "🔔 События: вкл" if events_on else "🔕 События: выкл"
         events_row = [button(label, "adm:events", SUCCESS if events_on else None)]
+    if widgets_on is not None:
+        label = "🧩 Виджеты: вкл" if widgets_on else "🧩 Виджеты: выкл"
+        events_row.append(button(label, "adm:widgets", SUCCESS if widgets_on else None))
     return markup(
         [button("🩺 Состояние", "adm:health"), button("💾 Бэкап", "adm:backup")],
         [button("📊 Статистика", "adm:stats", PRIMARY)],

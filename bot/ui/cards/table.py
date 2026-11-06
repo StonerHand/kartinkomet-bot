@@ -2,7 +2,7 @@
 
 from html import escape
 
-from bot.rules import auction, games, table, teams
+from bot.rules import auction, games, seasons, table, teams
 from bot.texts import table as texts
 from bot.texts.pick import pick, steady
 from bot.ui.cards.announce import NOTE_CHESTS
@@ -238,4 +238,22 @@ def teams_result(winner: str | None, members: list[tuple[str, str, int]], scores
         pick(texts.TEAMS_RESULT, chat_id),
         f"{TEAM_MARKS[winner]} Победили {TEAM_NAMES[winner]} · каждому +{money(bonus)}",
         *team_blocks(members, scores),
+    )
+
+
+# ── the board: the season's race and the team week ───────────────────
+
+
+def board_card(season: list[tuple[str, int]], colours: tuple[int, int] | None, season_code: str) -> str:
+    """The live board as a card, for chats without widgets: a snapshot of the race. colours: the
+    team week's red and blue points, if one is on."""
+    lines = [f"{MEDALS[index] if index < len(MEDALS) else '▫️'} {who(name)} · {num(points)}"
+             for index, (name, points) in enumerate(season)]
+    team_lines = [f"{TEAM_MARKS[team]} {TEAM_NAMES[team]} · {num(score)}" for team, score in zip(teams.TEAMS, colours)] \
+        if colours else []
+    return card(
+        "📊 <b>Табло</b>",
+        f"Сезон · {seasons.name(season_code)}",
+        ["🏆 <b>Сезон</b>", *lines] if lines else "🏆 В сезоне пока ни очка",
+        ["🚩 <b>Командная неделя</b>", *team_lines] if team_lines else "",
     )
