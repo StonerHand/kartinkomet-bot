@@ -143,9 +143,10 @@ def upload_progress(intro: str, added: int, duplicates: int, failed: int) -> str
 
 
 def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, factor: float = 1.0,
-          duplicates: tuple[int, int] = (0, 0)) -> str:
+          duplicates: tuple[int, int] = (0, 0), private: bool = False) -> str:
     """wallet: the average wallet of the money pool (active players, admins included); factor:
-    what every price, reward and fine is multiplied by because of it."""
+    what every price, reward and fine is multiplied by because of it. private: opened in a private
+    chat, where the chat's switches (events, widgets) don't show: the card says where they are."""
     return card(
         "⚙️ <b>Админка</b>",
         "Только для админов",
@@ -169,13 +170,17 @@ def admin(totals: dict[str, int], users: int, database: str, wallet: int = 0, fa
             "📸 11:00 — тема дня",
             "🌅 12:00 — пикча дня",
             "🗳 13:00 — кто из нас",
+            "🔨 15:00 — аукцион до 22:00",
             "👹 16:00 — босс, в субботу рейд",
             "💸 18:00 — великий передел",
             "⚖️ 19:00 — суд над худшей",
             "🎬 21:00 — вечернее шоу",
             "📅 Вс 18:00 — итоги недели",
+            "🚩 Пн 10:00 — команды недели",
+            "🎌 Вс 22:00 — итог команд",
             "🏁 1-е число — итоги сезона",
         ],
+        "🧩 События и виджеты включаются в /admin группового чата" if private else "",
     )
 
 
