@@ -14,6 +14,7 @@ from bot.ui.cards.arena import (
 )
 from bot.ui.cards.boss import boss_card, boss_result
 from bot.ui.cards.casino import casino_screen, casino_title, casino_result
+from bot.ui.cards.duels import rps_card, rps_result, ttt_card, ttt_result
 from bot.ui.cards.court import court_card, court_result, appeal_hint
 from bot.ui.cards.games import (
     caption_card, caption_result, caption_cancelled, gold_caption, spin_result, horoscope, whose_card, whose_result,
@@ -36,7 +37,7 @@ from bot.ui.cards.progress import (
 )
 from bot.ui.cards.seasons import points, podium_lines, season_results, season_warning, seasons_hall, season_badges
 from bot.ui.cards.table import (
-    PIECE_LETTERS, TEAM_MARKS, TEAM_NAMES, auction_card, auction_result, mines_card, mines_result, piece_card, piece_result,
+    PIECE_LETTERS, TEAM_MARKS, TEAM_NAMES, auction_card, board_card, auction_result, mines_card, mines_result, piece_card, piece_result,
     safe_card, safe_result, spy_card, spy_result, team_score_lines, teams_result, teams_start
 )
 from bot.ui.cards.shop import shop_screen, pic_menu, bought, PURCHASE_FACTS, purchase_notice, wanted_poster
@@ -63,7 +64,8 @@ __all__ = [
     "dice_duel_result", "score_line", "admin_stats", "games_screen", "season_line",
     "who_card", "who_result", "bomb_card", "bomb_result", "bet_card", "bet_result", "bet_hint",
     "heist_card", "heist_result", "cup_intro", "cup_champion",
-    "PIECE_LETTERS", "TEAM_MARKS", "TEAM_NAMES", "auction_card", "auction_result", "mines_card", "mines_result", "piece_card",
+    "rps_card", "rps_result", "ttt_card", "ttt_result",
+    "board_card", "PIECE_LETTERS", "TEAM_MARKS", "TEAM_NAMES", "auction_card", "auction_result", "mines_card", "mines_result", "piece_card",
     "piece_result", "safe_card", "safe_result", "spy_card", "spy_result", "team_score_lines", "teams_result",
     "teams_start",
     "today_screen", "home_personal", "help_tab", "croc_card", "croc_result", "theme_card", "theme_vote_card", "theme_result", "theme_few", "owner_change",

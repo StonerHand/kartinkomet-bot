@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.3 system-ui;color:var(--tg-theme-text-color);background:var(--tg-theme-bg-color);padding:10px;width:100%}
+.top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+h1{font-size:17px}.h{color:var(--tg-theme-hint-color);font-size:13px}
+#pl{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#pl button{flex:1 1 45%;border:0;border-radius:10px;padding:9px 6px;font:15px system-ui;background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color);display:flex;justify-content:space-between}
+#act{display:flex;gap:6px}#act button{flex:1;border:0;border-radius:10px;padding:10px;font:600 15px system-ui;background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
+#me{margin-top:8px;padding:10px;border-radius:10px;background:var(--tg-theme-secondary-bg-color);text-align:center;font-weight:600;display:none}
+#st{min-height:20px;margin-top:6px;text-align:center}
+</style></head><body>
+<div class="top"><h1>🎭 Шпион</h1><span class="h" id="tm"></span></div>
+<div class="h" id="ph"></div><div id="pl"></div><div id="act"></div><div id="me"></div><div id="st" class="h"></div>
+<script>
+var W=window.TelegramWidget,D={},busy=0;
+function $(i){return document.getElementById(i)}
+function L(){try{D=JSON.parse(W.chatData||'{}')}catch(e){D={}}}
+function T(t){try{W.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function say(t){$('st').textContent=t}
+var ERR={BUSY:'Секунду…',RATE_LIMITED:'Не так быстро',TIMEOUT:'Бот не ответил',NOT_ALLOWED:'Здесь играть нельзя'};
+function Q(s){if(busy)return Promise.resolve({});busy=1;return W.request(s).then(function(a){busy=0;try{return JSON.parse(a.result||'{}')}catch(e){return{}}},function(e){busy=0;say(ERR[e.code]||'Не вышло');return{}})}
+function left(){var s=Math.max(0,(D.t||0)-Date.now()/1000|0);return (s/60|0)+':'+('0'+s%60).slice(-2)}
+var PH={recruit:'Сбор: жми «Играю», нужно от трёх',talk:'Каждый пишет в чат слово про своё',vote:'Кто шпион? Жми на имя',done:''};
+var MSG={ok:'Готово',already:'Уже',full:'Мест нет',started:'Игра уже идёт',not_author:'Начать может тот, кто позвал',few:'Нужно хотя бы трое',self:'За себя нельзя',same:'Голос уже здесь',not_player:'Ты не в игре',closed:'Фаза закончилась',gone:'Игра закончилась'};
+function btn(t,q){return '<button data-q="'+q+'">'+t+'</button>'}
+function R(){var z=D.z;$('tm').textContent=z?'':left();
+$('ph').textContent=z?(z.k=='caught'?'Шпион пойман: '+z.spy:z.k=='escaped'?'Шпион ушёл: '+z.spy:'Отменён: мало игроков')+(z.w?'. Слово: '+z.w:''):PH[D.f]+(D.f=='talk'&&D.r?' · готовы '+D.r+' из '+(D.p||[]).length:'');
+var h='';(D.p||[]).forEach(function(n,i){h+='<button data-q="v'+i+'"'+(D.f=='vote'?'':' disabled')+'><span>'+n+'</span><b>'+(D.f=='vote'||z?(D.c||[])[i]||0:'')+'</b></button>'});$('pl').innerHTML=h;
+var a=z?'':D.f=='recruit'?btn('🙋 Играю','j')+btn('▶️ Начать','s'):D.f=='talk'?btn('🤫 Моё слово','w')+btn('✋ К голосованию','r'):btn('🤫 Моё слово','w');$('act').innerHTML=a;
+var b=document.querySelectorAll('[data-q]');for(var i=0;i<b.length;i++)b[i].addEventListener('click',tap)}
+function tap(e){var q=e.currentTarget.getAttribute('data-q');Q(q).then(function(a){
+if(q=='w'){var m=$('me');m.style.display='block';m.textContent=a.spy?'🕶 Ты шпион. Слушай и не спались':a.w?'🤫 Твоё слово: '+a.w:(MSG[a.s]||'Слово придёт после сбора');T('success');return}
+if(a.s)say(MSG[a.s]||a.s);if(a.s=='ok')T('success')})}
+W.onEvent('chatDataChanged',function(){L();R()});L();R();
+setInterval(function(){if(!D.z)$('tm').textContent=left()},1000);W.ready();
+</script></body></html>

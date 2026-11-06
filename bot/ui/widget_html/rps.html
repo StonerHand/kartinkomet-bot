@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.3 system-ui;color:var(--tg-theme-text-color);background:var(--tg-theme-bg-color);padding:10px;width:100%;text-align:center}
+.top{display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:17px}.h{color:var(--tg-theme-hint-color);font-size:13px}
+#vs{display:flex;justify-content:space-around;margin:12px 0;font-size:15px}
+#vs div{flex:1}#vs b{display:block;font-size:44px;height:56px}
+#hand{display:flex;gap:8px}#hand button{flex:1;height:64px;border:0;border-radius:14px;font-size:34px;background:var(--tg-theme-secondary-bg-color);transition:transform .15s}
+#hand button:active{transform:scale(.9)}
+#st{min-height:20px;margin-top:8px}
+.shake b{animation:s .5s 2}@keyframes s{50%{transform:translateY(-8px)}}
+</style></head><body>
+<div class="top"><h1>✊ Камень, ножницы, бумага</h1><span class="h" id="tm"></span></div>
+<div id="vs"></div><div id="hand"></div><div id="st" class="h"></div>
+<script>
+var W=window.TelegramWidget,D={},busy=0,H=['✊','✌️','✋'];
+function $(i){return document.getElementById(i)}
+function L(){try{D=JSON.parse(W.chatData||'{}')}catch(e){D={}}}
+function T(t){try{W.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function say(t){$('st').textContent=t}
+var ERR={BUSY:'Секунду…',RATE_LIMITED:'Не так быстро',TIMEOUT:'Бот не ответил',NOT_ALLOWED:'Здесь играть нельзя'};
+function Q(s){if(busy)return Promise.resolve({});busy=1;return W.request(s).then(function(a){busy=0;try{return JSON.parse(a.result||'{}')}catch(e){return{}}},function(e){busy=0;say(ERR[e.code]||'Не вышло');return{}})}
+function left(){var s=Math.max(0,(D.t||0)-Date.now()/1000|0);return (s/60|0)+':'+('0'+s%60).slice(-2)}
+function R(){var z=D.z,n=D.n||['',''],h='';$('tm').textContent=z?'':left();
+for(var i=0;i<2;i++)h+='<div><b>'+(z&&z.k?H[z.k[i]]:(D.p||[])[i]?'✅':'❔')+'</b>'+n[i]+'</div>';
+$('vs').innerHTML=h;$('vs').className=z?'shake':'';
+$('hand').innerHTML=z?'':H.map(function(x,i){return '<button data-i="'+i+'">'+x+'</button>'}).join('');
+var b=$('hand').children;for(i=0;i<b.length;i++)b[i].addEventListener('click',tap);
+if(z)say((z.w?'🏆 '+z.w+' забирает банк':'Ничья, ставки вернулись')+(z.late?' · у '+z.late+' кончилось время':''));else say(D.r>1?'Раунд '+D.r+': в прошлый раз одинаково':'Выбирай: видишь только ты')}
+function tap(e){var i=+e.currentTarget.getAttribute('data-i');Q('p'+i).then(function(a){
+if(a.s=='ok'){T('success');say('Выбрано '+H[i]+'. Ждём соперника')}else if(a.s=='draw'){T('warning');say('Одинаково! Ещё раунд')}
+else if(a.s=='done')T('success');else if(a.s=='already')say('Выбор уже сделан');else if(a.s=='not_player')say('Это не твоя игра');else if(a.s)say('Игра закончилась')})}
+W.onEvent('chatDataChanged',function(){L();R()});L();R();
+setInterval(function(){if(!D.z)$('tm').textContent=left()},1000);W.ready();
+</script></body></html>

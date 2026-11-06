@@ -11,6 +11,7 @@ from bot.live.timers import Live
 from bot.rules import auction as auction_rules
 from bot.rules import games as game_rules
 from bot.rules import table as rules
+from bot.scenarios import widgets
 from bot.telegram import pictures, send
 from bot.texts import party as party_texts
 from bot.texts.pick import pick
@@ -21,6 +22,7 @@ router = Router(name="table")
 
 GROUP_ONLY = "👥 Это игра для группового чата: добавь бота в чат и зови всех туда"
 PENDING = {"piece": "🧩 Режу пикчи…"}  # what a button says while a slow card is on its way
+WIDGET_KINDS = ("mines", "safe", "spy")  # the games that become HTML widgets where a chat has them on
 REFUSALS = {
     "spy": ("🎭", {"active": "Шпион уже идёт — смотри выше", "cooldown": "Следующий шпион — через {wait}"}),
     "mines": ("🧨", {"active": "Поле уже лежит — смотри выше", "cooldown": "Новое поле — через {wait}"}),
@@ -43,11 +45,19 @@ Ready = Callable[[], Awaitable[None]] | None  # called once the round exists, be
 
 
 async def post_round(bot: Bot, game: Game, live: Live, found: dict, ready: Ready = None) -> str:
-    """Send a new round's card and start watching it: 'started', or 'failed' (the round is gone)."""
+    """Send a new round's card and start watching it: 'started', or 'failed' (the round is gone).
+    Where the chat has widgets on, the game is an HTML widget; refused, it is the usual card."""
     if ready:
         await ready()
-    text, markup = live.round_card(found)
-    message = await send.send_text(bot, found["chat_id"], text, markup)
+    message = None
+    if widgets.enabled(game, found["chat_id"]) and found["kind"] in WIDGET_KINDS:
+        message = await widgets.post(bot, game, found["chat_id"], found["kind"], found["id"],
+                                     live.round_widget_data(found))
+        if message is not None:
+            game.repo.set_meta(f"wround:{found['id']}", 1)
+    if message is None:
+        text, markup = live.round_card(found)
+        message = await send.send_text(bot, found["chat_id"], text, markup)
     if message is None:
         game.repo.drop_round(found["id"])
         return "failed"
@@ -196,14 +206,6 @@ READY_TOASTS = {
 }
 
 
-async def spy_moved(game: Game, live: Live, round_id: str) -> None:
-    """After a join, a «ready» or a vote: the phase ends at once if nobody's left to wait for."""
-    if game.spy_all_in(round_id):
-        await live.hurry(round_id)
-    else:
-        live.request_refresh_round(round_id)
-
-
 @router.callback_query(F.data.startswith("sy:"))
 async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
     parts = callback.data.split(":")
@@ -212,7 +214,7 @@ async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
         status = game.join_spy(round_id, callback.from_user.id)
         await send.answer_quietly(callback, JOIN_TOASTS[status])
         if status == "ok":
-            await spy_moved(game, live, round_id)
+            await live.spy_moved(round_id)
     elif action == "s":
         status = game.start_spy_now(round_id, callback.from_user.id)
         await send.answer_quietly(callback, START_TOASTS[status])
@@ -222,7 +224,7 @@ async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
         status = game.spy_ready(round_id, callback.from_user.id)
         await send.answer_quietly(callback, READY_TOASTS[status])
         if status == "ok":
-            await spy_moved(game, live, round_id)
+            await live.spy_moved(round_id)
     elif action == "w":
         status, word = game.spy_secret(round_id, callback.from_user.id)
         text = f"🤫 Твоё слово: {word}. Не называй его прямо" if status == "word" else SECRETS[status]
@@ -232,7 +234,7 @@ async def spy_button(callback: CallbackQuery, game: Game, live: Live) -> None:
         status = game.vote_spy(round_id, callback.from_user.id, int(index) if index.isdigit() else -1)
         await send.answer_quietly(callback, VOTE_TOASTS[status])
         if status == "ok":
-            await spy_moved(game, live, round_id)
+            await live.spy_moved(round_id)
 
 
 # ── the minefield ─────────────────────────────────────────────────────

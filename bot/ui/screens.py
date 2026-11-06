@@ -250,7 +250,8 @@ def admin(ctx: Ctx) -> Screen:
         game.typical_wallet(), game.wealth(), ctx.repo.duplicate_stats(),
     )
     events_on = None if ctx.is_private else ctx.repo.chat_events_on(ctx.chat_id)
-    return text, keyboards.admin(events_on)
+    widgets_on = None if ctx.is_private else ctx.repo.meta_int(f"widgets:{ctx.chat_id}") == 1
+    return text, keyboards.admin(events_on, widgets_on)
 
 
 # Local hour → what the schedule does then, for «Сегодня в чате».

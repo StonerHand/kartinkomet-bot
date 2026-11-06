@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from bot.game.types import Granted
 from bot.models.records import Battle
-from bot.rules import arena, deck, shop
+from bot.rules import arena, deck, duels, shop
 
 
 @dataclass(frozen=True)
@@ -32,8 +32,8 @@ class ChallengesMixin:
         self, chat_id: int, challenger: int, opponent: int | None, stake: int, game: str = ""
     ) -> tuple[str, dict | None]:
         """('ok' | 'small' | 'self' | 'pending' | 'broke', challenge). game: '' = a pic duel,
-        else one of DICE_DUEL_GAMES."""
-        if game and game not in DICE_DUEL_GAMES:
+        else one of DICE_DUEL_GAMES or a board duel (duels.BOARD_GAMES)."""
+        if game and game not in DICE_DUEL_GAMES and game not in duels.BOARD_GAMES:
             return "gone", None
         if stake < self.scaled(shop.CHALLENGE_MIN):
             return "small", None
@@ -75,7 +75,7 @@ class ChallengesMixin:
             return ChallengeAnswer("own", challenge)
         if target is not None and user_id != target:
             return ChallengeAnswer("not_for_you", challenge)
-        if challenge["game"]:  # a duel on dice: no arena, the caller throws
+        if challenge["game"]:  # a duel on dice or a board: no arena, the caller throws or deals
             if not self.repo.spend(user_id, challenge["stake"], "challenge_stake", self.now()):
                 return ChallengeAnswer("broke", challenge)
             if not self.repo.accept_challenge(challenge_id, user_id):
@@ -148,19 +148,25 @@ class ChallengesMixin:
         ):
             return None
         players = (challenge["from_user"], challenge["to_user"])
-        stake, pot = challenge["stake"], challenge["stake"] * 2
         winner = None if values[0] == values[1] else players[0 if values[0] > values[1] else 1]
+        pot, score = self._pay_duel(challenge, winner)
+        return DiceDuel(self.repo.get_challenge(challenge_id), values, winner, pot, score, self.check_achievements(list(players)))
+
+    def _pay_duel(self, challenge: dict, winner: int | None) -> tuple[int, tuple[int, int]]:
+        """The pot of a duel between two players: both stakes to the winner, back to both on a
+        draw. Returns (pot, head-to-head after it)."""
+        players = (challenge["from_user"], challenge["to_user"])
+        stake, pot = challenge["stake"], challenge["stake"] * 2
         if winner is None:
-            self.repo.set_challenge_winner(challenge_id, 0)  # 0: settled as a draw
+            self.repo.set_challenge_winner(challenge["id"], 0)  # 0: settled as a draw
             for user_id in players:
                 self.repo.add_coins(user_id, stake, "challenge_refund", self.now(), earn=False)
         else:
-            self.repo.set_challenge_winner(challenge_id, winner)
+            self.repo.set_challenge_winner(challenge["id"], winner)
             self.repo.add_coins(winner, pot, "challenge_win", self.now(), earn=False)
             self.repo.incr_counter(winner, "challenge_wins")
             self.progress(winner, "challenge_win")
-        score = self.repo.head_to_head(*players)
-        return DiceDuel(self.repo.get_challenge(challenge_id), values, winner, pot, score, self.check_achievements(list(players)))
+        return pot, self.repo.head_to_head(*players)
 
     def rematch(self, challenge_id: str, user_id: int) -> tuple[str, dict | None]:
         """A new challenge between the same two, same stake and game, sent by whoever pressed.
@@ -184,7 +190,8 @@ class ChallengesMixin:
             self.repo.add_coins(user_id, challenge["stake"], "challenge_refund", self.now(), earn=False)
 
     def refund_unthrown_dice_duels(self) -> int:
-        duels = self.repo.unsettled_dice_duels()
-        for challenge in duels:
+        """Board duels are left alone: their state outlives a restart and they play on."""
+        thrown = self.repo.unsettled_game_duels(DICE_DUEL_GAMES)
+        for challenge in thrown:
             self.cancel_dice_duel(challenge)
-        return len(duels)
+        return len(thrown)

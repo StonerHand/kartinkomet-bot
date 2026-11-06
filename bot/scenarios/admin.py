@@ -11,6 +11,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, FSInputFile, Message
 
 from bot.game.engine import Game
+from bot.scenarios import widgets
 from bot.scenarios.panel import open_panel
 from bot.telegram import send
 from bot.texts import ui
@@ -44,7 +45,21 @@ def health_text(game: Game) -> str:
             f"🗄 База: <b>{size:.1f}</b> МБ · <code>{escape(repo.database_path.name)}</code>",
             f"🧠 Пик памяти: <b>{memory_mb():.0f}</b> МБ",
         ],
+        widgets_line(game),
     )
+
+
+def widgets_line(game: Game) -> str:
+    """When Telegram last refused a widget: until Bot API 10.4 is open to bots, it will."""
+    refused = game.repo.meta_int("widgets_refused")
+    if not refused:
+        return ""
+    return f"🧩 Виджет не принят {views.ago(game.now() - refused)}: Telegram ещё не открыл их ботам"
+
+
+WIDGETS_ON = ("🧩 Виджеты включены: игры придут мини-приложениями прямо в сообщении. Нужен Telegram 13.2+; "
+              "если Telegram откажет, будут обычные карточки")
+WIDGETS_OFF = "🧩 Виджеты выключены: все игры — обычными карточками с кнопками"
 
 
 @router.message(Command("admin"))
@@ -82,6 +97,11 @@ async def admin_buttons(callback: CallbackQuery, bot: Bot, game: Game, admins: f
             "🔔 Пикча дня, вечерний суд и итоги недели включены" if enabled else "🔕 События по расписанию выключены",
             show_alert=True,
         )
+        text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
+        await send.redraw(bot, message, callback.from_user.id, text, markup)
+    elif action == "widgets":
+        on = widgets.toggle(game, chat_id)
+        await callback.answer(WIDGETS_ON if on else WIDGETS_OFF, show_alert=True)
         text, markup = screens.render("adm", screens.Ctx(game, chat_id, callback.from_user.id, True, message.chat.type == "private"))
         await send.redraw(bot, message, callback.from_user.id, text, markup)
     elif action == "health":

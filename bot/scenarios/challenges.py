@@ -1,5 +1,6 @@
-"""Challenges between players: /challenge (a pic duel the chat votes on) and /pvp (dice, darts or
-bowling 1v1), their answers, the throws and rematches."""
+"""Challenges between players: /challenge (a pic duel the chat votes on), /pvp (dice, darts or
+bowling 1v1), /rps and /ttt (rock-paper-scissors, tic-tac-toe on a board), their answers, the throws,
+the moves and rematches."""
 
 import asyncio
 import logging
@@ -11,8 +12,8 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.game.engine import Game
 from bot.live.timers import Live
-from bot.rules import casino, shop
-from bot.scenarios import targets
+from bot.rules import casino, duels, shop
+from bot.scenarios import targets, widgets
 from bot.scenarios.arena import launch_battle
 from bot.telegram import send
 from bot.texts import social as texts
@@ -76,6 +77,8 @@ GAME_WORDS = {
     "кости": "dice", "кубики": "dice", "dice": "dice",
     "дартс": "darts", "darts": "darts",
     "боулинг": "bowling", "кегли": "bowling", "bowling": "bowling",
+    "кнб": "rps", "камень": "rps", "rps": "rps",
+    "крестики": "ttt", "нолики": "ttt", "ttt": "ttt",
 }
 
 
@@ -89,8 +92,17 @@ async def dice_duel(message: Message, command: CommandObject, bot: Bot, game: Ga
     await targets.start(bot, game, live, message, "pvp", found, kind=choice)
 
 
-targets.RUNNERS.update(challenge=run_challenge, pvp=run_challenge)
+@router.message(Command("rps", "ttt"))
+async def board_duel(message: Message, command: CommandObject, bot: Bot, game: Game, live: Live) -> None:
+    """/rps 200, /ttt 200: rock-paper-scissors or tic-tac-toe on a stake."""
+    do = (message.text or "").split()[0].lstrip("/").split("@")[0].casefold()
+    await targets.start(bot, game, live, message, do, targets.aim(message, game, command.args), kind=do)
+
+
+targets.RUNNERS.update(challenge=run_challenge, pvp=run_challenge, rps=run_challenge, ttt=run_challenge)
 targets.PREPARE["pvp"] = lambda game, author: ({"kind": "dice"}, None)  # from the panel: dice, the classic
+targets.PREPARE["rps"] = lambda game, author: ({"kind": "rps"}, None)
+targets.PREPARE["ttt"] = lambda game, author: ({"kind": "ttt"}, None)
 
 
 async def throw_dice_duel(bot: Bot, game: Game, live: Live, chat_id: int, challenge: dict, card_id: int | None) -> None:
@@ -155,6 +167,10 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
     await send.edit_text(
         bot, chat_id, callback.message.message_id, views.challenge_closed(result.challenge, labels, result.status), None
     )
+    if result.status == "accepted" and result.challenge.get("game") in duels.BOARD_GAMES:
+        await callback.answer(f"{duels.BOARD_GAMES[result.challenge['game']].emoji} Принято! Играем")
+        await deal_board(bot, game, live, chat_id, result.challenge, callback.message.message_id)
+        return
     if result.status == "accepted" and result.challenge.get("game"):
         await callback.answer("🎲 Принято! Бросаем")
         await throw_dice_duel(bot, game, live, chat_id, result.challenge, callback.message.message_id)
@@ -169,3 +185,76 @@ async def answer_challenge(callback: CallbackQuery, bot: Bot, game: Game, live: 
         game.repo.drop_battle(result.battle.id)
         for user in (result.challenge["from_user"], result.challenge["to_user"]):
             game.repo.add_coins(user, result.challenge["stake"], "challenge_refund", game.now(), earn=False)
+
+
+# ── board duels: rock-paper-scissors, tic-tac-toe ─────────────────────
+
+
+async def deal_board(bot: Bot, game: Game, live: Live, chat_id: int, challenge: dict, card_id: int | None) -> None:
+    """The accepted board duel's card under the challenge (an HTML widget where the chat has them
+    on); its clock goes to the live cards."""
+    state = game.deal_board(challenge)
+    sent = None
+    if widgets.enabled(game, chat_id):
+        data = live.duel_widget_data(challenge, state)
+        sent = await widgets.post(bot, game, chat_id, challenge["game"], challenge["id"], data, reply_to=card_id)
+        if sent is not None:
+            game.mark_duel_widget(challenge["id"])
+    if sent is None:
+        text, markup = live.duel_card(challenge["id"])
+        sent = await send.send_text(bot, chat_id, text, markup, reply_to=card_id)
+    if sent is None:
+        game.cancel_dice_duel(challenge)  # nothing was played: both stakes back
+        await send.send_text(bot, chat_id, "🤺 Telegram не дал показать доску. Ставки вернулись")
+        return
+    game.set_duel_message(challenge["id"], sent.message_id)
+    live.watch_duel(challenge["id"])
+
+
+PICK_TOASTS = {
+    "already": "✊ Выбор уже сделан, его не поменять",
+    "not_player": "✊ Это не твоя игра. Брось свою: /rps",
+    "gone": "✊ Эта игра закончилась",
+}
+MOVE_TOASTS = {
+    "not_turn": "⏳ Сейчас не твой ход",
+    "taken": "❌ Клетка занята",
+    "not_player": "❌ Это не твоя партия. Брось свою: /ttt",
+    "gone": "❌ Партия закончилась",
+}
+
+
+@router.callback_query(F.data.startswith("rp:"))
+async def rps_pick(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, challenge_id, raw = (callback.data.split(":", 2) + ["", ""])[:3]
+    pick_ = int(raw) if raw.isdigit() else -1
+    status, duel = game.pick_rps(challenge_id, callback.from_user.id, pick_)
+    if status in PICK_TOASTS:
+        await send.answer_quietly(callback, PICK_TOASTS[status])
+        return
+    if status == "ok":
+        await send.answer_quietly(callback, f"{duels.RPS[pick_]} Выбрано: {duels.RPS_NAMES[pick_]}. Ждём соперника")
+        live.request_refresh_duel(challenge_id)
+    elif status == "draw":
+        await send.answer_quietly(callback, "🔁 Одинаково! Ещё раунд")
+        live.request_refresh_duel(challenge_id)
+    else:
+        await send.answer_quietly(callback, f"{duels.RPS[pick_]} Руки показаны")
+        await live.settle_duel(duel)
+
+
+@router.callback_query(F.data.startswith("tt:"))
+async def ttt_move(callback: CallbackQuery, game: Game, live: Live) -> None:
+    _, challenge_id, raw = (callback.data.split(":", 2) + ["", ""])[:3]
+    if raw == "x":
+        await send.answer_quietly(callback, "❌ Партия закончилась")
+        return
+    status, duel = game.move_ttt(challenge_id, callback.from_user.id, int(raw) if raw.isdigit() else -1)
+    if status in MOVE_TOASTS:
+        await send.answer_quietly(callback, MOVE_TOASTS[status])
+        return
+    await send.answer_quietly(callback)
+    if status == "ok":
+        await live.refresh_duel(challenge_id)  # the other player waits for this board: no debounce
+    else:
+        await live.settle_duel(duel)

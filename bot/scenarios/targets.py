@@ -51,6 +51,8 @@ ACTIONS = {
     ),
     "give": Action("🎁", "Кому дарим?", "Сколько дарим?", "Ответь на сообщение человека: /give 100"),
     "pvp": Action("🎲", "С кем играем?", "Какая ставка?", "Например: /pvp 200", shop.CHALLENGE_MIN, anyone=True),
+    "rps": Action("✊", "С кем играем?", "Какая ставка?", "Например: /rps 200", shop.CHALLENGE_MIN, anyone=True),
+    "ttt": Action("❌", "С кем играем?", "Какая ставка?", "Например: /ttt 200", shop.CHALLENGE_MIN, anyone=True),
     "challenge": Action(
         "🤺", "Кого вызываем?", "Какая ставка?", "Например: /challenge 200", shop.CHALLENGE_MIN, anyone=True
     ),

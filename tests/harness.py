@@ -30,9 +30,10 @@ from aiogram.types import (
 from bot.app.main import build_dispatcher
 from bot.live import timers
 from bot.live.timers import Live
-from bot.scenarios import casino, challenges, games, pics, progress, shop, upload
+from bot.scenarios import casino, challenges, games, pics, progress, shop, upload, widgets
 from bot.scenarios.schedule import Events
 from bot.telegram import pictures, send
+from bot.telegram import widgets as widget_api
 from tests.helpers import make_game
 from tests.layout import EMOJI, assert_html, layout_problems
 
@@ -107,6 +108,9 @@ class FakeSession(BaseSession):
             )
         if name in ("SendMessage", "SendPhoto", "SendDocument"):
             return self.message(int(method.chat_id), photo=name == "SendPhoto")
+        if name == "SendWidget":  # Bot API 10.4: a shared widget comes back with its id
+            sent = self.message(int(method.chat_id))
+            return sent.model_copy(update={"widget": {"id": f"w{sent.message_id}"}}) if method.is_shared else sent
         if name == "SendDice":
             from aiogram.types import Dice
 
@@ -181,6 +185,8 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
         self.session.dice_values = []
         send._no_ephemeral.clear()
         send._drawn.clear()  # message ids repeat from test to test
+        widget_api._drawn.clear()
+        widgets._boards.clear()
         pictures._downloads.clear()  # file ids repeat too
         timers.LIVE_EDIT_GAP = 0
         # Animations and suspense are real seconds in the bot; tests don't wait for them.
@@ -212,6 +218,7 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
                 # A button's answer reads like a message: its mechanic's emoji first, plain text.
                 self.assertTrue(EMOJI.match(request.text), request.text)
                 self.assertNotIn("<", request.text, request.text)
+                self.assertLessEqual(len(request.text), 200, request.text)  # Telegram's limit for an answer
             markup = getattr(request, "reply_markup", None)
             if isinstance(markup, InlineKeyboardMarkup):
                 for row in markup.inline_keyboard:
@@ -244,6 +251,17 @@ class BotHarness(unittest.IsolatedAsyncioTestCase):
             message=message,
         )
         await self.dispatcher.feed_update(self.bot, Update(update_id=next(self.update_ids), callback_query=callback))
+
+    async def tap_widget(self, message_id: int, data: str, sender: int = 2, chat: Chat = GROUP) -> dict:
+        """A tap inside an HTML widget (a `widget_query` update aiogram doesn't know); returns
+        the bot's answer to it."""
+        update = Update.model_validate({
+            "update_id": next(self.update_ids),
+            "widget_query": {"id": str(next(self.update_ids)), "from": wire(user(sender)), "data": data,
+                             "chat": wire(chat), "message_id": message_id, "chat_instance": "ci"},
+        })
+        await self.dispatcher.feed_update(self.bot, update)
+        return json.loads(self.session.of("AnswerWidgetQuery")[-1].result)
 
     def buttons(self, request) -> list[str]:
         return [button.callback_data for row in request.reply_markup.inline_keyboard for button in row]

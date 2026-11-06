@@ -29,7 +29,7 @@ from bot.rules import party as party_rules
 from bot.rules import auction as auction_rules
 from bot.rules import show as show_rules
 from bot.rules import teams as team_rules
-from bot.scenarios import party, show, table, upload
+from bot.scenarios import party, show, table, upload, widgets
 from bot.scenarios.boss import summon
 from bot.scenarios.court import open_court
 from bot.telegram import send
@@ -118,6 +118,7 @@ class Events:
         await party.announce_expired_bets(self.bot, self.game)
         await show.advance_cups(self.bot, self.game, self.live)
         await table.settle_auctions(self.bot, self.game, self.live)
+        await widgets.refresh_boards(self.bot, self.game, self.chats())
         local = self.local_now()
         for job in JOBS:
             if job.weekday is not None and local.weekday() != job.weekday:

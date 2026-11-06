@@ -8,6 +8,9 @@ from aiogram import BaseMiddleware
 from aiogram.types import Chat, TelegramObject, User
 
 from bot.game.engine import Game
+from bot.live.timers import Live
+from bot.scenarios import widgets
+from bot.telegram.widgets import parse_query
 
 
 class RememberUser(BaseMiddleware):
@@ -53,3 +56,24 @@ class RememberUser(BaseMiddleware):
             return
         self._member_seen[(chat_id, user_id)] = now
         self.game.repo.touch_member(chat_id, user_id, now)
+
+
+class WidgetQueries(BaseMiddleware):
+    """A tap inside an HTML widget comes as an update aiogram 3.31 doesn't know (`widget_query`):
+    it is taken here, before the dispatcher would skip it as unknown."""
+
+    def __init__(self, game: Game, live: Live) -> None:
+        self.game = game
+        self.live = live
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        query = parse_query(event)
+        if query is None:
+            return await handler(event, data)
+        await widgets.handle(data["bot"], self.game, self.live, query)
+        return None

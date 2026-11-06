@@ -217,9 +217,11 @@ class ArenaRepo:
         with self.db:
             self.db.execute("UPDATE challenges SET winner = ? WHERE id = ?", (winner, challenge_id))
 
-    def unsettled_dice_duels(self) -> list[dict]:
+    def unsettled_game_duels(self, games: tuple[str, ...]) -> list[dict]:
+        """Accepted duels of these games nobody has won yet (dice thrown at no one, boards in play)."""
+        marks = ", ".join("?" for _ in games)
         rows = self.db.execute(
-            "SELECT * FROM challenges WHERE status = 'accepted' AND game != '' AND winner IS NULL"
+            f"SELECT * FROM challenges WHERE status = 'accepted' AND game IN ({marks}) AND winner IS NULL", games
         ).fetchall()
         return [dict(row) for row in rows]
 
