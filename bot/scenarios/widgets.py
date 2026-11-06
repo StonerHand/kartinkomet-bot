@@ -10,9 +10,9 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 
-from aiogram import Bot, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from bot.game.engine import Game
 from bot.live.timers import Live
@@ -187,15 +187,24 @@ WIDGETS_OFF = ("🧩 Это виджет, а виджеты в этом чате
                "когда Telegram откроет их ботам")
 
 
+MACHINE_REFUSED = f"🎰 Telegram не принял виджет. Казино на кубиках — /spin {casino_rules.DEFAULT_STAKE}"
+
+
+async def post_machine(bot: Bot, game: Game, chat_id: int) -> str | None:
+    """One slot machine for the whole chat; why not, if it didn't go out."""
+    if not enabled(game, chat_id):
+        return WIDGETS_OFF
+    if await post(bot, game, chat_id, "slots", "machine", widgets.slots_data([])) is None:
+        return MACHINE_REFUSED
+    return None
+
+
 @router.message(Command("machine"))
 async def machine_command(message: Message, bot: Bot, game: Game) -> None:
     """/machine: one slot machine for the whole chat (a widget)."""
-    if not enabled(game, message.chat.id):
-        await send.reply_personal(bot, message, WIDGETS_OFF)
-        return
-    if await post(bot, game, message.chat.id, "slots", "machine", widgets.slots_data([])) is None:
-        await send.reply_personal(bot, message, views.marked(
-            f"Telegram не принял виджет. Казино на кубиках — /spin {casino_rules.DEFAULT_STAKE}", "🎰"))
+    refusal = await post_machine(bot, game, message.chat.id)
+    if refusal:
+        await send.reply_personal(bot, message, refusal)
 
 
 def board_snapshot(game: Game, chat_id: int) -> tuple[list[tuple[str, int]], tuple[int, int] | None]:
@@ -214,9 +223,27 @@ def board_data(game: Game, chat_id: int) -> str:
 
 @router.message(Command("board"))
 async def board_command(message: Message, bot: Bot, game: Game) -> None:
-    """/board: the season's race and the team week, live: a shared widget the schedule refreshes;
-    with widgets off, a snapshot card."""
-    chat_id = message.chat.id
+    await post_board(bot, game, message.chat.id)
+
+
+@router.callback_query(F.data.in_({"gm:board", "gm:machine"}), F.message)
+async def game_buttons(callback: CallbackQuery, bot: Bot, game: Game) -> None:
+    """«📊 Табло» and «🎰 Автомат» in the games screen: posted in the chat it was opened in."""
+    chat_id = callback.message.chat.id
+    if callback.data == "gm:board":
+        await send.answer_quietly(callback)
+        await post_board(bot, game, chat_id)
+        return
+    refusal = await post_machine(bot, game, chat_id)
+    if refusal:
+        await send.answer_quietly_alert(callback, refusal)
+    else:
+        await send.answer_quietly(callback)
+
+
+async def post_board(bot: Bot, game: Game, chat_id: int) -> None:
+    """The season's race and the team week, live: a shared widget the schedule refreshes; with
+    widgets off, a snapshot card."""
     if enabled(game, chat_id):
         sent = await post(bot, game, chat_id, "board", str(chat_id), board_data(game, chat_id), shared=True)
         if sent is not None:

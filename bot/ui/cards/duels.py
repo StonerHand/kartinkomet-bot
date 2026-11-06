@@ -21,8 +21,8 @@ def rps_card(names: tuple[str, str], picked: tuple[bool, bool], remaining: int, 
         again,
         [f"{'✅' if done else '▫️'} <b>{who(name)}</b> · {'выбор сделан' if done else 'думает'}"
          for name, done in zip(names, picked)],
-        note(f"Жми камень, ножницы или бумагу — выбор видишь только ты. Камень бьёт ножницы, ножницы — бумагу, "
-             f"бумага — камень. Не выбрать за {duels.RPS_SECONDS // 60} минуты — проиграть"),
+        note(f"Кнопки — камень, ножницы и бумага по порядку, выбор видишь только ты. Камень бьёт ножницы, "
+             f"ножницы — бумагу, бумага — камень. Не выбрать за {duels.RPS_SECONDS // 60} минуты — проиграть"),
     )
 
 

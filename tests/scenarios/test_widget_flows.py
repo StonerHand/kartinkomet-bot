@@ -126,6 +126,15 @@ class WidgetFlowsTest(BotHarness):
         self.assertEqual(self.last_data()["z"], {"w": "user3", "late": "", "line": [0, 1, 2]})
         self.assertEqual(self.coins(3), 600)
 
+    async def test_the_games_screen_offers_the_machine_once_widgets_are_on(self) -> None:
+        await self.widgets_on()
+        await self.send("/games", sender=3)
+        games = self.session.of("SendEphemeralMessage")[-1]
+        self.assertIn("gm:machine", self.buttons(games))
+        self.assertIn("Виджеты включены", games.text)
+        await self.press("gm:machine", sender=3)
+        self.assertEqual(self.session.of("SendWidget")[-1].caption, "🎰 <b>Автомат</b>")
+
     async def test_one_slot_machine_for_the_whole_chat(self) -> None:
         await self.send("/machine", sender=3)
         self.assertIn("выключены", self.session.of("SendEphemeralMessage")[-1].text)
